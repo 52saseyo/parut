@@ -1,4 +1,4 @@
-package com.parut.user.global.exception;
+package com.parut.notification.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;

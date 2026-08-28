@@ -1,4 +1,4 @@
-package com.parut.user.global.exception;
+package com.parut.notification.global.exception;
 
 import java.time.Instant;
 
