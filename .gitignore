@@ -1,0 +1,44 @@
+### Gradle ###
+.gradle/
+**/build/
+
+# Gradle Wrapper는 Git에 포함
+!**/gradle/wrapper/gradle-wrapper.jar
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+### STS ###
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### Environment ###
+.env
+.env.*
+!.env.example
+
+### macOS ###
+.DS_Store
+
+### ETC ###
+HELP.md
