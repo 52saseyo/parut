@@ -1,4 +1,4 @@
-package com.parut.product.global.common;
+package com.parut.notification.global.common;
 
 import java.util.List;
 

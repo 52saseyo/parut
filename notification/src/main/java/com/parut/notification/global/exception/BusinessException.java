@@ -1,4 +1,4 @@
-package com.parut.product.global.exception;
+package com.parut.user.global.exception;
 
 import lombok.Getter;
 
