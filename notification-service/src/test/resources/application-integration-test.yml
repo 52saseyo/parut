@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: notification_schema
+
+  flyway:
+    enabled: true
+    schemas: notification_schema
+    default-schema: notification_schema
+    create-schemas: true
+
