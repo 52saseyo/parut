@@ -1,0 +1,13 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: order_schema
+
+  flyway:
+    enabled: true
+    schemas: order_schema
+    default-schema: order_schema
+    create-schemas: true
