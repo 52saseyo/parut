@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: product_schema
+
+  flyway:
+    enabled: true
+    schemas: product_schema
+    default-schema: product_schema
+    create-schemas: true
+
+eureka:
+  client:
+    enabled: false
