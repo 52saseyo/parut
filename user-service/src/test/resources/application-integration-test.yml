@@ -1,0 +1,13 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: user_schema
+
+  flyway:
+    enabled: true
+    schemas: user_schema
+    default-schema: user_schema
+    create-schemas: true
