@@ -39,3 +39,5 @@ out/
 ### Claude Code ###
 CLAUDE.md
 .claude/
+### Environment ###
+.env
