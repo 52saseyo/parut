@@ -19,6 +19,4 @@ public abstract class UpdatableEntity extends BaseEntity{
     @LastModifiedBy
     @Column(name = "updated_by")
     private String updatedBy;
-
-
 }
