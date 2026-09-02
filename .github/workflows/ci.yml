@@ -76,20 +76,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-    # 서비스별 테스트 설정이 준비되기 전까지 CI에서 공통으로 적용
-    # 추후 각 서비스가 Flyway와 Eureka 테스트 설정을 직접 관리하면 이 설정을 제거
+    # CI PostgreSQL 접속 정보만 제공하며 JPA, Flyway, Eureka 정책은 각 서비스에서 관리
     env:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/parut_test
       SPRING_DATASOURCE_USERNAME: parut
       SPRING_DATASOURCE_PASSWORD: parut_test
-      # Flyway 대신 Hibernate가 테스트용 테이블을 생성하고 테스트 종료 시 제거
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
-      # 서비스별 Flyway 구성이 완료되기 전까지 CI에서는 마이그레이션 실행을 비활성화
-      SPRING_FLYWAY_ENABLED: "false"
-      # CI에는 Eureka Server가 없으므로 Eureka Client 실행, 서비스 등록 및 Registry 조회를 비활성화
-      EUREKA_CLIENT_ENABLED: "false"
-      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
-      EUREKA_CLIENT_FETCH_REGISTRY: "false"
 
     strategy:
       # 한 서비스가 실패해도 다른 서비스 검사는 계속 실행
