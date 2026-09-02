@@ -1,4 +1,4 @@
-CREATE TABLE product_schema.p_time_deals
+CREATE TABLE p_time_deals
 (
     id                    UUID          NOT NULL PRIMARY KEY,
     product_id            UUID,
@@ -21,5 +21,5 @@ CREATE TABLE product_schema.p_time_deals
     CONSTRAINT ck_time_deals_max_purchase_quantity CHECK (max_purchase_quantity > 0)
 );
 
-CREATE INDEX idx_time_deals_product_id ON product_schema.p_time_deals (product_id);
-CREATE INDEX idx_time_deals_status ON product_schema.p_time_deals (status);
+CREATE INDEX idx_time_deals_product_id ON p_time_deals (product_id);
+CREATE INDEX idx_time_deals_status ON p_time_deals (status);
