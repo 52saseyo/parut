@@ -3,21 +3,15 @@ package com.parut.order.delivery.domain;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import com.parut.order.global.common.entity.UpdatableEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -25,42 +19,67 @@ import lombok.NoArgsConstructor;
 @Table(name = "p_deliveries")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
-public class Delivery {
+public class Delivery extends UpdatableEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-
-    @Column(nullable = false)
+    @Column(name = "delivery_group_id", nullable = false)
     private UUID deliveryGroupId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20)
     private DeliveryStatus status;
 
-    @Column(length = 100)
+    @Column(name = "tracking_number", length = 30)
     private String trackingNumber;
 
+    @Column(name = "shipped_at")
     private OffsetDateTime shippedAt;
 
+    @Column(name = "delivered_at")
     private OffsetDateTime deliveredAt;
 
     @Version
-    @Column(nullable = false)
+    @Column(name = "version", nullable = false)
     private Long version;
 
-    @CreationTimestamp
-    @Column(nullable = false, updatable = false)
-    private OffsetDateTime createdAt;
+    public static Delivery create(UUID deliveryGroupId) {
+        if (deliveryGroupId == null) {
+            throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
+        }
 
-    @Column(nullable = false, length = 50)
-    private String createdBy;
+        Delivery delivery = new Delivery();
+        delivery.deliveryGroupId = deliveryGroupId;
+        delivery.status = DeliveryStatus.PREPARING;
+        return delivery;
+    }
 
-    @UpdateTimestamp
-    private OffsetDateTime updatedAt;
+    public void ship(String trackingNumber, OffsetDateTime shippedAt) {
+        if (status != DeliveryStatus.PREPARING) {
+            throw new IllegalStateException("배송 준비 상태에서만 배송을 시작할 수 있습니다.");
+        }
+        if (trackingNumber == null || trackingNumber.isBlank()) {
+            throw new IllegalArgumentException("운송장 번호는 필수입니다.");
+        }
+        if (trackingNumber.length() > 30) {
+            throw new IllegalArgumentException("운송장 번호는 30자를 초과할 수 없습니다.");
+        }
+        if (shippedAt == null) {
+            throw new IllegalArgumentException("배송 시작 시각은 필수입니다.");
+        }
 
-    @Column(length = 50)
-    private String updatedBy;
+        this.trackingNumber = trackingNumber;
+        this.shippedAt = shippedAt;
+        this.status = DeliveryStatus.SHIPPED;
+    }
+
+    public void complete(OffsetDateTime deliveredAt) {
+        if (status != DeliveryStatus.SHIPPED) {
+            throw new IllegalStateException("배송 중 상태에서만 배송을 완료할 수 있습니다.");
+        }
+        if (deliveredAt == null) {
+            throw new IllegalArgumentException("배송 완료 시각은 필수입니다.");
+        }
+
+        this.deliveredAt = deliveredAt;
+        this.status = DeliveryStatus.DELIVERED;
+    }
 }

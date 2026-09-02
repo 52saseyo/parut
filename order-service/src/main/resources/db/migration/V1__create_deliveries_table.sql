@@ -3,7 +3,7 @@ CREATE TABLE p_deliveries (
     id UUID PRIMARY KEY,
     delivery_group_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PREPARING',
-    tracking_number VARCHAR(100),
+    tracking_number VARCHAR(30),
     shipped_at TIMESTAMPTZ,
     delivered_at TIMESTAMPTZ,
     version BIGINT NOT NULL DEFAULT 0,
