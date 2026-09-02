@@ -32,7 +32,7 @@ public class JpaAuditingConfig {
             String userIdHeader = request.getHeader(HeaderConstants.USER_ID);
 
             if (userIdHeader == null || userIdHeader.isBlank()) {
-                return Optional.of(systemAccountId);
+                return Optional.empty();
             }
 
             return Optional.of(userIdHeader);
