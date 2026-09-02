@@ -59,16 +59,46 @@ jobs:
     # 변경된 서비스가 없으면 Job 실행하지 않음
     if: ${{ needs.detect-changes.outputs.services != '[]' }}
     runs-on: ubuntu-latest
+
+    # PostgreSQL 통합 테스트가 필요한 서비스에서 사용할 공통 DB 인프라
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: parut_test
+          POSTGRES_USER: parut
+          POSTGRES_PASSWORD: parut_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U parut -d parut_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    # 애플리케이션 코드를 변경하지 않고 CI에서만 사용하는 공통 테스트 설정
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/parut_test
+      SPRING_DATASOURCE_USERNAME: parut
+      SPRING_DATASOURCE_PASSWORD: parut_test
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      SPRING_FLYWAY_ENABLED: "false"
+      EUREKA_CLIENT_ENABLED: "false"
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+
     strategy:
       # 한 서비스가 실패해도 다른 서비스 검사는 계속 실행
       fail-fast: false
       # 변경된 서비스마다 독립적인 Job 생성
       matrix:
         service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
+
     steps:
       # 저장소 코드 가져오기
       - name: Checkout
         uses: actions/checkout@v4
+
       # Java 21 설치 및 Gradle 캐시 설정
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -80,10 +110,11 @@ jobs:
             ${{ matrix.service }}/build.gradle
             ${{ matrix.service }}/settings.gradle
             ${{ matrix.service }}/gradle/wrapper/gradle-wrapper.properties
+
       - name: Grant execute permission
         run: chmod +x ${{ matrix.service }}/gradlew
 
-      # 변경 서비스의 컴파일, 단위 테스트, 통합 테스트, 패키징 실행
+      # 변경 서비스의 컴파일, 테스트, 검증, 패키징 실행
       - name: Build and test
         run: >-
           ./${{ matrix.service }}/gradlew
@@ -92,7 +123,6 @@ jobs:
           --no-daemon
           --stacktrace
 
-      # 실패한 경우 테스트 결과를 Artifact로 업로드
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4
