@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Entity
@@ -17,12 +18,11 @@ import java.time.LocalDateTime;
 
 public class ProductStockReservation extends DeletableEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_stock_id", nullable = false)
-    private ProductStock productStock;
+    @Column(name = "stock_id", nullable = false)
+    private UUID stockId;
 
     @Column(name = "order_id", nullable = false)
-    private String orderId;
+    private UUID orderId;
 
     @Column(name = "quantity", nullable = false)
     private int quantity;
@@ -34,10 +34,10 @@ public class ProductStockReservation extends DeletableEntity {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
-    public static ProductStockReservation create(ProductStock productStock, String orderId,
+    public static ProductStockReservation create(UUID stockId, UUID orderId,
                                                  int quantity, LocalDateTime expiresAt) {
         ProductStockReservation reservation = new ProductStockReservation();
-        reservation.productStock = productStock;
+        reservation.stockId = stockId;
         reservation.orderId = orderId;
         reservation.quantity = quantity;
         reservation.status = ReservationStatus.RESERVED;

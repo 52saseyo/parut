@@ -1,4 +1,4 @@
-CREATE TABLE product_service.p_product_stocks (
+CREATE TABLE product_schema.p_product_stocks (
     id UUID PRIMARY KEY,
     product_id UUID NOT NULL,
     total_quantity INTEGER NOT NULL,
@@ -14,4 +14,4 @@ CREATE TABLE product_service.p_product_stocks (
     deleted_by VARCHAR(50)
 );
 
-CREATE UNIQUE INDEX uq_stock_product_id ON product_service.p_product_stocks (product_id);
+CREATE UNIQUE INDEX uq_stock_product_id ON product_schema.p_product_stocks (product_id);
