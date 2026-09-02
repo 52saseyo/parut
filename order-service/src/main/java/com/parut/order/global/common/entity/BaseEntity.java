@@ -19,10 +19,6 @@ public abstract class BaseEntity {
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID id;
 
-    @Version
-    @Column(nullable = false)
-    private Long version;
-
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;
