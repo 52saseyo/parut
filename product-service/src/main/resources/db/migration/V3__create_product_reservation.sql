@@ -11,7 +11,7 @@ CREATE TABLE product_service.p_product_stock_reservations(
     updated_by VARCHAR(50),
     deleted_at TIMESTAMPTZ,
     deleted_by VARCHAR(50)
-)
+);
 
 CREATE INDEX idx_reservation_stock_id ON product_service.p_product_stock_reservations(stock_id);
 CREATE INDEX idx_reservation_order_id ON product_service.p_product_stock_reservations(order_id);
