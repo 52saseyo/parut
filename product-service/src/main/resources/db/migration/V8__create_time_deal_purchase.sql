@@ -1,4 +1,4 @@
-CREATE TABLE product_schema.p_time_deal_purchases
+CREATE TABLE p_time_deal_purchases
 (
     id            UUID        NOT NULL PRIMARY KEY,
     order_id      UUID        NOT NULL,
@@ -22,5 +22,5 @@ CREATE TABLE product_schema.p_time_deal_purchases
     CONSTRAINT ck_time_deal_purchases_expiry CHECK (expires_at > reserved_at)
 );
 
-CREATE INDEX idx_time_deal_purchases_time_deal_id ON product_schema.p_time_deal_purchases (time_deal_id);
-CREATE INDEX idx_time_deal_purchases_user_id ON product_schema.p_time_deal_purchases (user_id);
+CREATE INDEX idx_time_deal_purchases_time_deal_id ON p_time_deal_purchases (time_deal_id);
+CREATE INDEX idx_time_deal_purchases_user_id ON p_time_deal_purchases (user_id);
