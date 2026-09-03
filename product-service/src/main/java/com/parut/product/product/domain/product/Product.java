@@ -118,6 +118,16 @@ public class Product extends DeletableEntity {
             SaleUnit saleUnit,
             BigDecimal unitQuantity
     ) {
+        validateSellerId(sellerId);
+        validateCategory(category);
+        validateName(name);
+        validatePrice(price);
+        validateAppearanceType(appearanceType);
+        validateOrigin(origin);
+        validateHarvestDate(harvestDate);
+        validateSaleUnit(saleUnit);
+        validateUnitQuantity(unitQuantity);
+
         this.sellerId = sellerId;
         this.category = category;
         this.name = name;
@@ -142,8 +152,10 @@ public class Product extends DeletableEntity {
         if (status != ProductStatus.DRAFT) {
             throw new IllegalStateException("DRAFT 상태의 상품만 판매를 시작할 수 있습니다.");
         }
+        validateMainImageExists();
         this.status = ProductStatus.ON_SALE;
     }
+
 
     /**
      * 판매 중인 상품을 품절 상태로 전환한다.
@@ -179,7 +191,7 @@ public class Product extends DeletableEntity {
                     "판매 중지된 상품만 판매를 재개할 수 있습니다."
             );
         }
-
+        validateMainImageExists();
         this.status = ProductStatus.ON_SALE;
     }
 
@@ -219,15 +231,35 @@ public class Product extends DeletableEntity {
     }
 
     /**
-     * 삭제되지 않은 대표 이미지가 이미 존재하는지 검증한다.
+     * 삭제되지 않은 활성 대표 이미지가 존재하는지 확인한다.
+     */
+    private boolean hasActiveMainImage() {
+        return productImages.stream()
+                .filter(image -> !image.isDeleted())
+                .anyMatch(image ->
+                        image.getImageType() == ProductImageType.MAIN
+                );
+    }
+
+    /**
+     * 판매 시작에 필요한 활성 대표 이미지가 존재하는지 검증한다.
+     */
+    private void validateMainImageExists() {
+        if (!hasActiveMainImage()) {
+            throw new IllegalStateException(
+                    "대표 이미지가 등록된 상품만 판매를 시작할 수 있습니다."
+            );
+        }
+    }
+
+    /**
+     * 활성 대표 이미지가 중복 등록되지 않도록 검증한다.
      */
     private void validateMainImageNotExists() {
-        boolean mainImageExists = productImages.stream()
-                .filter(image -> !image.isDeleted())
-                .anyMatch(image -> image.getImageType() == ProductImageType.MAIN);
-
-        if (mainImageExists) {
-            throw new IllegalStateException("대표 이미지는 하나만 등록할 수 있습니다.");
+        if (hasActiveMainImage()) {
+            throw new IllegalStateException(
+                    "대표 이미지는 하나만 등록할 수 있습니다."
+            );
         }
     }
 
@@ -237,6 +269,77 @@ public class Product extends DeletableEntity {
     private void validateModifiable() {
         if (status == ProductStatus.DELETED || isDeleted()) {
             throw new IllegalStateException("삭제된 상품은 변경할 수 없습니다.");
+        }
+    }
+
+
+    private static void validateSellerId(UUID sellerId) {
+        if (sellerId == null) {
+            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
+        }
+    }
+
+    private static void validateCategory(ProductCategory category) {
+        if (category == null) {
+            throw new IllegalArgumentException("상품 카테고리는 필수입니다.");
+        }
+    }
+
+    private static void validateName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("상품명은 필수입니다.");
+        }
+
+        if (name.length() > 150) {
+            throw new IllegalArgumentException("상품명은 150자를 초과할 수 없습니다.");
+        }
+    }
+
+    private static void validatePrice(Long price) {
+        if (price == null) {
+            throw new IllegalArgumentException("상품 가격은 필수입니다.");
+        }
+
+        if (price < 0) {
+            throw new IllegalArgumentException("상품 가격은 0 이상이어야 합니다.");
+        }
+    }
+
+    private static void validateAppearanceType(AppearanceType appearanceType) {
+        if (appearanceType == null) {
+            throw new IllegalArgumentException("상품 외관 유형은 필수입니다.");
+        }
+    }
+
+    private static void validateOrigin(String origin) {
+        if (origin == null || origin.isBlank()) {
+            throw new IllegalArgumentException("원산지는 필수입니다.");
+        }
+
+        if (origin.length() > 100) {
+            throw new IllegalArgumentException("원산지는 100자를 초과할 수 없습니다.");
+        }
+    }
+
+    private static void validateHarvestDate(LocalDate harvestDate) {
+        if (harvestDate == null) {
+            throw new IllegalArgumentException("수확일은 필수입니다.");
+        }
+    }
+
+    private static void validateSaleUnit(SaleUnit saleUnit) {
+        if (saleUnit == null) {
+            throw new IllegalArgumentException("판매 단위는 필수입니다.");
+        }
+    }
+
+    private static void validateUnitQuantity(BigDecimal unitQuantity) {
+        if (unitQuantity == null) {
+            throw new IllegalArgumentException("판매 단위 수량은 필수입니다.");
+        }
+
+        if (unitQuantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("판매 단위 수량은 0보다 커야 합니다.");
         }
     }
 
