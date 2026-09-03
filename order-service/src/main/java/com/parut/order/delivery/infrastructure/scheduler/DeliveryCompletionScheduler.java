@@ -1,6 +1,6 @@
 package com.parut.order.delivery.infrastructure.scheduler;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +22,6 @@ public class DeliveryCompletionScheduler {
 
     @Scheduled(fixedDelayString = "${delivery.completion.fixed-delay:60000}")
     public void runDeliveryCompletion() {
-        deliveryService.completeEligibleDeliveries(OffsetDateTime.now());
+        deliveryService.completeEligibleDeliveries(Instant.now());
     }
 }

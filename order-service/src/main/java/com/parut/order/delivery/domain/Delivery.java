@@ -1,6 +1,6 @@
 package com.parut.order.delivery.domain;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.parut.order.global.common.entity.UpdatableEntity;
@@ -32,10 +32,10 @@ public class Delivery extends UpdatableEntity {
     private String trackingNumber;
 
     @Column(name = "shipped_at")
-    private OffsetDateTime shippedAt;
+    private Instant shippedAt;
 
     @Column(name = "delivered_at")
-    private OffsetDateTime deliveredAt;
+    private Instant deliveredAt;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -54,7 +54,7 @@ public class Delivery extends UpdatableEntity {
         this.status = DeliveryStatus.PREPARING;
     }
 
-    public void ship(String trackingNumber, OffsetDateTime shippedAt) {
+    public void ship(String trackingNumber, Instant shippedAt) {
         if (status != DeliveryStatus.PREPARING) {
             throw new IllegalStateException("배송 준비 상태에서만 배송을 시작할 수 있습니다.");
         }
@@ -73,7 +73,7 @@ public class Delivery extends UpdatableEntity {
         this.status = DeliveryStatus.SHIPPED;
     }
 
-    public void complete(OffsetDateTime deliveredAt) {
+    public void complete(Instant deliveredAt) {
         if (status != DeliveryStatus.SHIPPED) {
             throw new IllegalStateException("배송 중 상태에서만 배송을 완료할 수 있습니다.");
         }

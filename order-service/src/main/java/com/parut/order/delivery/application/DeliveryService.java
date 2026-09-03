@@ -1,6 +1,7 @@
 package com.parut.order.delivery.application;
 
-import java.time.OffsetDateTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -96,7 +97,7 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.DELIVERY_NO_SHIPPABLE_ITEMS);
         }
 
-        OffsetDateTime shippedAt = OffsetDateTime.now();
+        Instant shippedAt = Instant.now();
         delivery.ship(trackingNumber, shippedAt);
         eventPublisher.publishEvent(DeliveryStatusChangedEvent.shipped(delivery.getDeliveryGroupId()));
 
@@ -107,14 +108,14 @@ public class DeliveryService {
      * 시작한 지 6시간이 지난 배송을 완료한다.
      */
     @Transactional
-    public int completeEligibleDeliveries(OffsetDateTime completionTime) {
+    public int completeEligibleDeliveries(Instant completionTime) {
         if (completionTime == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
-                completionTime.minusHours(DELIVERY_COMPLETION_DELAY_HOURS)
+                completionTime.minus(Duration.ofHours(DELIVERY_COMPLETION_DELAY_HOURS))
         );
 
         deliveries.forEach(delivery -> {
