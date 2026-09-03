@@ -55,7 +55,12 @@ public class TimeDealStock extends DeletableEntity {
     }
 
     // NOTE: TimeDealPurchase.create()는 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
+    // NOTE: 삭제된 재고에서 선점이 일어나면 삭제된 타임딜이 다시 유통되므로 여기서 막는다.
+    // 나머지 재고 메서드(confirmSale/cancelReservation/cancelSale)는 이미 선점된 건의 후속 처리라 가드를 두지 않는다.
     public void reserve(Integer quantity) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_DELETED);
+        }
         validateReserveQuantity(quantity);
         this.availableQuantity -= quantity;
         this.reservedQuantity += quantity;
@@ -94,6 +99,18 @@ public class TimeDealStock extends DeletableEntity {
     public void adjustAvailableQuantity(Integer delta) {
         validateAdjustDelta(delta);
         this.availableQuantity += delta;
+    }
+
+    // NOTE: 선점되거나 판매된 수량이 있으면 삭제할 수 없다 — 진행 중인 구매나 판매 이력의 근거가 사라지기 때문.
+    // TimeDeal이 SCHEDULED에서만 삭제 가능한 것과 정합적이다(SCHEDULED면 판매가 없었으므로 둘 다 0).
+    // 반대로 이 조건만 통과하면 삭제 가능하므로, "TimeDeal과 함께만 삭제한다"는 순서는
+    // Application Service가 보장해야 한다(여기서 TimeDeal 상태를 알 수 없음).
+    @Override
+    public void softDelete(String deletedBy) {
+        if (reservedQuantity > 0 || soldQuantity > 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_DELETE_NOT_ALLOWED);
+        }
+        super.softDelete(deletedBy);
     }
 
     // NOTE: true면 Application Service가 같은 트랜잭션에서 TimeDeal.end()를 호출해야 함 (여기서 직접 호출하지 않음)

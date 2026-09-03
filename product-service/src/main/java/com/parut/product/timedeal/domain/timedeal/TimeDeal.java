@@ -105,6 +105,9 @@ public class TimeDeal extends DeletableEntity {
             Integer maxPurchaseQuantity,
             Instant now
     ) {
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_DELETED);
+        }
         if (status != TimeDealStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
         }
@@ -129,9 +132,20 @@ public class TimeDeal extends DeletableEntity {
         this.maxPurchaseQuantity = newMaxPurchaseQuantity;
     }
 
-    public void activate() {
+    // NOTE: 판매 기간 안에서만 활성화할 수 있다 — 시작 전에 미리 열거나 이미 끝난 딜을 여는 정당한 경우가 없다.
+    // endAt이 지난 SCHEDULED 딜은 activate()가 아니라 end()로 바로 정리한다.
+    public void activate(Instant now) {
+        if (now == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_DELETED);
+        }
         if (status != TimeDealStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        if (now.isBefore(startAt) || !now.isBefore(endAt)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
         }
         this.status = TimeDealStatus.ACTIVE;
     }
@@ -141,6 +155,8 @@ public class TimeDeal extends DeletableEntity {
     // activate()가 한 번도 돌지 못한 채 endAt이 지날 수 있고, ACTIVE만 허용하면 그런 딜은 종료 배치가
     // 영구히 정리할 수 없어 SCHEDULED로 박혀 남는다(구매 자체는 validatePurchasable()이 시간으로 막지만
     // 예정 목록 노출·종료 이벤트 발행이 어긋난다). 판매가 열린 적이 없어도 시간상 끝난 것은 사실이므로 ENDED로 정리한다.
+    // NOTE: activate()와 달리 end()에는 시간 가드를 두지 않는다 — 재고 소진으로 인한 조기 종료가
+    // endAt 이전에 일어나는 정당한 경로이므로, now >= endAt을 요구하면 그 경로가 막힌다.
     public void end() {
         if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -170,6 +186,9 @@ public class TimeDeal extends DeletableEntity {
         if (now == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        if (isDeleted()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_DELETED);
+        }
         if (status == TimeDealStatus.STOPPED || status == TimeDealStatus.ENDED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
         }
@@ -180,8 +199,19 @@ public class TimeDeal extends DeletableEntity {
         }
     }
 
-    public void validatePurchaseQuantity(Integer quantity) {
-        if (quantity > this.maxPurchaseQuantity) {
+    // NOTE: maxPurchaseQuantity는 "1인당 누적 최대 구매 수량"이다 — 한 번의 요청 수량만 비교하면
+    // 같은 사용자가 주문을 여러 번 나눠 제한을 우회할 수 있다(10개 제한에 5개씩 두 번, 세 번...).
+    // alreadyPurchasedQuantity(해당 사용자가 이 타임딜에서 이미 확보한 수량)는 저장소 조회가 필요해
+    // 도메인이 스스로 알 수 없으므로 Application Service가 조회해서 넘긴다. 합산·비교 규칙만 여기 둔다.
+    // 합산 대상은 RESERVED + CONFIRMED이고 CANCELLED는 제외한다 — 취소했다면 그 수량은 다시 구매할 수 있어야 한다.
+    public void validatePurchaseQuantity(Integer quantity, Integer alreadyPurchasedQuantity) {
+        if (quantity == null || alreadyPurchasedQuantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (alreadyPurchasedQuantity < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (alreadyPurchasedQuantity + quantity > this.maxPurchaseQuantity) {
             throw new BusinessException(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
         }
     }

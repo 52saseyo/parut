@@ -23,6 +23,9 @@ public class TimeDealPurchase extends DeletableEntity {
     // 이 상수로 계산해, 호출자가 다른 TTL을 넣어 정책을 어기는 상태 자체를 만들 수 없게 한다.
     private static final Duration RESERVATION_TTL = Duration.ofMinutes(10);
 
+    // cancel_reason 컬럼 길이(V8__create_time_deal_purchase.sql)와 맞춰둔 값
+    private static final int MAX_CANCEL_REASON_LENGTH = 30;
+
     @Column(name = "order_id", columnDefinition = "uuid", nullable = false, unique = true)
     private UUID orderId;
 
@@ -59,7 +62,7 @@ public class TimeDealPurchase extends DeletableEntity {
         // 판매 가능 여부의 기준 시각은 선점 시각(reservedAt)과 같아야 한다 —
         // 여기서 별도로 now를 조달하면 검증 시각과 기록되는 선점 시각이 어긋날 수 있다.
         timeDeal.validatePurchasable(reservedAt);
-        validateQuantity(timeDeal, quantity);
+        validateQuantity(quantity);
 
         this.orderId = orderId;
         this.timeDealId = timeDeal.getId();
@@ -73,6 +76,9 @@ public class TimeDealPurchase extends DeletableEntity {
     }
 
     // NOTE: 재고 선점(TimeDealStock.reserve())은 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
+    // NOTE: 1인당 누적 구매 제한(TimeDeal.validatePurchaseQuantity)은 여기서 검증하지 않음 —
+    // 같은 (timeDealId, userId)의 기존 purchase 집합을 조회해야 알 수 있는 규칙이라 엔티티가 스스로 지킬 수 없고,
+    // 넘겨받은 누적 수량이 진짜인지도 도메인이 확인할 수 없다. orderId 중복 검증과 같은 범주로 Application Service 책임.
     public static TimeDealPurchase create(
             TimeDeal timeDeal,
             UUID orderId,
@@ -105,7 +111,10 @@ public class TimeDealPurchase extends DeletableEntity {
     // 배송 완료 후 "환불"은 별도 흐름이며 재고를 복구하지 않으므로 이 메서드를 쓰지 않는다.
     // NOTE: 취소 전 상태에 따라 Application Service가 재고 처리를 다르게 호출해야 함 —
     // RESERVED였다면 TimeDealStock.cancelReservation(), CONFIRMED였다면 TimeDealStock.cancelSale() (여기서 직접 호출하지 않음)
+    // NOTE: reason은 null을 허용한다(사유 없는 취소 가능). 다만 cancel_reason 컬럼이 VARCHAR(30)이라
+    // 길이를 여기서 막아준다 — 막지 않으면 30자 초과 문구가 DB에서 터져 500으로 나간다.
     public void cancel(String reason) {
+        validateCancelReason(reason);
         if (status != TimeDealPurchaseStatus.RESERVED && status != TimeDealPurchaseStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
         }
@@ -121,6 +130,14 @@ public class TimeDealPurchase extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
         }
         cancel(TimeDealPurchaseCancelReason.RESERVATION_EXPIRED.name());
+    }
+
+    // NOTE: 구매 이력은 어떤 상태에서도 삭제할 수 없다 — 정산·환불·통계의 근거이므로
+    // CANCELLED 건도 남겨야 한다(취소 후 재요청 가능 여부 판단에도 쓰인다).
+    // 삭제 대신 상태 전이(cancel/expire)로만 생명주기를 표현한다.
+    @Override
+    public void softDelete(String deletedBy) {
+        throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_DELETE_NOT_ALLOWED);
     }
 
     public boolean isExpired(Instant now) {
@@ -146,13 +163,18 @@ public class TimeDealPurchase extends DeletableEntity {
         }
     }
 
-    private static void validateQuantity(TimeDeal timeDeal, Integer quantity) {
-        if (timeDeal == null || quantity == null) {
+    private static void validateCancelReason(String reason) {
+        if (reason != null && reason.length() > MAX_CANCEL_REASON_LENGTH) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_CANCEL_REASON);
+        }
+    }
+
+    private static void validateQuantity(Integer quantity) {
+        if (quantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
         if (quantity < 1) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
         }
-        timeDeal.validatePurchaseQuantity(quantity);
     }
 }
