@@ -137,8 +137,12 @@ public class TimeDeal extends DeletableEntity {
     }
 
     // NOTE: endAt 경과(배치) 또는 TimeDealStock.isDepleted() 감지(Application Service) 두 경로로 호출될 수 있음
+    // NOTE: ACTIVE뿐 아니라 SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면
+    // activate()가 한 번도 돌지 못한 채 endAt이 지날 수 있고, ACTIVE만 허용하면 그런 딜은 종료 배치가
+    // 영구히 정리할 수 없어 SCHEDULED로 박혀 남는다(구매 자체는 validatePurchasable()이 시간으로 막지만
+    // 예정 목록 노출·종료 이벤트 발행이 어긋난다). 판매가 열린 적이 없어도 시간상 끝난 것은 사실이므로 ENDED로 정리한다.
     public void end() {
-        if (status != TimeDealStatus.ACTIVE) {
+        if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
         }
         this.status = TimeDealStatus.ENDED;

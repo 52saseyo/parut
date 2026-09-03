@@ -84,9 +84,19 @@ public class TimeDealPurchase extends DeletableEntity {
     }
 
     // NOTE: 재고 판매 확정(TimeDealStock.confirmSale())은 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
-    public void confirm() {
+    // NOTE: status가 아직 RESERVED여도 만료 배치가 expire()를 못 돌렸을 뿐일 수 있으므로,
+    // 확정 가능 여부는 status만 믿지 않고 만료 시각을 직접 확인한다.
+    // (TimeDeal.validatePurchasable()이 오픈/마감을 시간으로 재확인하는 것과 같은 지연 평가 원리 —
+    // 이 검증이 없으면 선점 10분이 지난 뒤 결제가 성공한 건도 판매 확정되어 정책이 뚫린다.)
+    public void confirm(Instant now) {
+        if (now == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
         if (status != TimeDealPurchaseStatus.RESERVED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        if (isExpired(now)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_RESERVATION_EXPIRED);
         }
         this.status = TimeDealPurchaseStatus.CONFIRMED;
     }
@@ -104,11 +114,13 @@ public class TimeDealPurchase extends DeletableEntity {
     }
 
     // NOTE: cancel()과 마찬가지로 재고 복구(TimeDealStock.cancelReservation())는 Application Service 책임
+    // NOTE: cancelReason은 String 그대로 두어 어떤 문구든 담을 수 있게 하고,
+    // 자주 쓰는 사유만 TimeDealPurchaseCancelReason에 모아 문구 중복·오타를 막는다.
     public void expire(Instant now) {
         if (!isExpired(now)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
         }
-        cancel("선점 시간 만료로 자동 취소");
+        cancel(TimeDealPurchaseCancelReason.RESERVATION_EXPIRED.name());
     }
 
     public boolean isExpired(Instant now) {

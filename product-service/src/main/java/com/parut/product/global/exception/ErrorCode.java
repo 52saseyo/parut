@@ -23,6 +23,7 @@ public enum ErrorCode {
     TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD(HttpStatus.BAD_REQUEST, "재고 부족 임계 수량은 0개 이상이며 초기 재고 이하이어야 합니다."),
     TIME_DEAL_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 타임딜 상태 전이입니다."),
     TIME_DEAL_NOT_ACTIVE(HttpStatus.CONFLICT, "타임딜이 판매 중 상태가 아닙니다."),
+    TIME_DEAL_RESERVATION_EXPIRED(HttpStatus.CONFLICT, "선점 시간이 만료되어 판매를 확정할 수 없습니다."),
     TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매 중인 타임딜은 삭제할 수 없습니다."),
     TIME_DEAL_INVALID_STATUS(HttpStatus.CONFLICT, "삭제할 수 없는 타임딜 상태입니다."),
     TIME_DEAL_UPDATE_NOT_ALLOWED(HttpStatus.CONFLICT, "수정할 수 없는 타임딜 상태입니다."),
