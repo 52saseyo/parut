@@ -1,14 +1,23 @@
 package com.parut.product.product.domain.product;
 
 import com.parut.product.global.common.entity.DeletableEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Entity
@@ -63,7 +72,6 @@ public class Product extends DeletableEntity {
     )
     @OrderBy("sortOrder ASC")
     private List<ProductImage> productImages = new ArrayList<>();
-
 
     /**
      * 상품을 판매 준비 상태({@link ProductStatus#DRAFT})로 생성한다.
@@ -176,20 +184,16 @@ public class Product extends DeletableEntity {
     }
 
     /**
-     * 상품과 상품에 속한 활성 이미지를 함께 소프트 삭제한다.
+     * 상품을 삭제 상태로 전환하고 소프트 삭제한다.
      */
     public void delete(String deletedBy) {
         if(status == ProductStatus.DELETED || isDeleted()) {
             throw new IllegalStateException("이미 삭제된 상품입니다.");
         }
-        productImages.stream()
-                .filter(image -> !image.isDeleted())
-                .forEach(image -> image.delete(deletedBy));
 
         this.status = ProductStatus.DELETED;
         softDelete(deletedBy);
     }
-
 
     /**
      * 상품에 이미지를 추가한다. 활성 대표 이미지는 하나만 등록하게 제한한다.
@@ -200,9 +204,10 @@ public class Product extends DeletableEntity {
             int sortOrder
     ) {
         validateModifiable();
-        if(imageType == ProductImageType.MAIN){
+        if (imageType == ProductImageType.MAIN) {
             validateMainImageNotExists();
         }
+
         ProductImage image = ProductImage.create(
                 this,
                 imageKey,
@@ -214,73 +219,12 @@ public class Product extends DeletableEntity {
     }
 
     /**
-     * 상품에 속한 활성 이미지를 새로운 대표 이미지로 지정한다.
-     * 기존 대표 이미지가 있으면 상세 이미지로 변경한다.
-     */
-    public void changeMainImage(ProductImage newMainImage) {
-        validateModifiable();
-        validateProductImage(newMainImage);
-
-        if (newMainImage.getImageType() == ProductImageType.MAIN) {
-            return;
-        }
-        productImages.stream()
-                .filter(image -> !image.isDeleted())
-                .filter(image ->
-                        image.getImageType() == ProductImageType.MAIN
-                )
-                .findFirst()
-                .ifPresent(currentMain ->
-                        currentMain.changeImageType(
-                                ProductImageType.DETAIL
-                        )
-                );
-
-        newMainImage.changeImageType(ProductImageType.MAIN);
-    }
-
-    /**
-     * 상품에 속한 활성 이미지의 노출 순서를 변경한다.
-     */
-    public void changeProductImageSortOrder(
-            ProductImage image,
-            int sortOrder
-    ) {
-        validateModifiable();
-        validateProductImage(image);
-
-        image.changeSortOrder(sortOrder);
-    }
-
-
-    /**
-     * 상품에 속한 이미지를 소프트 삭제한다.
-     * 판매 중인 상품의 대표 이미지는 삭제할 수 없다.
-     */
-    public void deleteProductImage(
-            ProductImage image,
-            String deletedBy
-    ) {
-        validateModifiable();
-        validateProductImage(image);
-
-        if (status == ProductStatus.ON_SALE && image.getImageType() == ProductImageType.MAIN) {
-            throw new IllegalStateException("판매 중인 상품의 대표 이미지는 삭제할 수 없습니다.");
-        }
-        image.delete(deletedBy);
-    }
-
-
-
-    /**
      * 삭제되지 않은 대표 이미지가 이미 존재하는지 검증한다.
      */
-    private void validateMainImageNotExists(){
+    private void validateMainImageNotExists() {
         boolean mainImageExists = productImages.stream()
                 .filter(image -> !image.isDeleted())
-                .anyMatch(image ->
-                        image.getImageType() == ProductImageType.MAIN
-                );
+                .anyMatch(image -> image.getImageType() == ProductImageType.MAIN);
 
         if (mainImageExists) {
             throw new IllegalStateException("대표 이미지는 하나만 등록할 수 있습니다.");
@@ -295,20 +239,5 @@ public class Product extends DeletableEntity {
             throw new IllegalStateException("삭제된 상품은 변경할 수 없습니다.");
         }
     }
-
-    /**
-     * 이미지가 해당 상품에 속한 삭제되지 않은 이미지인지 검증한다.
-     */
-    private void validateProductImage(ProductImage image) {
-        if (image == null || !productImages.contains(image)) {
-            throw new IllegalArgumentException("해당 상품에 속하지 않은 이미지입니다.");
-        }
-
-        if (image.isDeleted()) {
-            throw new IllegalStateException("이미 삭제된 상품 이미지입니다.");
-        }
-    }
-
-
 
 }
