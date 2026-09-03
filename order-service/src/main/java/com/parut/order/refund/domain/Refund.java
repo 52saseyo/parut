@@ -59,6 +59,15 @@ public class Refund extends UpdatableEntity {
             String reason,
             OffsetDateTime requestedAt
     ) {
+        return new Refund(orderItemId, refundAmount, reason, requestedAt);
+    }
+
+    private Refund(
+            UUID orderItemId,
+            long refundAmount,
+            String reason,
+            OffsetDateTime requestedAt
+    ) {
         if (orderItemId == null) {
             throw new IllegalArgumentException("주문 상품 ID는 필수입니다.");
         }
@@ -70,13 +79,11 @@ public class Refund extends UpdatableEntity {
             throw new IllegalArgumentException("환불 요청 시각은 필수입니다.");
         }
 
-        Refund refund = new Refund();
-        refund.orderItemId = orderItemId;
-        refund.refundAmount = refundAmount;
-        refund.reason = reason;
-        refund.requestedAt = requestedAt;
-        refund.status = RefundStatus.REQUESTED;
-        return refund;
+        this.orderItemId = orderItemId;
+        this.refundAmount = refundAmount;
+        this.reason = reason;
+        this.requestedAt = requestedAt;
+        this.status = RefundStatus.REQUESTED;
     }
 
     public void cancel(OffsetDateTime canceledAt) {

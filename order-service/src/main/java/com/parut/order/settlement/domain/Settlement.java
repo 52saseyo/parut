@@ -53,6 +53,15 @@ public class Settlement extends UpdatableEntity {
             long settlementAmount,
             OffsetDateTime eligibleAt
     ) {
+        return new Settlement(deliveryGroupId, salesAmount, settlementAmount, eligibleAt);
+    }
+
+    private Settlement(
+            UUID deliveryGroupId,
+            long salesAmount,
+            long settlementAmount,
+            OffsetDateTime eligibleAt
+    ) {
         if (deliveryGroupId == null) {
             throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
         }
@@ -66,13 +75,11 @@ public class Settlement extends UpdatableEntity {
             throw new IllegalArgumentException("정산 가능 시각은 필수입니다.");
         }
 
-        Settlement settlement = new Settlement();
-        settlement.deliveryGroupId = deliveryGroupId;
-        settlement.salesAmount = salesAmount;
-        settlement.settlementAmount = settlementAmount;
-        settlement.eligibleAt = eligibleAt;
-        settlement.status = SettlementStatus.PENDING;
-        return settlement;
+        this.deliveryGroupId = deliveryGroupId;
+        this.salesAmount = salesAmount;
+        this.settlementAmount = settlementAmount;
+        this.eligibleAt = eligibleAt;
+        this.status = SettlementStatus.PENDING;
     }
 
     public void complete(OffsetDateTime settledAt, UUID processedBy) {

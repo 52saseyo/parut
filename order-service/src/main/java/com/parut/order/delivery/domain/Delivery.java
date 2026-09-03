@@ -42,14 +42,16 @@ public class Delivery extends UpdatableEntity {
     private Long version;
 
     public static Delivery create(UUID deliveryGroupId) {
+        return new Delivery(deliveryGroupId);
+    }
+
+    private Delivery(UUID deliveryGroupId) {
         if (deliveryGroupId == null) {
             throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
         }
 
-        Delivery delivery = new Delivery();
-        delivery.deliveryGroupId = deliveryGroupId;
-        delivery.status = DeliveryStatus.PREPARING;
-        return delivery;
+        this.deliveryGroupId = deliveryGroupId;
+        this.status = DeliveryStatus.PREPARING;
     }
 
     public void ship(String trackingNumber, OffsetDateTime shippedAt) {
