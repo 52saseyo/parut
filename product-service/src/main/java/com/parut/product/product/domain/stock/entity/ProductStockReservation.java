@@ -48,9 +48,11 @@ public class ProductStockReservation extends DeletableEntity {
 
     public void confirm() {
         validateReserved();
+        validateNotExpired();
         this.status = ReservationStatus.CONFIRMED;
     }
 
+    // 취소는 만료된 것도 취소 가능해야 함.
     public void cancel() {
         validateReserved();
         this.status = ReservationStatus.CANCELLED;
@@ -59,6 +61,12 @@ public class ProductStockReservation extends DeletableEntity {
     private void validateReserved() {
         if(this.status != ReservationStatus.RESERVED) {
             throw new IllegalStateException("이미 처리된 예약입니다.");
+        }
+    }
+
+    private void validateNotExpired() {
+        if(this.expiresAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalStateException("이미 만료된 예약입니다.");
         }
     }
 
