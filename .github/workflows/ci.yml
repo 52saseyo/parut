@@ -1,14 +1,11 @@
 name: CI
 
-# develop 또는 main 대상 PR과 develop push에서 실행
+# develop 또는 main 대상 PR 생성 및 업데이트 시 실행
 on:
   pull_request:
     branches:
       - develop
       - main
-  push:
-    branches:
-      - develop
 
 # 저장소와 PR 변경 파일을 읽기 위한 최소 권한
 permissions:
