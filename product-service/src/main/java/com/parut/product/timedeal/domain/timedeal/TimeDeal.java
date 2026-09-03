@@ -55,6 +55,7 @@ public class TimeDeal extends DeletableEntity {
         validateRequiredFields(originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
         validatePeriod(startAt, endAt);
         validateMaxPurchaseQuantity(maxPurchaseQuantity);
+        validatePrice(dealPrice);
 
         this.productId = productId;
         this.originalPrice = originalPrice;
@@ -114,6 +115,15 @@ public class TimeDeal extends DeletableEntity {
         }
     }
 
+    private static void validatePrice(Long dealPrice) {
+        if (dealPrice == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (dealPrice <= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PRICE);
+        }
+    }
+
     public void activate() {
         if (status != TimeDealStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -129,15 +139,26 @@ public class TimeDeal extends DeletableEntity {
     }
 
     public void stop() {
-        if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        if (status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
         }
         this.status = TimeDealStatus.STOPPED;
     }
 
+    @Override
+    public void softDelete(String deletedBy) {
+        if (status == TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED);
+        }
+        if (status != TimeDealStatus.SCHEDULED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS);
+        }
+        super.softDelete(deletedBy);
+    }
+
     public void validatePurchasable() {
         if (status != TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_PURCHASABLE);
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
         }
     }
 

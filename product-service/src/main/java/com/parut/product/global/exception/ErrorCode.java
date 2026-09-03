@@ -19,11 +19,15 @@ public enum ErrorCode {
     TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "최대 구매 수량은 1개 이상이어야 합니다."),
     TIME_DEAL_NEGATIVE_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량은 0개 이상이어야 합니다."),
     TIME_DEAL_INVALID_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "구매 수량은 1개 이상이어야 합니다."),
-    TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "타임딜 최대 구매 수량을 초과했습니다."),
+    TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY(HttpStatus.CONFLICT, "타임딜 최대 구매 수량을 초과했습니다."),
     TIME_DEAL_INVALID_RESERVATION_EXPIRATION(HttpStatus.BAD_REQUEST, "선점 만료 시각은 선점 시각보다 이후여야 합니다."),
-    TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD(HttpStatus.BAD_REQUEST, "재고 부족 임계 수량은 0개 이상이어야 합니다."),
-    TIME_DEAL_INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "허용되지 않는 타임딜 상태 전이입니다."),
-    TIME_DEAL_NOT_PURCHASABLE(HttpStatus.BAD_REQUEST, "지금은 구매할 수 없는 타임딜입니다.")
+    TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD(HttpStatus.BAD_REQUEST, "재고 부족 임계 수량은 0개 이상이며 초기 재고 이하이어야 합니다."),
+    TIME_DEAL_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 타임딜 상태 전이입니다."),
+    TIME_DEAL_NOT_ACTIVE(HttpStatus.CONFLICT, "타임딜이 판매 중 상태가 아닙니다."),
+    TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매 중인 타임딜은 삭제할 수 없습니다."),
+    TIME_DEAL_INVALID_STATUS(HttpStatus.CONFLICT, "삭제할 수 없는 타임딜 상태입니다."),
+    TIME_DEAL_INVALID_PRICE(HttpStatus.BAD_REQUEST, "타임딜 판매 가격은 0보다 커야 합니다."),
+    TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다.")
 
     ;
 

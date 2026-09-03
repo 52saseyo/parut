@@ -35,7 +35,9 @@ public class TimeDealStock extends DeletableEntity {
     private TimeDealStock(UUID timeDealId, Integer availableQuantity, Integer lowStockThreshold) {
         validateRequiredFields(timeDealId, availableQuantity, lowStockThreshold);
         validateAvailableQuantity(availableQuantity);
-        validateLowStockThreshold(lowStockThreshold);
+        // availableQuantity == 생성 시점의 초기 재고 (reservedQuantity/soldQuantity가 항상 0으로 시작하므로).
+        // 재고 소진에 따라 줄어든 이후의 availableQuantity와 비교하는 용도로 재사용하면 안 됨.
+        validateInitialLowStockThreshold(lowStockThreshold, availableQuantity);
 
         this.timeDealId = timeDealId;
         this.availableQuantity = availableQuantity;
@@ -70,12 +72,30 @@ public class TimeDealStock extends DeletableEntity {
         }
     }
 
-    private static void validateLowStockThreshold(Integer lowStockThreshold) {
-        if (lowStockThreshold == null) {
+    private static void validateInitialLowStockThreshold(Integer lowStockThreshold, Integer initialQuantity) {
+        if (lowStockThreshold == null || initialQuantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (lowStockThreshold < 0) {
+        if (lowStockThreshold < 0 || lowStockThreshold > initialQuantity) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD);
+        }
+    }
+
+    public void reserve(Integer quantity) {
+        validateReserveQuantity(quantity);
+        this.availableQuantity -= quantity;
+        this.reservedQuantity += quantity;
+    }
+
+    private void validateReserveQuantity(Integer quantity) {
+        if (quantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+        }
+        if (quantity > availableQuantity) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
         }
     }
 }
