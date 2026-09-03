@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -17,6 +18,9 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "p_time_deals")
 public class TimeDeal extends DeletableEntity {
+
+    private static final BigDecimal MIN_DISCOUNT_RATE = BigDecimal.ZERO;
+    private static final BigDecimal MAX_DISCOUNT_RATE = BigDecimal.valueOf(100);
 
     @Column(name = "product_id", columnDefinition = "uuid")
     private UUID productId;
@@ -46,21 +50,21 @@ public class TimeDeal extends DeletableEntity {
     private TimeDeal(
             UUID productId,
             Long originalPrice,
-            Long dealPrice,
             BigDecimal discountRate,
             Instant startAt,
             Instant endAt,
             Integer maxPurchaseQuantity
     ) {
-        validateRequiredFields(originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
+        validateRequiredFields(originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
         validatePeriod(startAt, endAt);
         validateMaxPurchaseQuantity(maxPurchaseQuantity);
-        validatePrice(dealPrice);
+        validateOriginalPrice(originalPrice);
+        validateDiscountRate(discountRate);
 
         this.productId = productId;
         this.originalPrice = originalPrice;
-        this.dealPrice = dealPrice;
         this.discountRate = discountRate;
+        this.dealPrice = calculateDealPrice(originalPrice, discountRate);
         this.startAt = startAt;
         this.endAt = endAt;
         this.maxPurchaseQuantity = maxPurchaseQuantity;
@@ -70,13 +74,12 @@ public class TimeDeal extends DeletableEntity {
     public static TimeDeal create(
             UUID productId,
             Long originalPrice,
-            Long dealPrice,
             BigDecimal discountRate,
             Instant startAt,
             Instant endAt,
             Integer maxPurchaseQuantity
     ) {
-        return new TimeDeal(productId, originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
+        return new TimeDeal(productId, originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
     }
 
     public void activate() {
@@ -131,14 +134,12 @@ public class TimeDeal extends DeletableEntity {
 
     private static void validateRequiredFields(
             Long originalPrice,
-            Long dealPrice,
             BigDecimal discountRate,
             Instant startAt,
             Instant endAt,
             Integer maxPurchaseQuantity
     ) {
         if (originalPrice == null
-                || dealPrice == null
                 || discountRate == null
                 || startAt == null
                 || endAt == null
@@ -154,6 +155,9 @@ public class TimeDeal extends DeletableEntity {
         if (!endAt.isAfter(startAt)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
         }
+        if (!endAt.isAfter(Instant.now())) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
+        }
     }
 
     private static void validateMaxPurchaseQuantity(Integer maxPurchaseQuantity) {
@@ -165,12 +169,27 @@ public class TimeDeal extends DeletableEntity {
         }
     }
 
-    private static void validatePrice(Long dealPrice) {
-        if (dealPrice == null) {
+    private static void validateOriginalPrice(Long originalPrice) {
+        if (originalPrice == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (dealPrice <= 0) {
+        if (originalPrice <= 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PRICE);
         }
+    }
+
+    private static void validateDiscountRate(BigDecimal discountRate) {
+        if (discountRate == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (discountRate.compareTo(MIN_DISCOUNT_RATE) < 0 || discountRate.compareTo(MAX_DISCOUNT_RATE) >= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_DISCOUNT_RATE);
+        }
+    }
+
+    private static Long calculateDealPrice(Long originalPrice, BigDecimal discountRate) {
+        BigDecimal original = BigDecimal.valueOf(originalPrice);
+        BigDecimal discountAmount = original.multiply(discountRate).divide(BigDecimal.valueOf(100));
+        return original.subtract(discountAmount).setScale(0, RoundingMode.DOWN).longValueExact();
     }
 }
