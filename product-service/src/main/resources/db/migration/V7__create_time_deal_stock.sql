@@ -1,4 +1,4 @@
-CREATE TABLE p_time_deal_stocks
+CREATE TABLE product_schema.p_time_deal_stocks
 (
     id                  UUID        NOT NULL PRIMARY KEY,
     time_deal_id        UUID        NOT NULL,
@@ -16,5 +16,6 @@ CREATE TABLE p_time_deal_stocks
     CONSTRAINT uk_time_deal_stocks_time_deal_id UNIQUE (time_deal_id),
     CONSTRAINT ck_time_deal_stocks_available_quantity CHECK (available_quantity >= 0),
     CONSTRAINT ck_time_deal_stocks_reserved_quantity CHECK (reserved_quantity >= 0),
-    CONSTRAINT ck_time_deal_stocks_sold_quantity CHECK (sold_quantity >= 0)
+    CONSTRAINT ck_time_deal_stocks_sold_quantity CHECK (sold_quantity >= 0),
+    CONSTRAINT ck_time_deal_stocks_low_stock_threshold CHECK (low_stock_threshold >= 0)
 );

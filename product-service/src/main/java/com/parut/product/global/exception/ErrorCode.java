@@ -20,7 +20,8 @@ public enum ErrorCode {
     TIME_DEAL_NEGATIVE_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량은 0개 이상이어야 합니다."),
     TIME_DEAL_INVALID_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "구매 수량은 1개 이상이어야 합니다."),
     TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "타임딜 최대 구매 수량을 초과했습니다."),
-    TIME_DEAL_INVALID_RESERVATION_EXPIRATION(HttpStatus.BAD_REQUEST, "선점 만료 시각은 선점 시각보다 이후여야 합니다.")
+    TIME_DEAL_INVALID_RESERVATION_EXPIRATION(HttpStatus.BAD_REQUEST, "선점 만료 시각은 선점 시각보다 이후여야 합니다."),
+    TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD(HttpStatus.BAD_REQUEST, "재고 부족 임계 수량은 0개 이상이어야 합니다.")
 
     ;
 

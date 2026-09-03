@@ -36,6 +36,9 @@ public class TimeDealStock extends DeletableEntity {
         if (availableQuantity < 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
         }
+        if (lowStockThreshold < 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD);
+        }
         this.timeDealId = timeDealId;
         this.availableQuantity = availableQuantity;
         this.reservedQuantity = 0;
