@@ -1,4 +1,4 @@
-CREATE TABLE p_products
+ CREATE TABLE product_schema.p_products
 (
     id              UUID           NOT NULL,
     seller_id       UUID           NOT NULL,
@@ -31,5 +31,5 @@ CREATE TABLE p_products
     CONSTRAINT ck_p_products_unit_quantity CHECK (unit_quantity > 0)
 );
 
-CREATE INDEX idx_p_products_seller_id ON p_products (seller_id);
-CREATE INDEX idx_p_products_category_status ON p_products (category, status);
+CREATE INDEX idx_p_products_seller_id ON product_schema.p_products (seller_id);
+CREATE INDEX idx_p_products_category_status ON product_schema.p_products (category, status);
