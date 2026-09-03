@@ -82,6 +82,9 @@ public class Settlement extends UpdatableEntity {
         if (settledAt == null) {
             throw new IllegalArgumentException("정산 완료 시각은 필수입니다.");
         }
+        if (settledAt.isBefore(eligibleAt)) {
+            throw new IllegalArgumentException("정산 완료 시각은 정산 가능 시각보다 빠를 수 없습니다.");
+        }
         if (processedBy == null) {
             throw new IllegalArgumentException("정산 처리자 ID는 필수입니다.");
         }

@@ -78,6 +78,9 @@ public class Delivery extends UpdatableEntity {
         if (deliveredAt == null) {
             throw new IllegalArgumentException("배송 완료 시각은 필수입니다.");
         }
+        if (deliveredAt.isBefore(shippedAt)) {
+            throw new IllegalArgumentException("배송 완료 시각은 배송 시작 시각보다 빠를 수 없습니다.");
+        }
 
         this.deliveredAt = deliveredAt;
         this.status = DeliveryStatus.DELIVERED;

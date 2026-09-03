@@ -84,6 +84,7 @@ public class Refund extends UpdatableEntity {
         if (canceledAt == null) {
             throw new IllegalArgumentException("환불 취소 시각은 필수입니다.");
         }
+        validateNotBeforeRequestedAt(canceledAt, "환불 취소 시각");
 
         this.canceledAt = canceledAt;
         this.status = RefundStatus.CANCELED;
@@ -92,6 +93,7 @@ public class Refund extends UpdatableEntity {
     public void approve(OffsetDateTime processedAt, UUID processedBy) {
         validateRequested();
         validateProcessing(processedAt, processedBy);
+        validateNotBeforeRequestedAt(processedAt, "환불 처리 시각");
 
         this.processedAt = processedAt;
         this.processedBy = processedBy;
@@ -102,6 +104,7 @@ public class Refund extends UpdatableEntity {
         validateRequested();
         validateReason(rejectionReason, "환불 거절 사유");
         validateProcessing(processedAt, processedBy);
+        validateNotBeforeRequestedAt(processedAt, "환불 처리 시각");
 
         this.rejectionReason = rejectionReason;
         this.processedAt = processedAt;
@@ -130,6 +133,12 @@ public class Refund extends UpdatableEntity {
         }
         if (processedBy == null) {
             throw new IllegalArgumentException("환불 처리자 ID는 필수입니다.");
+        }
+    }
+
+    private void validateNotBeforeRequestedAt(OffsetDateTime targetAt, String fieldName) {
+        if (targetAt.isBefore(requestedAt)) {
+            throw new IllegalArgumentException(fieldName + "은 환불 요청 시각보다 빠를 수 없습니다.");
         }
     }
 }
