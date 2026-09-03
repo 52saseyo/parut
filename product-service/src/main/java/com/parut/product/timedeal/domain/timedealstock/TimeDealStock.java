@@ -33,12 +33,10 @@ public class TimeDealStock extends DeletableEntity {
     private Integer lowStockThreshold;
 
     private TimeDealStock(UUID timeDealId, Integer availableQuantity, Integer lowStockThreshold) {
-        if (availableQuantity < 0) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
-        }
-        if (lowStockThreshold < 0) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD);
-        }
+        validateRequiredFields(timeDealId, availableQuantity, lowStockThreshold);
+        validateAvailableQuantity(availableQuantity);
+        validateLowStockThreshold(lowStockThreshold);
+
         this.timeDealId = timeDealId;
         this.availableQuantity = availableQuantity;
         this.reservedQuantity = 0;
@@ -47,6 +45,37 @@ public class TimeDealStock extends DeletableEntity {
     }
 
     public static TimeDealStock create(TimeDeal timeDeal, Integer availableQuantity, Integer lowStockThreshold) {
+        if (timeDeal == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
         return new TimeDealStock(timeDeal.getId(), availableQuantity, lowStockThreshold);
+    }
+
+    private static void validateRequiredFields(
+            UUID timeDealId,
+            Integer availableQuantity,
+            Integer lowStockThreshold
+    ) {
+        if (timeDealId == null || availableQuantity == null || lowStockThreshold == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private static void validateAvailableQuantity(Integer availableQuantity) {
+        if (availableQuantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (availableQuantity < 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
+        }
+    }
+
+    private static void validateLowStockThreshold(Integer lowStockThreshold) {
+        if (lowStockThreshold == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (lowStockThreshold < 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD);
+        }
     }
 }

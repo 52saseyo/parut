@@ -51,15 +51,11 @@ public class TimeDealPurchase extends DeletableEntity {
             Instant reservedAt,
             Instant expiresAt
     ) {
-        if (quantity < 1) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
-        }
-        if (quantity > timeDeal.getMaxPurchaseQuantity()) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
-        }
-        if (!expiresAt.isAfter(reservedAt)) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_RESERVATION_EXPIRATION);
-        }
+        validateRequiredFields(timeDeal, orderId, userId, quantity, reservedAt, expiresAt);
+        timeDeal.validatePurchasable();
+        validateQuantity(timeDeal, quantity);
+        validateReservationPeriod(reservedAt, expiresAt);
+
         this.orderId = orderId;
         this.timeDealId = timeDeal.getId();
         this.userId = userId;
@@ -78,5 +74,42 @@ public class TimeDealPurchase extends DeletableEntity {
             Instant expiresAt
     ) {
         return new TimeDealPurchase(timeDeal, orderId, userId, quantity, reservedAt, expiresAt);
+    }
+
+    private static void validateRequiredFields(
+            TimeDeal timeDeal,
+            UUID orderId,
+            UUID userId,
+            Integer quantity,
+            Instant reservedAt,
+            Instant expiresAt
+    ) {
+        if (timeDeal == null
+                || orderId == null
+                || userId == null
+                || quantity == null
+                || reservedAt == null
+                || expiresAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private static void validateQuantity(TimeDeal timeDeal, Integer quantity) {
+        if (timeDeal == null || quantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (quantity < 1) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+        }
+        timeDeal.validatePurchaseQuantity(quantity);
+    }
+
+    private static void validateReservationPeriod(Instant reservedAt, Instant expiresAt) {
+        if (reservedAt == null || expiresAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!expiresAt.isAfter(reservedAt)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_RESERVATION_EXPIRATION);
+        }
     }
 }

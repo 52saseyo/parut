@@ -52,12 +52,10 @@ public class TimeDeal extends DeletableEntity {
             Instant endAt,
             Integer maxPurchaseQuantity
     ) {
-        if (!endAt.isAfter(startAt)) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
-        }
-        if (maxPurchaseQuantity <= 0) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY);
-        }
+        validateRequiredFields(originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
+        validatePeriod(startAt, endAt);
+        validateMaxPurchaseQuantity(maxPurchaseQuantity);
+
         this.productId = productId;
         this.originalPrice = originalPrice;
         this.dealPrice = dealPrice;
@@ -78,5 +76,74 @@ public class TimeDeal extends DeletableEntity {
             Integer maxPurchaseQuantity
     ) {
         return new TimeDeal(productId, originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
+    }
+
+    private static void validateRequiredFields(
+            Long originalPrice,
+            Long dealPrice,
+            BigDecimal discountRate,
+            Instant startAt,
+            Instant endAt,
+            Integer maxPurchaseQuantity
+    ) {
+        if (originalPrice == null
+                || dealPrice == null
+                || discountRate == null
+                || startAt == null
+                || endAt == null
+                || maxPurchaseQuantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private static void validatePeriod(Instant startAt, Instant endAt) {
+        if (startAt == null || endAt == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!endAt.isAfter(startAt)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
+        }
+    }
+
+    private static void validateMaxPurchaseQuantity(Integer maxPurchaseQuantity) {
+        if (maxPurchaseQuantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (maxPurchaseQuantity <= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY);
+        }
+    }
+
+    public void activate() {
+        if (status != TimeDealStatus.SCHEDULED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealStatus.ACTIVE;
+    }
+
+    public void end() {
+        if (status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealStatus.ENDED;
+    }
+
+    public void stop() {
+        if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealStatus.STOPPED;
+    }
+
+    public void validatePurchasable() {
+        if (status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_PURCHASABLE);
+        }
+    }
+
+    public void validatePurchaseQuantity(Integer quantity) {
+        if (quantity > this.maxPurchaseQuantity) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
+        }
     }
 }
