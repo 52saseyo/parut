@@ -89,6 +89,7 @@ public class TimeDeal extends DeletableEntity {
         this.status = TimeDealStatus.ACTIVE;
     }
 
+    // NOTE: endAt 경과(배치) 또는 TimeDealStock.isDepleted() 감지(Application Service) 두 경로로 호출될 수 있음
     public void end() {
         if (status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);

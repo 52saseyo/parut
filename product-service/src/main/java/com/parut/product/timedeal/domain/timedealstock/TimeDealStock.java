@@ -54,19 +54,21 @@ public class TimeDealStock extends DeletableEntity {
         return new TimeDealStock(timeDeal.getId(), availableQuantity, lowStockThreshold);
     }
 
+    // NOTE: TimeDealPurchase.create()는 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
     public void reserve(Integer quantity) {
         validateReserveQuantity(quantity);
         this.availableQuantity -= quantity;
         this.reservedQuantity += quantity;
     }
 
-    // NOTE: 재고 복구 (reserve의 반대)
+    // NOTE: 재고 복구 (reserve의 반대). TimeDealPurchase.cancel()/expire() 호출 시 같은 트랜잭션에서 같이 호출해야 함
     public void release(Integer quantity) {
         validateReleaseQuantity(quantity);
         this.reservedQuantity -= quantity;
         this.availableQuantity += quantity;
     }
 
+    // NOTE: true면 Application Service가 같은 트랜잭션에서 TimeDeal.end()를 호출해야 함 (여기서 직접 호출하지 않음)
     public boolean isDepleted() {
         return availableQuantity == 0;
     }

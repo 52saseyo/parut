@@ -65,6 +65,7 @@ public class TimeDealPurchase extends DeletableEntity {
         this.expiresAt = expiresAt;
     }
 
+    // NOTE: 재고 선점(TimeDealStock.reserve())은 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
     public static TimeDealPurchase create(
             TimeDeal timeDeal,
             UUID orderId,
@@ -76,6 +77,7 @@ public class TimeDealPurchase extends DeletableEntity {
         return new TimeDealPurchase(timeDeal, orderId, userId, quantity, reservedAt, expiresAt);
     }
 
+    // NOTE: 재고 복구(TimeDealStock.release())는 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
     public void cancel(String reason) {
         if (status != TimeDealPurchaseStatus.RESERVED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -84,6 +86,7 @@ public class TimeDealPurchase extends DeletableEntity {
         this.cancelReason = reason;
     }
 
+    // NOTE: cancel()과 마찬가지로 재고 복구(TimeDealStock.release())는 Application Service 책임
     public void expire() {
         if (!isExpired()) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
