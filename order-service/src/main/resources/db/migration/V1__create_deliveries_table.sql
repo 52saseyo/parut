@@ -1,5 +1,5 @@
 -- delivery_group_id -> p_order_delivery_groups (내부 논리참조, FK 미사용)
-CREATE TABLE p_deliveries (
+CREATE TABLE order_schema.p_deliveries (
     id UUID PRIMARY KEY,
     delivery_group_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PREPARING',
@@ -15,4 +15,4 @@ CREATE TABLE p_deliveries (
 
 -- delivery_group_id: 배송 그룹당 배송 1건 (분할배송 제외)
 CREATE UNIQUE INDEX idx_deliveries_delivery_group
-ON p_deliveries (delivery_group_id);
+ON order_schema.p_deliveries (delivery_group_id);

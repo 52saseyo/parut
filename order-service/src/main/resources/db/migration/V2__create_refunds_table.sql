@@ -1,5 +1,5 @@
 -- order_item_id -> p_order_items (내부 논리참조, FK 미사용)
-CREATE TABLE p_refunds (
+CREATE TABLE order_schema.p_refunds (
     id UUID PRIMARY KEY,
     order_item_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED',
@@ -21,5 +21,5 @@ CREATE TABLE p_refunds (
 -- 활성(REQUESTED) 또는 최종 처리된(APPROVED/REJECTED) 요청만
 -- 주문상품당 1건으로 제한.
 CREATE UNIQUE INDEX idx_refunds_active_order_item
-ON p_refunds (order_item_id)
+ON order_schema.p_refunds (order_item_id)
 WHERE status != 'CANCELED';

@@ -1,6 +1,6 @@
 -- delivery_group_id -> p_order_delivery_groups (내부 논리참조, FK 미사용)
 -- processed_by -> p_users (user_service 논리참조, FK 미사용)
-CREATE TABLE p_settlements (
+CREATE TABLE order_schema.p_settlements (
     id UUID PRIMARY KEY,
     delivery_group_id UUID NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
@@ -21,4 +21,4 @@ CREATE TABLE p_settlements (
 
 -- delivery_group_id: 배송 그룹당 정산 1건
 CREATE UNIQUE INDEX idx_settlements_delivery_group
-ON p_settlements (delivery_group_id);
+ON order_schema.p_settlements (delivery_group_id);
