@@ -53,6 +53,23 @@ public class TimeDealStock extends DeletableEntity {
         return new TimeDealStock(timeDeal.getId(), availableQuantity, lowStockThreshold);
     }
 
+    public void reserve(Integer quantity) {
+        validateReserveQuantity(quantity);
+        this.availableQuantity -= quantity;
+        this.reservedQuantity += quantity;
+    }
+
+    // NOTE: 재고 복구 (reserve의 반대)
+    public void release(Integer quantity) {
+        validateReleaseQuantity(quantity);
+        this.reservedQuantity -= quantity;
+        this.availableQuantity += quantity;
+    }
+
+    public boolean isDepleted() {
+        return availableQuantity == 0;
+    }
+
     private static void validateRequiredFields(
             UUID timeDealId,
             Integer availableQuantity,
@@ -81,12 +98,6 @@ public class TimeDealStock extends DeletableEntity {
         }
     }
 
-    public void reserve(Integer quantity) {
-        validateReserveQuantity(quantity);
-        this.availableQuantity -= quantity;
-        this.reservedQuantity += quantity;
-    }
-
     private void validateReserveQuantity(Integer quantity) {
         if (quantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
@@ -96,6 +107,18 @@ public class TimeDealStock extends DeletableEntity {
         }
         if (quantity > availableQuantity) {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+        }
+    }
+
+    private void validateReleaseQuantity(Integer quantity) {
+        if (quantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+        }
+        if (quantity > reservedQuantity) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
         }
     }
 }

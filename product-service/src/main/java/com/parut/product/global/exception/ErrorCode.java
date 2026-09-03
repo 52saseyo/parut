@@ -27,7 +27,8 @@ public enum ErrorCode {
     TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매 중인 타임딜은 삭제할 수 없습니다."),
     TIME_DEAL_INVALID_STATUS(HttpStatus.CONFLICT, "삭제할 수 없는 타임딜 상태입니다."),
     TIME_DEAL_INVALID_PRICE(HttpStatus.BAD_REQUEST, "타임딜 판매 가격은 0보다 커야 합니다."),
-    TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다.")
+    TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다."),
+    TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다.")
 
     ;
 

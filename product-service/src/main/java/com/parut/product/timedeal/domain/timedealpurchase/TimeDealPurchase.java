@@ -76,6 +76,25 @@ public class TimeDealPurchase extends DeletableEntity {
         return new TimeDealPurchase(timeDeal, orderId, userId, quantity, reservedAt, expiresAt);
     }
 
+    public void cancel(String reason) {
+        if (status != TimeDealPurchaseStatus.RESERVED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealPurchaseStatus.CANCELLED;
+        this.cancelReason = reason;
+    }
+
+    public void expire() {
+        if (!isExpired()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        cancel("선점 시간 만료로 자동 취소");
+    }
+
+    public boolean isExpired() {
+        return status == TimeDealPurchaseStatus.RESERVED && Instant.now().isAfter(expiresAt);
+    }
+
     private static void validateRequiredFields(
             TimeDeal timeDeal,
             UUID orderId,

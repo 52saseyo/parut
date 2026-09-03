@@ -79,6 +79,56 @@ public class TimeDeal extends DeletableEntity {
         return new TimeDeal(productId, originalPrice, dealPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
     }
 
+    public void activate() {
+        if (status != TimeDealStatus.SCHEDULED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealStatus.ACTIVE;
+    }
+
+    public void end() {
+        if (status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+        }
+        this.status = TimeDealStatus.ENDED;
+    }
+
+    public void stop() {
+        if (status != TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
+        }
+        this.status = TimeDealStatus.STOPPED;
+    }
+
+    @Override
+    public void softDelete(String deletedBy) {
+        if (status == TimeDealStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED);
+        }
+        if (status != TimeDealStatus.SCHEDULED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS);
+        }
+        super.softDelete(deletedBy);
+    }
+
+    public void validatePurchasable() {
+        if (status == TimeDealStatus.STOPPED || status == TimeDealStatus.ENDED) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
+        }
+        // status가 아직 SCHEDULED여도 배치가 activate()를 못 돌렸을 뿐일 수 있으므로,
+        // 실제 구매 가능 여부는 배치 결과가 아니라 시간 자체로 판단한다.
+        Instant now = Instant.now();
+        if (now.isBefore(startAt) || now.isAfter(endAt)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
+        }
+    }
+
+    public void validatePurchaseQuantity(Integer quantity) {
+        if (quantity > this.maxPurchaseQuantity) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
+        }
+    }
+
     private static void validateRequiredFields(
             Long originalPrice,
             Long dealPrice,
@@ -121,50 +171,6 @@ public class TimeDeal extends DeletableEntity {
         }
         if (dealPrice <= 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PRICE);
-        }
-    }
-
-    public void activate() {
-        if (status != TimeDealStatus.SCHEDULED) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
-        }
-        this.status = TimeDealStatus.ACTIVE;
-    }
-
-    public void end() {
-        if (status != TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
-        }
-        this.status = TimeDealStatus.ENDED;
-    }
-
-    public void stop() {
-        if (status != TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
-        }
-        this.status = TimeDealStatus.STOPPED;
-    }
-
-    @Override
-    public void softDelete(String deletedBy) {
-        if (status == TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED);
-        }
-        if (status != TimeDealStatus.SCHEDULED) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS);
-        }
-        super.softDelete(deletedBy);
-    }
-
-    public void validatePurchasable() {
-        if (status != TimeDealStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
-        }
-    }
-
-    public void validatePurchaseQuantity(Integer quantity) {
-        if (quantity > this.maxPurchaseQuantity) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
         }
     }
 }

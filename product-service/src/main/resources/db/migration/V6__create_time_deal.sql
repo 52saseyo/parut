@@ -22,4 +22,5 @@ CREATE TABLE product_schema.p_time_deals
 );
 
 CREATE INDEX idx_time_deals_product_id ON product_schema.p_time_deals (product_id);
-CREATE INDEX idx_time_deals_status ON product_schema.p_time_deals (status);
+CREATE INDEX idx_time_deals_status_start_at ON product_schema.p_time_deals (status, start_at);
+CREATE INDEX idx_time_deals_status_end_at ON product_schema.p_time_deals (status, end_at);
