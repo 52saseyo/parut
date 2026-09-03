@@ -1,12 +1,11 @@
 package com.parut.product.timedeal.domain.timedeal;
 
+import com.parut.product.global.common.entity.DeletableEntity;
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "p_time_deals")
-public class TimeDeal {
+public class TimeDeal extends DeletableEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private Long id;
+
 }
