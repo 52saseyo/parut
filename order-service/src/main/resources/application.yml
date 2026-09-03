@@ -15,6 +15,10 @@ spring:
 internal:
   service-key: ${INTERNAL_SERVICE_KEY:temp-secret-key}
 
+# 유저 테이블에 SYSTEM 계정이 생성되면 실제 UUID로 교체 필요
+app:
+  system-account-id: ${SYSTEM_ACCOUNT_ID:00000000-0000-0000-0000-000000000000}
+
 logging:
   level:
     root: info
