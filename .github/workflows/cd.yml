@@ -1,0 +1,185 @@
+name: CD
+
+# main 브랜치 머지 시 배포, 수동 실행으로 롤백
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      service:
+        description: '롤백할 서비스'
+        required: true
+        type: choice
+        options:
+          - user-service
+          - order-service
+          - notification-service
+          - product-service
+          - gateway-service
+      image_tag:
+        description: '되돌릴 커밋 SHA'
+        required: true
+
+# OIDC 토큰 발급과 저장소 읽기 권한
+permissions:
+  id-token: write
+  contents: read
+
+# 배포는 동시 실행을 막고 순차 처리 (.env 동시 수정 방지)
+concurrency:
+  group: cd-${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  # 변경된 서비스 목록 확인
+  detect-changes:
+    name: Detect changed services
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Detect changed services
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            user-service:
+              - 'user-service/**'
+            order-service:
+              - 'order-service/**'
+            notification-service:
+              - 'notification-service/**'
+            product-service:
+              - 'product-service/**'
+            gateway-service:
+              - 'gateway-service/**'
+
+  # 변경된 서비스 이미지 빌드 후 ECR 푸시
+  build-and-push:
+    name: Build & Push - ${{ matrix.service }}
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.services != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # OIDC 기반 AWS 인증 (액세스 키 미사용)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 커밋 SHA를 태그로 사용
+      - name: Build and push image
+        working-directory: ${{ matrix.service }}
+        run: |
+          IMAGE=${{ steps.ecr.outputs.registry }}/${{ matrix.service }}
+          docker build -t $IMAGE:${{ github.sha }} .
+          docker push $IMAGE:${{ github.sha }}
+
+  # EC2에 배포 (SSM Run Command 사용, SSH 미사용)
+  deploy:
+    name: Deploy to EC2
+    needs: [detect-changes, build-and-push]
+    # push 시에는 빌드 성공 후, 수동 실행(롤백) 시에는 빌드 없이 바로 배포
+    if: |
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (needs.detect-changes.outputs.services != '[]' && needs.build-and-push.result == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      # 배포 대상 서비스와 이미지 태그를 결정하고 .env 수정 명령 생성
+      - name: Resolve deploy target
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SERVICES='["${{ github.event.inputs.service }}"]'
+            TAG="${{ github.event.inputs.image_tag }}"
+          else
+            SERVICES='${{ needs.detect-changes.outputs.services }}'
+            TAG="${{ github.sha }}"
+          fi
+
+          echo "services=$SERVICES"
+          echo "tag=$TAG"
+          
+          SED_CMDS=""
+          TARGETS=""
+          for svc in $(echo "$SERVICES" | jq -r '.[]'); do
+            VAR="$(echo "$svc" | sed 's/-service$//' | tr '[:lower:]-' '[:upper:]_')_IMAGE_TAG"
+            SED_CMDS="${SED_CMDS}sed -i 's|^${VAR}=.*|${VAR}=${TAG}|' .env && "
+            TARGETS="${TARGETS}${svc} "
+          done
+
+          echo "sed_cmds=${SED_CMDS}true" >> $GITHUB_OUTPUT
+          echo "targets=${TARGETS}" >> $GITHUB_OUTPUT
+
+      # OIDC 기반 AWS 인증 (액세스 키 미사용)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # .env의 이미지 태그를 갱신하고 컨테이너 재기동
+      - name: Deploy via SSM Run Command
+        run: |
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${{ github.sha }}" \
+            --parameters commands="[
+              \"set -e\",
+              \"cd /opt/app\",
+              \"${{ steps.target.outputs.sed_cmds }}\",
+              \"aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}\",
+              \"docker compose pull ${{ steps.target.outputs.targets }}\",
+              \"docker compose up -d --remove-orphans\",
+              \"sleep 90\",
+              \"docker compose ps\"
+            ]" \
+            --query "Command.CommandId" --output text)
+
+          echo "Command ID: $CMD_ID"
+
+          aws ssm wait command-executed \
+            --command-id "$CMD_ID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" || true
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --query "Status" --output text)
+
+          echo "=== STDOUT ==="
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --query "StandardOutputContent" --output text
+
+          if [ "$STATUS" != "Success" ]; then
+            echo "=== STDERR ==="
+            aws ssm get-command-invocation \
+              --command-id "$CMD_ID" \
+              --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+              --query "StandardErrorContent" --output text
+            echo "Deploy failed with status: $STATUS"
+            exit 1
+          fi

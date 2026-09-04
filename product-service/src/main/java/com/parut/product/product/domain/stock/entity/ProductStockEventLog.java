@@ -1,15 +1,13 @@
 package com.parut.product.product.domain.stock.entity;
 
 import com.parut.product.global.common.entity.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import com.parut.product.product.domain.stock.enums.StockEventType;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -27,18 +25,19 @@ public class ProductStockEventLog extends BaseEntity {
     @Column(name = "order_item_id", nullable = false)
     private UUID orderItemId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, length = 50)
-    private String eventType;
+    private StockEventType eventType;
 
     @Column(name = "processed_at", nullable = false)
-    private LocalDateTime processed;
+    private Instant processed;
 
-    public static ProductStockEventLog create(UUID reservationId, UUID orderItemId, String eventType) {
+    public static ProductStockEventLog create(UUID reservationId, UUID orderItemId, StockEventType eventType) {
         ProductStockEventLog eventLog = new ProductStockEventLog();
         eventLog.reservationId = reservationId;
         eventLog.orderItemId = orderItemId;
         eventLog.eventType = eventType;
-        eventLog.processed = LocalDateTime.now();
+        eventLog.processed = Instant.now();
         return eventLog;
     }
 }

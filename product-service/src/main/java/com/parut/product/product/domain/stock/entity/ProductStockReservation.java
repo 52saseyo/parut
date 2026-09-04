@@ -2,13 +2,15 @@ package com.parut.product.product.domain.stock.entity;
 
 
 import com.parut.product.global.common.entity.DeletableEntity;
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Getter
@@ -32,10 +34,10 @@ public class ProductStockReservation extends DeletableEntity {
     private ReservationStatus status;
 
     @Column(name = "expires_at", nullable = false)
-    private LocalDateTime expiresAt;
+    private Instant expiresAt;
 
     public static ProductStockReservation create(UUID stockId, UUID orderId,
-                                                 int quantity, LocalDateTime expiresAt) {
+                                                 int quantity, Instant expiresAt) {
         ProductStockReservation reservation = new ProductStockReservation();
         reservation.stockId = stockId;
         reservation.orderId = orderId;
@@ -60,13 +62,13 @@ public class ProductStockReservation extends DeletableEntity {
 
     private void validateReserved() {
         if(this.status != ReservationStatus.RESERVED) {
-            throw new IllegalStateException("이미 처리된 예약입니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
 
     private void validateNotExpired() {
-        if(this.expiresAt.isBefore(LocalDateTime.now())) {
-            throw new IllegalStateException("이미 만료된 예약입니다.");
+        if(this.expiresAt.isBefore(Instant.now())) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_EXPIRED);
         }
     }
 
