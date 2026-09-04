@@ -62,13 +62,13 @@ public class ProductStockReservation extends DeletableEntity {
 
     private void validateReserved() {
         if(this.status != ReservationStatus.RESERVED) {
-            throw new BusinessException(ErrorCode.RESERVATION_ALREADY_PROCESSED);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
 
     private void validateNotExpired() {
         if(this.expiresAt.isBefore(Instant.now())) {
-            throw new BusinessException(ErrorCode.RESERVATION_EXPIRED);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_EXPIRED);
         }
     }
 
