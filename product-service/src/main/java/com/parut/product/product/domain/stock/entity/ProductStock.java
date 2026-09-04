@@ -75,7 +75,7 @@ public class ProductStock extends DeletableEntity {
 
     private void validateOnSale() {
         if (this.status == StockStatus.SOLD_OUT) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE);
+            throw new BusinessException(ErrorCode.STOCK_PRODUCT_NOT_ON_SALE);
         }
     }
 
