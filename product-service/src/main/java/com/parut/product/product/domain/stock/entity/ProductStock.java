@@ -1,6 +1,8 @@
 package com.parut.product.product.domain.stock.entity;
 
 import com.parut.product.global.common.entity.DeletableEntity;
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.enums.StockStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -15,7 +17,7 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProductStock extends DeletableEntity {
 
-    @Column(name = "product_id", nullable = false, unique = true)
+    @Column(name = "product_id", nullable = false)
     private UUID productId;
 
     @Column(name = "total_quantity", nullable = false)
@@ -48,7 +50,7 @@ public class ProductStock extends DeletableEntity {
     public void reserve(int quantity) {
         validateOnSale();
         if (this.availableQuantity < quantity) {
-            throw new IllegalStateException("재고가 부족합니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_SHORTAGE);
         }
         this.availableQuantity -= quantity;
         refreshStatus();
@@ -73,7 +75,7 @@ public class ProductStock extends DeletableEntity {
 
     private void validateOnSale() {
         if (this.status == StockStatus.SOLD_OUT) {
-            throw new IllegalStateException("판매 중인 상품이 아닙니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
         }
     }
 

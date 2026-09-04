@@ -14,4 +14,6 @@ CREATE TABLE product_schema.p_product_stocks (
     deleted_by VARCHAR(50)
 );
 
-CREATE UNIQUE INDEX uq_stock_product_id ON product_schema.p_product_stocks (product_id);
+CREATE UNIQUE INDEX uq_stock_product_id
+    ON product_schema.p_product_stocks (product_id)
+    WHERE deleted_at IS NULL;
