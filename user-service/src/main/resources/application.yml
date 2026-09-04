@@ -1,0 +1,76 @@
+server:
+  port: ${USER_PORT:8081}
+
+
+spring:
+  application:
+    name: user-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  config:
+    import:
+      - "optional:file:.env[.properties]"
+      - "optional:file:../.env[.properties]"
+      - "optional:file:user-service/.env[.properties]"
+
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
+  datasource:
+    url: ${USER_POSTGRES_URL:jdbc:postgresql://localhost:5433/parut}
+    username: ${POSTGRES_USER:parut}
+    password: ${POSTGRES_PASSWORD:parut123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: ${USER_POSTGRES_SCHEMA:user_schema}
+        hbm2ddl.create_namespaces: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: user_schema
+    default-schema: user_schema
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+logging:
+  level:
+    com.parut.user: debug
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
+
+
+jwt:
+  secret: ${JWT_SECRET:v3ry-s3cr3t-k3y-f0r-p4rut-ms4-jwt-t0k3n-s3cur1ty!@#must-be-long-enough}
+  access-token-expire: ${JWT_ACCESS_TOKEN_EXPIRE:30m}
+  refresh-token-expire: ${JWT_REFRESH_TOKEN_EXPIRE:8h}
+
+internal:
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
