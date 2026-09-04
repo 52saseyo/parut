@@ -55,10 +55,10 @@ public class ProductStockController {
             @RequestParam(defaultValue = "desc") String direction
     ) {
         if (!ALLOWED_SIZES.contains(size)) {
-            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+            throw new BusinessException(ErrorCode.PAGE_INVALID_SIZE);
         }
         if (!ALLOWED_SORTS.contains(sort)) {
-            throw new BusinessException(ErrorCode.INVALID_SORT_FIELD);
+            throw new BusinessException(ErrorCode.SORT_INVALID_FIELD);
         }
 
         Sort.Direction sortDirection = "asc".equalsIgnoreCase(direction)

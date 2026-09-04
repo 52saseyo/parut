@@ -14,7 +14,7 @@ public enum ErrorCode {
     // stock
     STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "재고 정보가 없습니다."),
     STOCK_SHORTAGE(HttpStatus.CONFLICT, "요청 수량이 재고를 초과합니다."),
-    PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "판매 중이 아닌 상품입니다."),
+    STOCK_PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "판매 중이 아닌 상품입니다."),
     STOCK_INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량이 유효하지 않습니다."),
     STOCK_CONFLICT(HttpStatus.CONFLICT, "다른 요청과 충돌하여 처리하지 못했습니다. 다시 시도해주세요."),
 
@@ -24,8 +24,8 @@ public enum ErrorCode {
     RESERVATION_EXPIRED(HttpStatus.CONFLICT, "예약이 만료되어 처리할 수 없습니다."),
 
     // stock list (외부 API)
-    INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "허용되지 않은 페이지 크기입니다."),
-    INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다.");
+    PAGE_INVALID_SIZE(HttpStatus.BAD_REQUEST, "허용되지 않은 페이지 크기입니다."),
+    SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다.");
 
 
     private final String message;
