@@ -1,12 +1,8 @@
 name: CI
 
-# develop 또는 main 대상 PR과 push에서 실행
+# develop 또는 main 대상 PR 생성 및 업데이트 시 실행
 on:
   pull_request:
-    branches:
-      - develop
-      - main
-  push:
     branches:
       - develop
       - main
@@ -125,3 +121,35 @@ jobs:
           name: test-report-${{ matrix.service }}
           path: ${{ matrix.service }}/build/reports/tests/test
           if-no-files-found: ignore
+
+  # 서비스별 Matrix 검사 결과를 하나의 고정된 머지 기준으로 통합
+  ci-result:
+    name: CI Result
+    needs:
+      - detect-changes
+      - build-and-test
+    # 앞선 Job이 실패하거나 생략되어도 최종 결과를 항상 판정
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check CI result
+        env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          BUILD_RESULT: ${{ needs.build-and-test.result }}
+        run: |
+          # 변경 서비스 감지에 실패하면 최종 CI도 실패 처리
+          if [ "$DETECT_RESULT" != "success" ]; then
+            echo "Failed to detect changed services."
+            exit 1
+          fi
+
+          # 서비스 검사가 실패 또는 취소되면 최종 CI도 실패 처리
+          # 서비스 변경이 없어 build-and-test가 생략된 경우는 정상으로 처리
+          if [ "$BUILD_RESULT" != "success" ] && [ "$BUILD_RESULT" != "skipped" ]; then
+            echo "One or more service builds or tests failed."
+            exit 1
+          fi
+
+          # 변경된 모든 서비스의 검사가 정상적으로 완료됨
+          echo "All CI checks passed."
