@@ -15,7 +15,7 @@ spring:
     property-naming-strategy: SNAKE_CASE
 
   datasource:
-    url: ${USER_POSTGRES_URL}
+    url: ${USER_POSTGRES_URL:jdbc:postgresql://localhost:5433/parut}
     username: ${POSTGRES_USER:parut}
     password: ${POSTGRES_PASSWORD:parut123}
     driver-class-name: org.postgresql.Driver
@@ -66,7 +66,7 @@ logging:
 
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:v3ry-s3cr3t-k3y-f0r-p4rut-ms4-jwt-t0k3n-s3cur1ty!@#must-be-long-enough}
   access-token-expire: ${JWT_ACCESS_TOKEN_EXPIRE:30m}
   refresh-token-expire: ${JWT_REFRESH_TOKEN_EXPIRE:8h}
 
