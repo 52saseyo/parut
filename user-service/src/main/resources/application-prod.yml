@@ -1,43 +1,47 @@
+server:
+  port: 8080
+  shutdown: graceful
+
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
   datasource:
-    url: ${POSTGRES_URL}
+    url: ${USER_POSTGRES_URL}
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
 
   jpa:
     hibernate:
       ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
-        default_schema: ${POSTGRES_SCHEMA:product_schema}
+        format_sql: false
+        default_schema: user_schema
 
   flyway:
     enabled: true
     locations: classpath:db/migration
-    schemas: product_schema
-    default-schema: product_schema
+    schemas: user_schema
+    default-schema: user_schema
 
 management:
   endpoints:
     web:
       exposure:
-        include: '*'
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
-      show-details: always
-
+      show-details: when-authorized
   metrics:
     tags:
       application: ${spring.application.name}
-  info:
-    env:
-      enabled: true
-
 
 logging:
   level:
-    com.parut.product: debug
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: trace
+    root: info
+    com.parut.user: info
+    org.hibernate.SQL: info
