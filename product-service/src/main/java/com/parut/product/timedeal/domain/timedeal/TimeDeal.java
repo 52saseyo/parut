@@ -65,7 +65,7 @@ public class TimeDeal extends DeletableEntity {
         this.productId = productId;
         this.originalPrice = originalPrice;
         this.discountRate = discountRate;
-        this.dealPrice = calculateDealPrice(originalPrice, discountRate);
+        this.dealPrice = calculateTimeDealPrice(originalPrice, discountRate);
         this.startAt = startAt;
         this.endAt = endAt;
         this.maxPurchaseQuantity = maxPurchaseQuantity;
@@ -74,7 +74,7 @@ public class TimeDeal extends DeletableEntity {
 
     // NOTE: 시간 판정에 쓰는 now는 도메인이 Instant.now()로 직접 조달하지 않고 항상 파라미터로 받는다.
     // 한 유즈케이스가 같은 now를 모든 도메인 호출에 넘기면 판정 기준 시각이 하나로 고정되고,
-    // 테스트에서도 시각을 원하는 지점에 고정할 수 있다(종료 경계, 이미 끝난 딜 픽스처 등).
+    // 테스트에서도 시각을 원하는 지점에 고정할 수 있다(종료 경계, 이미 끝난 타임딜 픽스처 등).
     public static TimeDeal create(
             UUID productId,
             Long originalPrice,
@@ -126,14 +126,14 @@ public class TimeDeal extends DeletableEntity {
 
         this.originalPrice = newOriginalPrice;
         this.discountRate = newDiscountRate;
-        this.dealPrice = calculateDealPrice(newOriginalPrice, newDiscountRate);
+        this.dealPrice = calculateTimeDealPrice(newOriginalPrice, newDiscountRate);
         this.startAt = newStartAt;
         this.endAt = newEndAt;
         this.maxPurchaseQuantity = newMaxPurchaseQuantity;
     }
 
-    // NOTE: 판매 기간 안에서만 활성화할 수 있다 — 시작 전에 미리 열거나 이미 끝난 딜을 여는 정당한 경우가 없다.
-    // endAt이 지난 SCHEDULED 딜은 activate()가 아니라 end()로 바로 정리한다.
+    // NOTE: 판매 기간 안에서만 활성화할 수 있다 — 시작 전에 미리 열거나 이미 끝난 타임딜을 여는 정당한 경우가 없다.
+    // endAt이 지난 SCHEDULED 타임딜은 activate()가 아니라 end()로 바로 정리한다.
     public void activate(Instant now) {
         if (now == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
@@ -152,7 +152,7 @@ public class TimeDeal extends DeletableEntity {
 
     // NOTE: endAt 경과(배치) 또는 TimeDealStock.isDepleted() 감지(Application Service) 두 경로로 호출될 수 있음
     // NOTE: ACTIVE뿐 아니라 SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면
-    // activate()가 한 번도 돌지 못한 채 endAt이 지날 수 있고, ACTIVE만 허용하면 그런 딜은 종료 배치가
+    // activate()가 한 번도 돌지 못한 채 endAt이 지날 수 있고, ACTIVE만 허용하면 그런 타임딜은 종료 배치가
     // 영구히 정리할 수 없어 SCHEDULED로 박혀 남는다(구매 자체는 validatePurchasable()이 시간으로 막지만
     // 예정 목록 노출·종료 이벤트 발행이 어긋난다). 판매가 열린 적이 없어도 시간상 끝난 것은 사실이므로 ENDED로 정리한다.
     // NOTE: activate()와 달리 end()에는 시간 가드를 두지 않는다 — 재고 소진으로 인한 조기 종료가
@@ -208,6 +208,13 @@ public class TimeDeal extends DeletableEntity {
         if (quantity == null || alreadyPurchasedQuantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        // 요청 수량은 1개 이상이어야 한다. 막지 않으면 음수 수량이 합계를 오히려 줄여
+        // 상한 비교를 그대로 통과한다(누적 8 + 요청 -5 = 3 <= 10). TimeDealPurchase.create()의
+        // 같은 검증과 기준을 맞춘다 — 이 메서드는 create()보다 먼저 단독 호출되므로 자체 방어가 필요하다.
+        if (quantity < 1) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+        }
+        // 누적 수량은 저장소에서 집계해 넘어오는 값이라 0 이상이어야 정상이다.
         if (alreadyPurchasedQuantity < 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
@@ -240,7 +247,7 @@ public class TimeDeal extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
         }
         // 등록·수정 시점에 이미 끝난 타임딜은 만들 수 없다. 기준 시각을 주입받으므로
-        // 테스트에서 now를 과거로 주면 "이미 종료된 딜" 픽스처도 만들 수 있다.
+        // 테스트에서 now를 과거로 주면 "이미 종료된 타임딜" 픽스처도 만들 수 있다.
         if (!endAt.isAfter(now)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
         }
@@ -273,7 +280,7 @@ public class TimeDeal extends DeletableEntity {
         }
     }
 
-    private static Long calculateDealPrice(Long originalPrice, BigDecimal discountRate) {
+    private static Long calculateTimeDealPrice(Long originalPrice, BigDecimal discountRate) {
         BigDecimal original = BigDecimal.valueOf(originalPrice);
         BigDecimal discountAmount = original.multiply(discountRate).divide(BigDecimal.valueOf(100));
         return original.subtract(discountAmount).setScale(0, RoundingMode.DOWN).longValueExact();

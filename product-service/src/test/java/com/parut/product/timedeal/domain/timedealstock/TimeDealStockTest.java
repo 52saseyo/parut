@@ -114,7 +114,7 @@ class TimeDealStockTest {
         }
 
         @Test
-        @DisplayName("삭제된 재고에서는 선점할 수 없다 — 삭제된 딜이 다시 유통되는 것을 막는다")
+        @DisplayName("삭제된 재고에서는 선점할 수 없다 — 삭제된 타임딜이 다시 유통되는 것을 막는다")
         void 삭제된_재고_선점_불가() {
             TimeDealStock stock = stock();
             stock.softDelete("tester");

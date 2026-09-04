@@ -29,14 +29,14 @@ class TimeDealPurchaseTest {
 
     private static final int MAX_PURCHASE_QUANTITY = 5;
 
-    private static TimeDeal deal() {
+    private static TimeDeal timeDeal() {
         return TimeDeal.create(
                 UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);
     }
 
     private static TimeDealPurchase purchase() {
-        return TimeDealPurchase.create(deal(), UUID.randomUUID(), UUID.randomUUID(), 2, RESERVED_AT);
+        return TimeDealPurchase.create(timeDeal(), UUID.randomUUID(), UUID.randomUUID(), 2, RESERVED_AT);
     }
 
     private static TimeDealPurchase confirmedPurchase() {
@@ -75,7 +75,7 @@ class TimeDealPurchaseTest {
             Instant afterSaleEnd = Instant.parse("2026-09-04T13:00:01Z");
 
             assertThatThrownBy(() -> TimeDealPurchase.create(
-                    deal(), UUID.randomUUID(), UUID.randomUUID(), 2, afterSaleEnd))
+                    timeDeal(), UUID.randomUUID(), UUID.randomUUID(), 2, afterSaleEnd))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
@@ -85,7 +85,7 @@ class TimeDealPurchaseTest {
         @DisplayName("구매 수량이 1개 미만이면 예외")
         void 수량_하한() {
             assertThatThrownBy(() -> TimeDealPurchase.create(
-                    deal(), UUID.randomUUID(), UUID.randomUUID(), 0, RESERVED_AT))
+                    timeDeal(), UUID.randomUUID(), UUID.randomUUID(), 0, RESERVED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
@@ -95,7 +95,7 @@ class TimeDealPurchaseTest {
         @DisplayName("필수값이 null이면 예외")
         void 필수값_null() {
             assertThatThrownBy(() -> TimeDealPurchase.create(
-                    deal(), null, UUID.randomUUID(), 2, RESERVED_AT))
+                    timeDeal(), null, UUID.randomUUID(), 2, RESERVED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
@@ -105,7 +105,7 @@ class TimeDealPurchaseTest {
         @DisplayName("1인당 누적 제한은 생성 시점에 검증하지 않는다 — 상한을 넘는 수량도 생성 자체는 통과한다")
         void 누적_제한은_생성_책임이_아님() {
             TimeDealPurchase purchase = TimeDealPurchase.create(
-                    deal(), UUID.randomUUID(), UUID.randomUUID(), MAX_PURCHASE_QUANTITY + 1, RESERVED_AT);
+                    timeDeal(), UUID.randomUUID(), UUID.randomUUID(), MAX_PURCHASE_QUANTITY + 1, RESERVED_AT);
 
             assertThat(purchase.getQuantity()).isEqualTo(MAX_PURCHASE_QUANTITY + 1);
         }
