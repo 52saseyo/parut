@@ -17,7 +17,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [parut-net]
+    networks:
+      - parut-net
 
   redis:
     image: redis:8.4-alpine
@@ -30,7 +31,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    networks: [parut-net]
+    networks:
+      - parut-net
 
   kafka:
     image: apache/kafka:4.1.0
@@ -59,12 +61,14 @@ services:
       timeout: 10s
       start_period: 40s
       retries: 10
-    networks: [parut-net]
+    networks:
+      - parut-net
 
   user-service:
     image: ${ECR_REGISTRY}/user-service:${USER_IMAGE_TAG}
     container_name: user-service
-    env_file: .env
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
@@ -78,15 +82,20 @@ services:
       start_period: 60s
       retries: 5
     depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      kafka: { condition: service_healthy }
-    networks: [parut-net]
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - parut-net
 
   product-service:
     image: ${ECR_REGISTRY}/product-service:${PRODUCT_IMAGE_TAG}
     container_name: product-service
-    env_file: .env
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
@@ -100,15 +109,20 @@ services:
       start_period: 60s
       retries: 5
     depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      kafka: { condition: service_healthy }
-    networks: [parut-net]
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - parut-net
 
   order-service:
     image: ${ECR_REGISTRY}/order-service:${ORDER_IMAGE_TAG}
     container_name: order-service
-    env_file: .env
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
@@ -122,15 +136,20 @@ services:
       start_period: 60s
       retries: 5
     depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      kafka: { condition: service_healthy }
-    networks: [parut-net]
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - parut-net
 
   notification-service:
     image: ${ECR_REGISTRY}/notification-service:${NOTIFICATION_IMAGE_TAG}
     container_name: notification-service
-    env_file: .env
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
@@ -144,15 +163,20 @@ services:
       start_period: 60s
       retries: 5
     depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      kafka: { condition: service_healthy }
-    networks: [parut-net]
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - parut-net
 
   gateway-service:
     image: ${ECR_REGISTRY}/gateway-service:${GATEWAY_IMAGE_TAG}
     container_name: gateway-service
-    env_file: .env
+    env_file:
+      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
@@ -168,11 +192,16 @@ services:
       start_period: 60s
       retries: 5
     depends_on:
-      user-service: { condition: service_healthy }
-      product-service: { condition: service_healthy }
-      order-service: { condition: service_healthy }
-      notification-service: { condition: service_healthy }
-    networks: [parut-net]
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      - parut-net
 
 volumes:
   postgres_data:
@@ -180,4 +209,5 @@ volumes:
 
 networks:
   parut-net:
+    name: parut-net
     driver: bridge
