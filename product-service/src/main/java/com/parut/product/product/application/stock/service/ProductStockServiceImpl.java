@@ -44,7 +44,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Transactional(readOnly = true)
     public ProductStock getStock(UUID productId) {
         return productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
     }
 
     // 상품 여러 개 재고 조회
@@ -58,11 +58,11 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     public void updateStock(UUID productId, int newTotalQuantity) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
         int reservedQuantity = stock.getTotalQuantity() - stock.getAvailableQuantity();
         if (newTotalQuantity < reservedQuantity) {
-            throw new BusinessException(ErrorCode.STOCK_INVALID_QUANTITY);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
         }
 
         int newAvailableQuantity = newTotalQuantity - reservedQuantity;
@@ -73,7 +73,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     public void deleteStock(UUID productId, String deletedBy) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.softDelete(deletedBy);
     }
 
@@ -83,9 +83,9 @@ public class ProductStockServiceImpl implements ProductStockService{
            return;
        }
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.reserve(quantity);
-        saveStockSafely(stock, ErrorCode.STOCK_CONFLICT);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
@@ -105,12 +105,12 @@ public class ProductStockServiceImpl implements ProductStockService{
         reservation.confirm();
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
         validateStockOwnership(stock, productId);
 
         stock.confirm(reservation.getQuantity());
-        saveStockSafely(stock, ErrorCode.RESERVATION_ALREADY_PROCESSED);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.CONFIRM);
     }
@@ -125,12 +125,12 @@ public class ProductStockServiceImpl implements ProductStockService{
         reservation.cancel();
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
         validateStockOwnership(stock, productId);
 
         stock.restore(reservation.getQuantity());
-        saveStockSafely(stock, ErrorCode.RESERVATION_ALREADY_PROCESSED);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.RESTORE);
     }
@@ -145,14 +145,14 @@ public class ProductStockServiceImpl implements ProductStockService{
     private ProductStockReservation findReservationByOrderItemId(UUID orderItemId, UUID orderId) {
         ProductStockEventLog reserveLog = productStockEventLogRepository
                 .findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
 
         ProductStockReservation reservation = productStockReservationRepository
                 .findById(reserveLog.getReservationId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
 
         if (!reservation.getOrderId().equals(orderId)) {
-            throw new BusinessException(ErrorCode.RESERVATION_NOT_FOUND);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
 
         return reservation;
@@ -164,7 +164,7 @@ public class ProductStockServiceImpl implements ProductStockService{
             productStockEventLogRepository.save(eventLog);
         } catch (DataIntegrityViolationException e) {
             // 동시 요청으로 이미 처리됨 -> 멱등처리
-            throw new BusinessException(ErrorCode.RESERVATION_ALREADY_PROCESSED);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
 
@@ -186,7 +186,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     // 재고와 상품이 일치하는지 검증
     private void validateStockOwnership(ProductStock stock, UUID productId) {
         if (!stock.getProductId().equals(productId)) {
-            throw new BusinessException(ErrorCode.RESERVATION_NOT_FOUND);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
     }
 

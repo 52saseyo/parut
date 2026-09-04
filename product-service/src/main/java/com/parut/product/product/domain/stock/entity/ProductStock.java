@@ -50,7 +50,7 @@ public class ProductStock extends DeletableEntity {
     public void reserve(int quantity) {
         validateOnSale();
         if (this.availableQuantity < quantity) {
-            throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_SHORTAGE);
         }
         this.availableQuantity -= quantity;
         refreshStatus();
@@ -75,7 +75,7 @@ public class ProductStock extends DeletableEntity {
 
     private void validateOnSale() {
         if (this.status == StockStatus.SOLD_OUT) {
-            throw new BusinessException(ErrorCode.STOCK_PRODUCT_NOT_ON_SALE);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
         }
     }
 
