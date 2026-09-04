@@ -1,10 +1,12 @@
 server:
-  port: ${USER_PORT}
+  port: ${USER_PORT:8081}
 
 
 spring:
   application:
     name: user-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   config:
     import:
       - "optional:file:.env[.properties]"
