@@ -40,7 +40,6 @@ public class DeliveryService {
     private final ObjectProvider<OrderDeliveryGroupQueryPort> orderDeliveryGroupQueryPortProvider;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Transactional
     private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
         // TODO: UNIQUE 충돌 시 기존 배송을 다시 조회해 반환한다.
         return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
