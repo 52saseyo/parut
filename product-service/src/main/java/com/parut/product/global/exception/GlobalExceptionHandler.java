@@ -6,6 +6,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -62,6 +63,21 @@ public class GlobalExceptionHandler {
         log.warn(
                 "[MissingServletRequestParameterException] parameter={}",
                 e.getParameterName()
+        );
+
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    // NOTE: 별도로 두지 않으면 Exception 핸들러로 떨어져 500이 나간다.
+    // 상태 코드가 401이 아니라 400인 이유: 인증은 게이트웨이가 JWT를 검증해 X-User-Id로 내려주는 구조이므로,
+    // 이 헤더가 비어 있다는 것은 사용자의 인증 실패가 아니라 호출자가 헤더 전파를 빠뜨린 계약 위반이다.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
+            MissingRequestHeaderException e
+    ) {
+        log.warn(
+                "[MissingRequestHeaderException] header={}",
+                e.getHeaderName()
         );
 
         return createResponse(ErrorCode.INVALID_INPUT_VALUE);
