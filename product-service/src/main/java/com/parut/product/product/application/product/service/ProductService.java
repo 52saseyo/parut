@@ -147,8 +147,8 @@ public class ProductService {
         switch (targetStatus) {
             case ON_SALE -> changeToOnSale(product);
             case SUSPENDED -> product.suspend();
+            // TODO: SOLD_OUT 상태처리
 
-            // SOLD_OUT은 재고 소진 시 STOCK에서 내부적으로 상태 변환 처리
             case DRAFT, SOLD_OUT, DELETED -> throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
     }
