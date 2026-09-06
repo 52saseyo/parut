@@ -36,6 +36,10 @@ public class ProductStockReservation extends DeletableEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     public static ProductStockReservation create(UUID stockId, UUID orderId,
                                                  int quantity, Instant expiresAt) {
         ProductStockReservation reservation = new ProductStockReservation();
@@ -58,6 +62,12 @@ public class ProductStockReservation extends DeletableEntity {
     public void cancel() {
         validateReserved();
         this.status = ReservationStatus.CANCELLED;
+    }
+
+    // 예약 만료 시
+    public void expire() {
+        validateReserved();
+        this.status = ReservationStatus.EXPIRED;
     }
 
     private void validateReserved() {

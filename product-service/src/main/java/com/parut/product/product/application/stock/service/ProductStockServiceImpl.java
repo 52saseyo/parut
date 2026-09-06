@@ -67,6 +67,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         int newAvailableQuantity = newTotalQuantity - reservedQuantity;
         stock.adjustQuantity(newTotalQuantity, newAvailableQuantity);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
     }
 
     // 재고 삭제
@@ -90,7 +91,6 @@ public class ProductStockServiceImpl implements ProductStockService{
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
                 .create(stock.getId(), orderId, quantity, Instant.now().plus(30, ChronoUnit.MINUTES));
-
         productStockReservationRepository.save(reservation);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.RESERVE);
@@ -103,6 +103,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
         reservation.confirm();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
@@ -123,6 +124,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
         reservation.cancel();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
@@ -174,7 +176,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         return productStockRepository.findByDeletedAtIsNull(pageable);
     }
 
-    // 낙관적 락 검증
+    // 낙관적 락 검증 (재고)
     private void saveStockSafely(ProductStock stock, ErrorCode conflictErrorCode) {
         try {
             productStockRepository.saveAndFlush(stock);
@@ -182,6 +184,16 @@ public class ProductStockServiceImpl implements ProductStockService{
             throw new BusinessException(conflictErrorCode);
         }
     }
+
+    // 낙관적 락 검증 (재고예약)
+    private void saveReservationSafely(ProductStockReservation reservation, ErrorCode conflictErrorCode) {
+        try {
+            productStockReservationRepository.saveAndFlush(reservation);
+        } catch (OptimisticLockingFailureException e) {
+            throw new BusinessException(conflictErrorCode);
+        }
+    }
+
 
     // 재고와 상품이 일치하는지 검증
     private void validateStockOwnership(ProductStock stock, UUID productId) {
