@@ -25,3 +25,6 @@ CREATE UNIQUE INDEX uq_p_product_images_active_main
     ON product_schema.p_product_images (product_id)
     WHERE image_type = 'MAIN'
       AND deleted_at IS NULL;
+CREATE UNIQUE INDEX uq_p_product_images_active_key
+    ON product_schema.p_product_images (image_key)
+    WHERE deleted_at IS NULL;
