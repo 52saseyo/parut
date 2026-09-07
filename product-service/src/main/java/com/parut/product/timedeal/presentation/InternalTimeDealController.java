@@ -23,7 +23,7 @@ public class InternalTimeDealController {
     private final TimeDealPurchaseCommandUseCase timeDealPurchaseCommandUseCase;
 
 
-    @PostMapping("/time-deal/{timeDealId}/purchases")
+    @PostMapping("/time-deals/{timeDealId}/purchases")
     public ResponseEntity<Void> reserve(
             @PathVariable UUID timeDealId,
             @RequestHeader(HeaderConstants.USER_ID) UUID userId,
