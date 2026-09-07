@@ -12,6 +12,7 @@ import com.parut.product.product.infrastructure.stock.persistence.ProductStockRe
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -57,7 +58,11 @@ public class ProductStockReservationExpirationProcessor {
             productStockRepository.saveAndFlush(stock);
 
             ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
+        try {
             productStockEventLogRepository.save(eventLog);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
 
             log.info("[ExpirationScheduler] 예약 만료 처리 완료: reservationId={}", reservationId);
 
