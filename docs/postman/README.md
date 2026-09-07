@@ -22,7 +22,7 @@
 
 ## 2. 환경 값 채우기
 
-임포트한 뒤 포스트맨 안에서 `parut-local` 환경을 열고 `CURRENT VALUE`를 채운다.
+사이드바 `Environments`에서 `parut-local`을 클릭해 변수 표를 열고 **`Value` 칸**을 채운다.
 
 | 변수 | 채울 값 |
 |---|---|
@@ -31,9 +31,19 @@
 | `serviceKey` | 각 서비스 `.env`의 `INTERNAL_SERVICE_KEY` 값 |
 | `userId` / `productId` / `timeDealId` / `orderId` / `orderItemId` | 본인 로컬 DB에 있는 테스트 데이터 UUID |
 
-**`serviceKey`는 절대 커밋하지 않는다.** 내부 서비스 인증용 공유 시크릿이라 git 히스토리에 한 번 올라가면 지워도 남는다.
+포스트맨 버전에 따라 값 칸이 `Value` 하나이거나 `INITIAL VALUE` / `CURRENT VALUE` 둘로 갈린다(개인 워크스페이스에서는 공유 대상이 없어 하나로 합쳐진다). **두 칸이 보이면 `CURRENT VALUE`에만** 넣는다 — 그 값은 export 파일에 포함되지 않는다.
 
-포스트맨은 임포트 시점에 파일 내용을 **복사**하고 이후 파일과 동기화하지 않는다. 그래서 앱에서 값을 채워도 커밋된 `local.postman_environment.json`은 빈 상태로 유지된다 — 값을 채운 상태로 export해서 덮어쓰지만 않으면 된다.
+### 시크릿이 파일에 섞이지 않게 하기
+
+`serviceKey`는 서비스 간 인증용 공유 시크릿이라 git 히스토리에 한 번 올라가면 지워도 남는다. 값 칸이 하나뿐인 버전에서는 **채운 값이 export 시 그대로 파일에 들어가므로** 커밋 전에 확인한다.
+
+```bash
+grep -n '"value": *"[^"]' docs/postman/local.postman_environment.json
+```
+
+`productBaseUrl` 한 줄만 잡히면 정상이다. `serviceKey`나 UUID가 잡히면 그 값이 파일에 들어간 것이므로 커밋 전에 비운다.
+
+애초에 환경을 export하지 않으면 커밋된 `local.postman_environment.json`은 계속 빈 상태로 남는다 — 포스트맨은 임포트 시점에 파일 내용을 **복사**하고 이후 파일과 동기화하지 않기 때문이다. 즉 앱에서 값을 채우는 것만으로는 파일이 오염되지 않는다. **환경 파일은 변수 이름이 바뀔 때만 export해서 갱신한다.**
 
 ## 3. 폴더 규칙
 

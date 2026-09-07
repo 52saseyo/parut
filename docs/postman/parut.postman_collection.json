@@ -40,7 +40,7 @@
       "item": [
         {
           "name": "product",
-          "description": "상품 컨텍스트. 상품 본체와 재고(ProductStock) API.",
+          "description": "상품 컨텍스트. 상품 본체와 재고(ProductStock) API. 아래 요청은 폴더 규칙·변수 사용법을 보여주는 예시이며, 담당자가 확인 후 이어서 채운다.",
           "item": [
             {
               "name": "internal",
