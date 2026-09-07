@@ -31,8 +31,8 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class DeliveryService {
 
-    /** 배송 시작 6시간 후 자동완료한다. */
-    private static final long DELIVERY_COMPLETION_DELAY_HOURS = 6L;
+    /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
+    private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
 
     private final DeliveryRepository deliveryRepository;
 
@@ -104,7 +104,7 @@ public class DeliveryService {
     }
 
     /**
-     * 시작한 지 6시간이 지난 배송을 완료한다.
+     * 시작한 지 60초가 지난 배송을 완료한다.
      */
     @Transactional
     public int completeEligibleDeliveries(Instant completionTime) {
@@ -114,7 +114,7 @@ public class DeliveryService {
 
         List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
-                completionTime.minus(Duration.ofHours(DELIVERY_COMPLETION_DELAY_HOURS))
+                completionTime.minus(Duration.ofSeconds(DELIVERY_COMPLETION_DELAY_SECONDS))
         );
 
         deliveries.forEach(delivery -> {

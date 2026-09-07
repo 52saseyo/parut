@@ -28,7 +28,7 @@ class DeliveryServiceTest {
 
     private static final UUID DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
     private static final Instant COMPLETION_TIME = Instant.parse("2026-09-05T07:00:00Z");
-    private static final Instant COMPLETION_THRESHOLD = Instant.parse("2026-09-05T01:00:00Z");
+    private static final Instant COMPLETION_THRESHOLD = Instant.parse("2026-09-05T06:59:00Z");
 
     @Mock
     private DeliveryRepository deliveryRepository;
@@ -43,7 +43,7 @@ class DeliveryServiceTest {
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("배송 시작 6시간이 지난 배송을 완료 대상으로 조회한다")
+    @DisplayName("배송 시작 60초가 지난 배송을 완료 대상으로 조회한다")
     void 배송_완료_기준_시각_계산() {
         when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
