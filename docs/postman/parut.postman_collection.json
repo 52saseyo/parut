@@ -1,0 +1,672 @@
+{
+  "info": {
+    "name": "parut",
+    "description": "파릇 전체 API 컬렉션 (Postman Collection v2.1.0).\n\n[폴더 규칙]\n{서비스} > {모듈/바운디드 컨텍스트} > {internal|external} > {기능 요청}\n\n- internal : 서비스 간 호출 경로(/api/v1/internal/**). X-Service-Key 검증 대상이며 폴더 auth 로 헤더가 자동 상속된다.\n- external : 클라이언트에 공개되는 경로(/api/v1/**).\n\n[값 관리]\n서비스마다 host:port 가 다르므로 baseUrl 을 서비스별로 둔다({{productBaseUrl}} 등).\n실제 값과 시크릿은 컬렉션에 넣지 않고 Environment(local.postman_environment.json)에서 주입한다.\n\n[커밋 규칙]\nexport 후 _postman_id / _exporter_id / _collection_link 와 저장된 응답 예시(response)는 제거하고 커밋한다.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "productBaseUrl",
+      "value": "http://localhost:8080",
+      "type": "string",
+      "description": "product-service. Environment 를 선택하지 않았을 때 쓰이는 기본값."
+    },
+    {
+      "key": "orderBaseUrl",
+      "value": "",
+      "type": "string",
+      "description": "order-service. 담당자가 포트 확정 후 채운다."
+    },
+    {
+      "key": "userBaseUrl",
+      "value": "",
+      "type": "string",
+      "description": "user-service. 담당자가 포트 확정 후 채운다."
+    },
+    {
+      "key": "notificationBaseUrl",
+      "value": "",
+      "type": "string",
+      "description": "notification-service. 담당자가 포트 확정 후 채운다."
+    }
+  ],
+  "item": [
+    {
+      "name": "product-service",
+      "description": "상품 / 타임딜 담당 서비스. 모듈은 com.parut.product 의 바운디드 컨텍스트와 같게 나눈다.",
+      "item": [
+        {
+          "name": "product",
+          "description": "상품 컨텍스트. 상품 본체와 재고(ProductStock) API.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": [
+                {
+                  "name": "재고 선점",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/reserve",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "stocks",
+                        "{{productId}}",
+                        "reserve"
+                      ]
+                    },
+                    "description": "availableQuantity 를 차감하고 예약(RESERVED)을 생성한다. orderItemId 기준으로 멱등 처리된다."
+                  }
+                },
+                {
+                  "name": "재고 확정",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/confirm",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "stocks",
+                        "{{productId}}",
+                        "confirm"
+                      ]
+                    },
+                    "description": "결제 완료 후 totalQuantity 를 확정 차감한다."
+                  }
+                },
+                {
+                  "name": "재고 복구",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/restore",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "stocks",
+                        "{{productId}}",
+                        "restore"
+                      ]
+                    },
+                    "description": "결제 실패·주문 취소 시 선점을 취소하고 availableQuantity 를 되돌린다."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": [
+                {
+                  "name": "재고 수정",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"totalQuantity\": 100\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/stocks/{{productId}}",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "stocks",
+                        "{{productId}}"
+                      ]
+                    },
+                    "description": "총 재고 수량을 조정한다. 이미 선점된 수량보다 작게 지정하면 400."
+                  }
+                },
+                {
+                  "name": "재고 목록 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/stocks?page=1&size=10&sort=createdAt&direction=desc",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "stocks"
+                      ],
+                      "query": [
+                        {
+                          "key": "page",
+                          "value": "1",
+                          "description": "1부터 시작"
+                        },
+                        {
+                          "key": "size",
+                          "value": "10",
+                          "description": "10 / 30 / 50 만 허용"
+                        },
+                        {
+                          "key": "sort",
+                          "value": "createdAt",
+                          "description": "createdAt / updatedAt 만 허용"
+                        },
+                        {
+                          "key": "direction",
+                          "value": "desc",
+                          "description": "asc / desc"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "timedeal",
+          "description": "타임딜 컨텍스트. TimeDeal / TimeDealStock / TimeDealPurchase API.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": [
+                {
+                  "name": "타임딜 구매 예약",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "time-deals",
+                        "{{timeDealId}}",
+                        "purchases"
+                      ]
+                    },
+                    "description": "타임딜 재고를 선점하고 TimeDealPurchase(RESERVED) 를 생성한다. 성공 시 204 No Content."
+                  }
+                },
+                {
+                  "name": "타임딜 구매 확정",
+                  "request": {
+                    "method": "POST",
+                    "header": [],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{orderId}}/confirm",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "time-deal-purchases",
+                        "{{orderId}}",
+                        "confirm"
+                      ]
+                    },
+                    "description": "결제 완료 후 판매 확정. 요청 본문이 없다. 성공 시 204 No Content."
+                  }
+                },
+                {
+                  "name": "타임딜 구매 취소",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"주문 취소\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{orderId}}/cancel",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "time-deal-purchases",
+                        "{{orderId}}",
+                        "cancel"
+                      ]
+                    },
+                    "description": "주문 취소·결제 실패 수신. reason 은 선택값이며 30자를 넘기면 400."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로. 타임딜 조회/생성 API 구현 시 여기에 추가한다.",
+              "item": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "order-service",
+      "description": "주문 / 결제 / 배송 / 환불 / 정산 담당 서비스. 모듈은 com.parut.order 의 바운디드 컨텍스트와 같게 나눈다.",
+      "item": [
+        {
+          "name": "cart",
+          "description": "장바구니 컨텍스트. 장바구니 담기·수량 변경·삭제·조회.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "order",
+          "description": "주문 컨텍스트. 주문 생성·조회·취소와 OrderStatus 전이(CREATED → STOCK_RESERVED → PAYMENT_PENDING → PAID → CONFIRMED).",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "payment",
+          "description": "결제 컨텍스트. 결제 준비·승인·취소. 결제 대기 시간은 타임딜 10분 / 일반 상품 30분.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "delivery",
+          "description": "배송 컨텍스트. 판매자별 배송 그룹, 운송장 번호 등록, 배송 시작(SHIPPED). DELIVERED 전환은 스케줄러가 처리하며 공개 API 가 없다.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "refund",
+          "description": "환불 컨텍스트. 주문상품 행 단위 환불 요청·취소·승인·거절(REQUESTED / APPROVED / REJECTED / CANCELED).",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "settlement",
+          "description": "정산 컨텍스트. 배송 그룹 단위 정산 조회와 관리자의 COMPLETED 처리.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "auth": {
+                "type": "apikey",
+                "apikey": [
+                  {
+                    "key": "key",
+                    "value": "X-Service-Key"
+                  },
+                  {
+                    "key": "value",
+                    "value": "{{serviceKey}}"
+                  },
+                  {
+                    "key": "in",
+                    "value": "header"
+                  }
+                ]
+              },
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "user-service",
+      "description": "회원 / 인증 / 판매자 입점 담당 서비스. com.parut.user 에 컨텍스트 분리가 없어 모듈 폴더를 두지 않는다 — 분리되면 그때 맞춰 나눈다.",
+      "item": [
+        {
+          "name": "internal",
+          "description": "/api/v1/internal/** — X-Service-Key 검증 대상.",
+          "auth": {
+            "type": "apikey",
+            "apikey": [
+              {
+                "key": "key",
+                "value": "X-Service-Key"
+              },
+              {
+                "key": "value",
+                "value": "{{serviceKey}}"
+              },
+              {
+                "key": "in",
+                "value": "header"
+              }
+            ]
+          },
+          "item": []
+        },
+        {
+          "name": "external",
+          "description": "/api/v1/** — 클라이언트 공개 경로.",
+          "item": []
+        }
+      ]
+    },
+    {
+      "name": "notification-service",
+      "description": "인앱 알림 담당 서비스. com.parut.notification 에 컨텍스트 분리가 없어 모듈 폴더를 두지 않는다 — 분리되면 그때 맞춰 나눈다.",
+      "item": [
+        {
+          "name": "internal",
+          "description": "/api/v1/internal/** — X-Service-Key 검증 대상.",
+          "auth": {
+            "type": "apikey",
+            "apikey": [
+              {
+                "key": "key",
+                "value": "X-Service-Key"
+              },
+              {
+                "key": "value",
+                "value": "{{serviceKey}}"
+              },
+              {
+                "key": "in",
+                "value": "header"
+              }
+            ]
+          },
+          "item": []
+        },
+        {
+          "name": "external",
+          "description": "/api/v1/** — 클라이언트 공개 경로.",
+          "item": []
+        }
+      ]
+    }
+  ]
+}
