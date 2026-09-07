@@ -68,9 +68,7 @@ public class GlobalExceptionHandler {
         return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
-    // NOTE: 별도로 두지 않으면 Exception 핸들러로 떨어져 500이 나간다.
-    // 상태 코드가 401이 아니라 400인 이유: 인증은 게이트웨이가 JWT를 검증해 X-User-Id로 내려주는 구조이므로,
-    // 이 헤더가 비어 있다는 것은 사용자의 인증 실패가 아니라 호출자가 헤더 전파를 빠뜨린 계약 위반이다.
+    // NOTE: 필수 헤더 값이 빠졌을때 예외. 인증은 게이트웨이가 JWT를 검증해 X-User-Id로 내려주는 구조이므로, 헤더가 비어 있다는 것은 사용자의 인증 실패가 아니라 호출자가 헤더 전파를 빠뜨린 계약 위반.
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
             MissingRequestHeaderException e
