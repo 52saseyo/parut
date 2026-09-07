@@ -24,6 +24,8 @@ management:
         include: '*'
   endpoint:
     health:
+      probes:
+        enabled: true
       show-details: always
 
   metrics:
@@ -39,8 +41,3 @@ logging:
     com.parut.product: debug
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
-
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_URI}

@@ -17,6 +17,14 @@ spring:
     schemas: order_schema
     default-schema: order_schema
 
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+
 management:
   endpoints:
     web:
@@ -24,6 +32,8 @@ management:
         include: '*'
   endpoint:
     health:
+      probes:
+        enabled: true
       show-details: always
 
   metrics:

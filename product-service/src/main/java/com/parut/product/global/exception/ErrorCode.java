@@ -9,10 +9,44 @@ public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "잘못된 요청입니다."),
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 미디어 타입입니다."),
-    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 
-    // auth & user
-//    AUTH_UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 올바르지 않습니다."), // NOTE: 예시 남겨둠 시작시 삭제
+    // product_stock
+    PRODUCT_STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "재고 정보가 없습니다."),
+    PRODUCT_STOCK_SHORTAGE(HttpStatus.CONFLICT, "요청 수량이 재고를 초과합니다."),
+    PRODUCT_STOCK_PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "판매 중이 아닌 상품입니다."),
+    PRODUCT_STOCK_INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량이 유효하지 않습니다."),
+    PRODUCT_STOCK_CONFLICT(HttpStatus.CONFLICT, "다른 요청과 충돌하여 처리하지 못했습니다. 다시 시도해주세요."),
+    PRODUCT_STOCK_RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 예약 건이 없습니다."),
+    PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 예약입니다."),
+    PRODUCT_STOCK_RESERVATION_EXPIRED(HttpStatus.CONFLICT, "예약이 만료되어 처리할 수 없습니다."),
+    PRODUCT_STOCK_PAGE_INVALID_SIZE(HttpStatus.BAD_REQUEST, "허용되지 않은 페이지 크기입니다."),
+    PRODUCT_STOCK_SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
+
+    // time deal
+    TIME_DEAL_INVALID_PERIOD(HttpStatus.BAD_REQUEST, "타임딜 종료일시는 시작일시보다 이후여야 합니다."),
+    TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "최대 구매 수량은 1개 이상이어야 합니다."),
+    TIME_DEAL_NEGATIVE_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량은 0개 이상이어야 합니다."),
+    TIME_DEAL_INVALID_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "구매 수량은 1개 이상이어야 합니다."),
+    TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY(HttpStatus.CONFLICT, "타임딜 최대 구매 수량을 초과했습니다."),
+    TIME_DEAL_INVALID_LOW_STOCK_THRESHOLD(HttpStatus.BAD_REQUEST, "재고 부족 임계 수량은 0개 이상이며 초기 재고 이하이어야 합니다."),
+    TIME_DEAL_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "허용되지 않는 타임딜 상태 전이입니다."),
+    TIME_DEAL_NOT_ACTIVE(HttpStatus.CONFLICT, "타임딜이 판매 중 상태가 아닙니다."),
+    TIME_DEAL_RESERVATION_EXPIRED(HttpStatus.CONFLICT, "선점 시간이 만료되어 판매를 확정할 수 없습니다."),
+    TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "판매 중인 타임딜은 삭제할 수 없습니다."),
+    TIME_DEAL_STOCK_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "선점 또는 판매된 수량이 있는 재고는 삭제할 수 없습니다."),
+    TIME_DEAL_DELETED(HttpStatus.CONFLICT, "삭제된 타임딜입니다."),
+    TIME_DEAL_STOCK_DELETED(HttpStatus.CONFLICT, "삭제된 타임딜 재고입니다."),
+    TIME_DEAL_INVALID_CANCEL_REASON(HttpStatus.BAD_REQUEST, "취소 사유는 30자를 넘을 수 없습니다."),
+    TIME_DEAL_PURCHASE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "타임딜 구매 이력은 삭제할 수 없습니다."),
+    TIME_DEAL_INVALID_STATUS(HttpStatus.CONFLICT, "삭제할 수 없는 타임딜 상태입니다."),
+    TIME_DEAL_UPDATE_NOT_ALLOWED(HttpStatus.CONFLICT, "수정할 수 없는 타임딜 상태입니다."),
+    TIME_DEAL_INVALID_PRICE(HttpStatus.BAD_REQUEST, "타임딜 판매 가격은 0보다 커야 합니다."),
+    TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다."),
+    TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다."),
+    TIME_DEAL_INVALID_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "초기 재고는 1개 이상이어야 합니다."),
+    TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 수량은 0일 수 없습니다."),
+    TIME_DEAL_INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "할인율은 0 이상 100 미만이어야 합니다.")
 
     ;
 

@@ -1,0 +1,134 @@
+# ==============================================================================
+# 로컬 전체 통합 테스트용 구성 (인프라 + 5개 서비스 컨테이너 일괄 실행)
+# 운영 배포용은 `docker-compose.prod.yml` 참조
+#
+# 실행: docker compose up -d --build
+# 종료: docker compose down
+#
+# - IDE에서 서비스 실행 중이면 포트 충돌이 발생할 수 있습니다.
+# - 개발 중인 서비스는 주석처리 했습니다. 추후 서비스 담당자가 -docker 프로필 작성 후 주석 해제 해주세요.
+# ==============================================================================
+
+include:
+  - docker-compose.infra.yml
+
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: docker
+  REDIS_HOST: redis
+  KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  USER_URL: http://user-service:8080
+  PRODUCT_URL: http://product-service:8080
+  ORDER_URL: http://order-service:8080
+  NOTIFICATION_URL: http://notification-service:8080
+
+x-infra-deps: &infra-deps
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  kafka:
+    condition: service_healthy
+
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
+  interval: 15s
+  timeout: 3s
+  start_period: 60s
+  retries: 5
+
+services:
+#  user-service:
+#    build:
+#      context: ./user-service
+#      dockerfile: Dockerfile
+#    container_name: user-service
+#    env_file:
+#      - .env
+#    environment:
+#      <<: *app-env
+#      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
+#      USER_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
+#    ports:
+#      - "${USER_PORT:-8081}:8080"
+#    healthcheck: *app-healthcheck
+#    depends_on: *infra-deps
+#    networks:
+#      - parut-net
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=product_schema
+      PRODUCT_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=product_schema
+    ports:
+      - "${PRODUCT_PORT:-8082}:8080"
+    healthcheck: *app-healthcheck
+    depends_on: *infra-deps
+    networks:
+      - parut-net
+
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=order_schema
+      ORDER_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=order_schema
+    ports:
+      - "${ORDER_PORT:-8083}:8080"
+    healthcheck: *app-healthcheck
+    depends_on: *infra-deps
+    networks:
+      - parut-net
+
+#  notification-service:
+#    build:
+#      context: ./notification-service
+#      dockerfile: Dockerfile
+#    container_name: notification-service
+#    env_file:
+#      - .env
+#    environment:
+#      <<: *app-env
+#      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
+#      NOTIFICATION_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
+#    ports:
+#      - "${NOTIFICATION_PORT:-8084}:8080"
+#    healthcheck: *app-healthcheck
+#    depends_on: *infra-deps
+#    networks:
+#      - parut-net
+
+#  gateway-service:
+#    build:
+#      context: ./gateway-service
+#      dockerfile: Dockerfile
+#    container_name: gateway-service
+#    env_file:
+#      - .env
+#    environment:
+#      <<: *app-env
+#    ports:
+#      - "${GATEWAY_PORT:-8080}:8080"
+#    healthcheck: *app-healthcheck
+#    depends_on:
+#      user-service:
+#        condition: service_healthy
+#      product-service:
+#        condition: service_healthy
+#      order-service:
+#        condition: service_healthy
+#      notification-service:
+#        condition: service_healthy
+#    networks:
+#      - parut-net
