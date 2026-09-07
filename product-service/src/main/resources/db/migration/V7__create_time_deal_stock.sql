@@ -1,4 +1,4 @@
-CREATE TABLE product_schema.p_time_deal_stocks
+CREATE TABLE p_time_deal_stocks
 (
     id                  UUID        NOT NULL PRIMARY KEY,
     time_deal_id        UUID        NOT NULL,

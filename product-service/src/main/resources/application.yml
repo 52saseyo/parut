@@ -22,7 +22,5 @@ logging:
     root: info
 
 
-
-
-#internal:
-#  service-key: ${INTERNAL_SERVICE_KEY:temp-secret-key}
+internal:
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
