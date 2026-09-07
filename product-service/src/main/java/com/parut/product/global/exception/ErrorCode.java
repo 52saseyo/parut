@@ -11,6 +11,11 @@ public enum ErrorCode {
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 미디어 타입입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 
+    // internal auth
+    // 호출자 서비스 자체의 인증 실패이므로 401이다. X-User-Id 헤더 누락(400)과 구분할 것 —
+    // 그쪽은 게이트웨이가 인증을 끝낸 뒤 호출자가 헤더 전파를 빠뜨린 계약 위반이다.
+    INTERNAL_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "내부 서비스 인증에 실패했습니다."),
+
     // product_stock
     PRODUCT_STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "재고 정보가 없습니다."),
     PRODUCT_STOCK_SHORTAGE(HttpStatus.CONFLICT, "요청 수량이 재고를 초과합니다."),
