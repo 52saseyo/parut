@@ -1,13 +1,10 @@
 package com.parut.product.product.application.stock.scheduler;
 
-import com.parut.product.global.exception.BusinessException;
-import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -26,9 +23,12 @@ public class ProductStockReservationExpirationScheduler {
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockReservationExpirationProcessor productStockReservationExpirationProcessor;
 
-    // 1분마다 만료된 예약을 찾아 자동 복구 -> 테스트로 줄이기 가능
-    //@Scheduled(fixedRate =5 * 60 * 1000)
-    @Scheduled(fixedRate = 60 * 1000)
+    // 5분마다 만료된 예약을 찾아 자동 복구
+    private static final long SCHEDULE_RATE_PROD = 5 * 60 * 1000L;
+    // 시연을 위해 스케줄러 실행 주기를 10초로 단축
+    private static final long SCHEDULE_RATE_DEMO = 10 * 1000L;
+
+    @Scheduled(fixedRate = SCHEDULE_RATE_DEMO)
     public void expireReservations() {
         Pageable pageable = PageRequest.of(0, BATCH_SIZE);
 

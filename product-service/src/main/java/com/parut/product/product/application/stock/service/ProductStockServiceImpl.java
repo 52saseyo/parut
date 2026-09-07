@@ -18,15 +18,22 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+
+
 public class ProductStockServiceImpl implements ProductStockService{
+
+    // 정상 운영 시 예약 만료 시간(30분)
+    private static final Duration RESERVATION_TTL_PROD = Duration.ofMinutes(30);
+    // 시연을 위해 예약 만료 시간을 10초로 단축
+    private static final Duration RESERVATION_TTL_DEMO = Duration.ofSeconds(10);
 
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
@@ -90,7 +97,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
-                .create(stock.getId(), orderId, quantity, Instant.now().plus(30, ChronoUnit.MINUTES));
+                .create(stock.getId(), orderId, quantity, Instant.now().plus(RESERVATION_TTL_DEMO));
         productStockReservationRepository.save(reservation);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.RESERVE);
