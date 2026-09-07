@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -73,7 +74,7 @@ public class ProductStockReservationExpirationSchedulerTest {
 
             given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
                     eq(ReservationStatus.RESERVED), any(Instant.class), any(Pageable.class)))
-                    .willReturn(page);
+                    .willReturn(page, Page.empty());
 
             scheduler.expireReservations();
 
@@ -91,13 +92,14 @@ public class ProductStockReservationExpirationSchedulerTest {
 
             given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
                     eq(ReservationStatus.RESERVED), any(Instant.class), any(Pageable.class)))
-                    .willReturn(page);
+                    .willReturn(page, Page.empty());
 
             // 두 번째 건에서만 예외 발생
             doThrow(new RuntimeException("처리 실패"))
                     .when(productStockReservationExpirationProcessor).expireOneReservation(r2.getId());
 
-            scheduler.expireReservations();
+            assertThatCode(() -> scheduler.expireReservations())
+                    .doesNotThrowAnyException();
 
             // 실패한 건 이후에도 나머지 건(r3)은 정상적으로 호출되어야 함
             verify(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());

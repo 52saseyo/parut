@@ -26,8 +26,6 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
-
-
 public class ProductStockServiceImpl implements ProductStockService{
 
     // 정상 운영 시 예약 만료 시간(30분)
@@ -201,12 +199,10 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
     }
 
-
     // 재고와 상품이 일치하는지 검증
     private void validateStockOwnership(ProductStock stock, UUID productId) {
         if (!stock.getProductId().equals(productId)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
     }
-
 }
