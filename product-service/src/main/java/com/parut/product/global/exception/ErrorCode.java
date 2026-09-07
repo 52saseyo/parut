@@ -51,8 +51,34 @@ public enum ErrorCode {
     TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다."),
     TIME_DEAL_INVALID_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "초기 재고는 1개 이상이어야 합니다."),
     TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 수량은 0일 수 없습니다."),
-    TIME_DEAL_INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "할인율은 0 이상 100 미만이어야 합니다.")
+    TIME_DEAL_INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "할인율은 0 이상 100 미만이어야 합니다."),
 
+
+    // product
+    PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다."),
+    PRODUCT_NOT_MODIFIABLE(HttpStatus.CONFLICT, "현재 상태에서는 상품을 수정할 수 없습니다."),
+    PRODUCT_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 상품입니다."),
+    PRODUCT_STATUS_TRANSITION_NOT_ALLOWED(HttpStatus.CONFLICT, "허용되지 않은 상품 상태 변경입니다."),
+    PRODUCT_MAIN_IMAGE_REQUIRED(HttpStatus.CONFLICT, "대표 이미지가 등록된 상품만 판매할 수 있습니다."),
+    PRODUCT_MAIN_IMAGE_ALREADY_EXISTS(HttpStatus.CONFLICT, "대표 이미지는 하나만 등록할 수 있습니다."),
+    PRODUCT_INVALID_SELLER_ID(HttpStatus.BAD_REQUEST, "판매자 ID는 필수입니다."),
+    PRODUCT_INVALID_CATEGORY(HttpStatus.BAD_REQUEST, "상품 카테고리는 필수입니다."),
+    PRODUCT_INVALID_NAME(HttpStatus.BAD_REQUEST, "상품명이 올바르지 않습니다."),
+    PRODUCT_INVALID_PRICE(HttpStatus.BAD_REQUEST, "상품 가격은 0 이상이어야 합니다."),
+    PRODUCT_INVALID_APPEARANCE_TYPE(HttpStatus.BAD_REQUEST, "상품 외관 유형은 필수입니다."),
+    PRODUCT_INVALID_ORIGIN(HttpStatus.BAD_REQUEST, "원산지가 올바르지 않습니다."),
+    PRODUCT_INVALID_HARVEST_DATE(HttpStatus.BAD_REQUEST, "수확일은 필수입니다."),
+    PRODUCT_INVALID_SALE_UNIT(HttpStatus.BAD_REQUEST, "판매 단위는 필수입니다."),
+    PRODUCT_INVALID_UNIT_QUANTITY(HttpStatus.BAD_REQUEST, "판매 단위 수량은 0보다 커야 합니다."),
+    PRODUCT_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "상품 이미지를 찾을 수 없습니다."),
+    PRODUCT_IMAGE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 상품 이미지입니다."),
+    PRODUCT_IMAGE_PRODUCT_REQUIRED(HttpStatus.BAD_REQUEST, "상품은 필수입니다."),
+    PRODUCT_IMAGE_INVALID_KEY(HttpStatus.BAD_REQUEST, "이미지 키가 올바르지 않습니다."),
+    PRODUCT_IMAGE_INVALID_TYPE(HttpStatus.BAD_REQUEST, "이미지 타입은 필수입니다."),
+    PRODUCT_IMAGE_INVALID_SORT_ORDER(HttpStatus.BAD_REQUEST, "이미지 노출 순서는 0 이상이어야 합니다."),
+    PRODUCT_DETAIL_IMAGE_SORT_ORDER_INVALID(HttpStatus.BAD_REQUEST, "상세 이미지의 노출 순서는 1 이상이어야 합니다."),
+    PRODUCT_IMAGE_NOT_MODIFIABLE(HttpStatus.CONFLICT, "현재 상품 상태에서는 이미지를 변경할 수 없습니다."),
+    PRODUCT_DETAIL_IMAGE_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "상품 상세 이미지는 최대 5장까지 등록할 수 있습니다."),
     ;
 
     private final String message;
