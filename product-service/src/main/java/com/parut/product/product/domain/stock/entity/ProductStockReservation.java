@@ -69,6 +69,11 @@ public class ProductStockReservation extends DeletableEntity {
         validateReserved();
         this.status = ReservationStatus.EXPIRED;
     }
+    // 영구실패
+    public void fail() {
+        validateReserved();
+        this.status = ReservationStatus.EXPIRATION_FAILED;
+    }
 
     private void validateReserved() {
         if(this.status != ReservationStatus.RESERVED) {

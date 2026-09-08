@@ -1,6 +1,8 @@
 package com.parut.product.productStock;
 
 
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.stock.scheduler.ProductStockReservationExpirationProcessor;
 import com.parut.product.product.application.stock.scheduler.ProductStockReservationExpirationScheduler;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
@@ -14,8 +16,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -56,9 +56,10 @@ public class ProductStockReservationExpirationSchedulerTest {
         @Test
         @DisplayName("만료된 예약이 없으면 조기 반환하고 processor를 호출하지 않음")
         void expireReservations_empty_returnsEarly() {
-            given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
-                    eq(ReservationStatus.RESERVED), any(Instant.class), any(Pageable.class)))
-                    .willReturn(Page.empty());
+            given(productStockReservationRepository.findNextExpiredBatch(
+                    eq(ReservationStatus.RESERVED), any(Instant.class),
+                    nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                    .willReturn(List.of());
 
             scheduler.expireReservations();
 
@@ -70,11 +71,12 @@ public class ProductStockReservationExpirationSchedulerTest {
         void expireReservations_callsProcessorForEachReservation() {
             ProductStockReservation r1 = createReservation();
             ProductStockReservation r2 = createReservation();
-            Page<ProductStockReservation> page = new PageImpl<>(List.of(r1, r2));
 
-            given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
-                    eq(ReservationStatus.RESERVED), any(Instant.class), any(Pageable.class)))
-                    .willReturn(page, Page.empty());
+            given(productStockReservationRepository.findNextExpiredBatch(
+                    eq(ReservationStatus.RESERVED), any(Instant.class),
+                    nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                    .willReturn(List.of(r1, r2), List.of());
+
 
             scheduler.expireReservations();
 
@@ -88,11 +90,11 @@ public class ProductStockReservationExpirationSchedulerTest {
             ProductStockReservation r1 = createReservation();
             ProductStockReservation r2 = createReservation();
             ProductStockReservation r3 = createReservation();
-            Page<ProductStockReservation> page = new PageImpl<>(List.of(r1, r2, r3));
 
-            given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
-                    eq(ReservationStatus.RESERVED), any(Instant.class), any(Pageable.class)))
-                    .willReturn(page, Page.empty());
+            given(productStockReservationRepository.findNextExpiredBatch(
+                    eq(ReservationStatus.RESERVED), any(Instant.class),
+                    nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                    .willReturn(List.of(r1, r2, r3), List.of());
 
             // 두 번째 건에서만 예외 발생
             doThrow(new RuntimeException("처리 실패"))
@@ -101,6 +103,7 @@ public class ProductStockReservationExpirationSchedulerTest {
             assertThatCode(() -> scheduler.expireReservations())
                     .doesNotThrowAnyException();
 
+            verify(productStockReservationExpirationProcessor, never()).expirationFailed(any());
             // 실패한 건 이후에도 나머지 건(r3)은 정상적으로 호출되어야 함
             verify(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());
             verify(productStockReservationExpirationProcessor).expireOneReservation(r2.getId());
@@ -110,9 +113,10 @@ public class ProductStockReservationExpirationSchedulerTest {
         @Test
         @DisplayName("RESERVED 상태와 현재 시각 기준으로 조회")
         void expireReservations_queriesWithCorrectStatusAndTime() {
-            given(productStockReservationRepository.findByStatusAndExpiresAtBefore(
-                    any(ReservationStatus.class), any(Instant.class), any(Pageable.class)))
-                    .willReturn(Page.empty());
+            given(productStockReservationRepository.findNextExpiredBatch(
+                    any(ReservationStatus.class), any(Instant.class),
+                    nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                    .willReturn(List.of());
 
             Instant before = Instant.now();
             scheduler.expireReservations();
@@ -122,12 +126,46 @@ public class ProductStockReservationExpirationSchedulerTest {
             ArgumentCaptor<Instant> instantCaptor = ArgumentCaptor.forClass(Instant.class);
             ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
 
-            verify(productStockReservationRepository).findByStatusAndExpiresAtBefore(
-                    statusCaptor.capture(), instantCaptor.capture(), pageableCaptor.capture());
+            verify(productStockReservationRepository).findNextExpiredBatch(
+                    statusCaptor.capture(), instantCaptor.capture(), any(), any(), pageableCaptor.capture());
 
             assertThat(statusCaptor.getValue()).isEqualTo(ReservationStatus.RESERVED);
             assertThat(instantCaptor.getValue()).isBetween(before, after);
             assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
         }
+    }
+
+    @Test
+    @DisplayName("NOT_FOUND 예외 발생 시 격리 처리 호출됨")
+    void expireReservations_notFound_marksAsExpirationFailed() {
+        ProductStockReservation r1 = createReservation();
+        given(productStockReservationRepository.findNextExpiredBatch(
+                eq(ReservationStatus.RESERVED), any(Instant.class),
+                nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                .willReturn(List.of(r1), List.of());
+
+        doThrow(new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND))
+                .when(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());
+
+        scheduler.expireReservations();
+
+        verify(productStockReservationExpirationProcessor).expirationFailed(r1.getId());
+    }
+
+    @Test
+    @DisplayName("ALREADY_PROCESSED 예외 발생 시 격리 처리 호출 안 됨")
+    void expireReservations_alreadyProcessed_doesNotMarkAsExpirationFailed() {
+        ProductStockReservation r1 = createReservation();
+        given(productStockReservationRepository.findNextExpiredBatch(
+                eq(ReservationStatus.RESERVED), any(Instant.class),
+                nullable(Instant.class), nullable(UUID.class), any(Pageable.class)))
+                .willReturn(List.of(r1), List.of());
+
+        doThrow(new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED))
+                .when(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());
+
+        scheduler.expireReservations();
+
+        verify(productStockReservationExpirationProcessor, never()).expirationFailed(any());
     }
 }

@@ -6,6 +6,7 @@ import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
@@ -33,38 +34,38 @@ public class ProductStockReservationExpirationProcessor {
     // 같은 클래스 내부 호출 시 프록시를 안 거쳐 무시되므로 분리
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void expireOneReservation(UUID reservationId) {
-            ProductStockReservation reservation = productStockReservationRepository.findById(reservationId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
+        ProductStockReservation reservation = productStockReservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
 
-            ProductStockEventLog reserveLog = productStockEventLogRepository
-                    .findByReservationIdAndEventType(reservation.getId(), StockEventType.RESERVE)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
+        ProductStockEventLog reserveLog = productStockEventLogRepository
+                .findByReservationIdAndEventType(reservation.getId(), StockEventType.RESERVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
 
-            UUID orderItemId = reserveLog.getOrderItemId();
+        UUID orderItemId = reserveLog.getOrderItemId();
 
-            if(productStockEventLogRepository
-                    .findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE)
-                    .isPresent()) {
-                return;
-            }
+        if(productStockEventLogRepository
+                .findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE)
+                .isPresent()) {
+            return;
+        }
 
-            reservation.expire();
-            saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        reservation.expire();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
-            ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+        ProductStock stock = productStockRepository.findById(reservation.getStockId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
-            stock.restore(reservation.getQuantity());
-            productStockRepository.saveAndFlush(stock);
+        stock.restore(reservation.getQuantity());
+        productStockRepository.saveAndFlush(stock);
 
-            ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
+        ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
         try {
             productStockEventLogRepository.save(eventLog);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
 
-            log.info("[ExpirationScheduler] 예약 만료 처리 완료: reservationId={}", reservationId);
+        log.info("[ExpirationScheduler] 예약 만료 처리 완료: reservationId={}", reservationId);
 
     }
 
@@ -74,5 +75,20 @@ public class ProductStockReservationExpirationProcessor {
         } catch (OptimisticLockingFailureException e) {
             throw new BusinessException(conflictErrorCode);
         }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void expirationFailed(UUID reservationId) {
+        productStockReservationRepository.findById(reservationId).ifPresent(reservation -> {
+            if (reservation.getStatus() != ReservationStatus.RESERVED) {
+                return;
+            }
+            reservation.fail();
+            try {
+                productStockReservationRepository.saveAndFlush(reservation);
+            } catch (OptimisticLockingFailureException e) {
+                log.warn("[ExpirationScheduler] 격리 처리 중 동시성 충돌로 스킵: reservationId={}", reservationId);
+            }
+        });
     }
 }
