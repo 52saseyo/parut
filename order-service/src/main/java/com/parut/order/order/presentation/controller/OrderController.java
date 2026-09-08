@@ -3,6 +3,7 @@ package com.parut.order.order.presentation.controller;
 import com.parut.order.global.common.ApiResponse;
 import com.parut.order.global.constant.HeaderConstants;
 import com.parut.order.order.application.OrderFacade;
+import com.parut.order.order.application.OrderItemConfirmationService;
 import com.parut.order.order.application.OrderService;
 import com.parut.order.order.application.dto.CreateOrderCommand;
 import com.parut.order.order.application.dto.OrderDetailData;
@@ -25,6 +26,7 @@ public class OrderController {
 
     private final OrderFacade orderFacade;
     private final OrderService orderService;
+    private final OrderItemConfirmationService orderItemConfirmationService;
 
     @PostMapping
     public ApiResponse<OrderCreateResponse> createOrder(
@@ -61,7 +63,7 @@ public class OrderController {
             @RequestHeader(HeaderConstants.USER_ID) UUID userId,
             @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
     ) {
-        OrderItem orderItem = orderService.confirmOrderItem(orderId, orderItemId, userId);
+        OrderItem orderItem = orderItemConfirmationService.confirmOrderItem(orderId, orderItemId, userId);
 
         return ApiResponse.success(OrderItemConfirmationResponse.from(orderItem), traceId);
     }
