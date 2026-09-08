@@ -42,3 +42,10 @@ bin/
 
 ### ETC ###
 HELP.md
+
+### Claude Code
+CLAUDE.md
+.claudeignore
+.claude/
+.mcp.json
+*.local.md
