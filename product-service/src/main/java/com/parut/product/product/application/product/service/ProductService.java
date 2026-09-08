@@ -2,6 +2,7 @@ package com.parut.product.product.application.product.service;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.query.ProductQueryRepository;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
@@ -9,9 +10,13 @@ import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.infrastructure.product.persistence.ProductRepository;
 import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
+import com.parut.product.product.presentation.product.dto.request.PublicProductSearchCondition;
+import com.parut.product.product.presentation.product.dto.request.SellerProductSearchCondition;
 import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
 import com.parut.product.product.presentation.product.dto.response.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +34,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductStockService productStockService;
+    private final ProductQueryRepository productQueryRepository;
 
     /**
      * 상품을 생성하고 같은 트랜잭션 안에서 초기 재고를 생성한다.
@@ -147,8 +153,7 @@ public class ProductService {
         switch (targetStatus) {
             case ON_SALE -> changeToOnSale(product);
             case SUSPENDED -> product.suspend();
-            // TODO: SOLD_OUT 상태처리
-
+            // stock에서 상품의 SOLD_OUT을 처리
             case DRAFT, SOLD_OUT, DELETED -> throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
     }
@@ -203,6 +208,27 @@ public class ProductService {
         if(stock.getStatus() == StockStatus.SOLD_OUT || stock.getAvailableQuantity() <= 0){
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PublicProductListResponse> searchPublicProducts(
+            PublicProductSearchCondition condition,
+            Pageable pageable
+    ){
+        return productQueryRepository.searchPublicProducts(condition, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<SellerProductListResponse> searchSellerProducts(
+            UUID sellerId,
+            SellerProductSearchCondition condition,
+            Pageable pageable
+    ){
+        return productQueryRepository.searchSellerProducts(
+                sellerId,
+                condition,
+                pageable
+        );
     }
 
 
