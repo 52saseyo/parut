@@ -38,8 +38,6 @@ public class ProductStockController {
             @RequestHeader("X-User-Id") UUID userId,
             @Valid @RequestBody ProductStockUpdateRequest request
     ) {
-        // TODO: 소유권 검증 - userId가 이 productId의 실제 판매자인지 확인 필요
-        //       Stock 도메인은 소유자 정보가 없어 Product 도메인과 협의 후 반영 예정
 
         productStockService.updateStock(productId, request.totalQuantity());
         ProductStock stock = productStockService.getStock(productId);

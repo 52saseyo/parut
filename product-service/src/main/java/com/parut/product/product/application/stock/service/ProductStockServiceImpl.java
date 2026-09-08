@@ -18,8 +18,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,6 +27,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional
 public class ProductStockServiceImpl implements ProductStockService{
+
+    // 정상 운영 시 예약 만료 시간(30분)
+    private static final Duration RESERVATION_TTL_PROD = Duration.ofMinutes(30);
+    // 시연을 위해 예약 만료 시간을 10초로 단축
+    private static final Duration RESERVATION_TTL_DEMO = Duration.ofSeconds(10);
 
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
@@ -67,6 +72,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         int newAvailableQuantity = newTotalQuantity - reservedQuantity;
         stock.adjustQuantity(newTotalQuantity, newAvailableQuantity);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
     }
 
     // 재고 삭제
@@ -89,8 +95,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
-                .create(stock.getId(), orderId, quantity, Instant.now().plus(30, ChronoUnit.MINUTES));
-
+                .create(stock.getId(), orderId, quantity, Instant.now().plus(RESERVATION_TTL_DEMO));
         productStockReservationRepository.save(reservation);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.RESERVE);
@@ -103,6 +108,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
         reservation.confirm();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
@@ -123,6 +129,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
         reservation.cancel();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
         ProductStock stock = productStockRepository.findById(reservation.getStockId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
@@ -174,10 +181,19 @@ public class ProductStockServiceImpl implements ProductStockService{
         return productStockRepository.findByDeletedAtIsNull(pageable);
     }
 
-    // 낙관적 락 검증
+    // 낙관적 락 검증 (재고)
     private void saveStockSafely(ProductStock stock, ErrorCode conflictErrorCode) {
         try {
             productStockRepository.saveAndFlush(stock);
+        } catch (OptimisticLockingFailureException e) {
+            throw new BusinessException(conflictErrorCode);
+        }
+    }
+
+    // 낙관적 락 검증 (재고예약)
+    private void saveReservationSafely(ProductStockReservation reservation, ErrorCode conflictErrorCode) {
+        try {
+            productStockReservationRepository.saveAndFlush(reservation);
         } catch (OptimisticLockingFailureException e) {
             throw new BusinessException(conflictErrorCode);
         }
@@ -189,5 +205,4 @@ public class ProductStockServiceImpl implements ProductStockService{
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
     }
-
 }

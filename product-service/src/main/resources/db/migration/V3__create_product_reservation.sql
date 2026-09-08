@@ -5,6 +5,7 @@ CREATE TABLE product_schema.p_product_stock_reservations(
     quantity INTEGER NOT NULL,
     status VARCHAR(20) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
+    version BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL,
     created_by VARCHAR(50) NOT NULL,
     updated_at TIMESTAMPTZ,

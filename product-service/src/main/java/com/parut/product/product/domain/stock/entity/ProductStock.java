@@ -90,4 +90,13 @@ public class ProductStock extends DeletableEntity {
         }
     }
 
+    @Override
+    public void softDelete(String deletedBy) {
+        int reservedQuantity = this.totalQuantity - this.availableQuantity;
+        if (reservedQuantity > 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_DELETE_NOT_ALLOWED);
+        }
+        super.softDelete(deletedBy);
+    }
+
 }
