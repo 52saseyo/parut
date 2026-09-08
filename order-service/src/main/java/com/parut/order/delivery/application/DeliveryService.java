@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
@@ -28,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class DeliveryService {
+public class DeliveryService implements DeliveryCreateUseCase {
 
     /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
     private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
@@ -37,23 +38,28 @@ public class DeliveryService {
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
     private final OrderDeliveryGroupStatusUseCase orderDeliveryGroupStatusUseCase;
 
-    private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
-        // TODO: UNIQUE 충돌 시 기존 배송을 다시 조회해 반환한다.
-        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
-                .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
-    }
-
+    /**
+     * 주문의 배송 그룹별 Delivery를 생성한다.
+     *
+     * <p>이미 생성된 배송은 유지하여 순차 재호출로 인한 중복 생성을 방지한다.
+     */
+    @Override
     @Transactional
-    public List<Delivery> initializeDeliveriesForOrder(UUID orderId) {
+    public void createDeliveries(UUID orderId) {
         if (orderId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
+        orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
                 .distinct()
-                .map(this::findOrCreateDelivery)
-                .toList();
+                .forEach(this::findOrCreateDelivery);
+    }
+
+    // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.
+    private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
+        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
+                .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
     }
 
     private Delivery getDelivery(UUID deliveryId) {
