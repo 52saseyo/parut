@@ -1,5 +1,6 @@
 package com.parut.product.product.presentation.product.dto.response;
 
+import com.parut.product.product.application.product.query.result.PublicProductQueryResult;
 import com.parut.product.product.domain.product.AppearanceType;
 import com.parut.product.product.domain.product.ProductCategory;
 
@@ -14,4 +15,15 @@ public record PublicProductListResponse(
         String origin,
         String mainImageKey
 ) {
+    public static PublicProductListResponse from(PublicProductQueryResult result) {
+        return new PublicProductListResponse(
+                result.productId(),
+                result.name(),
+                result.category(),
+                result.price(),
+                result.appearanceType(),
+                result.origin(),
+                result.mainImageKey()
+        );
+    }
 }
