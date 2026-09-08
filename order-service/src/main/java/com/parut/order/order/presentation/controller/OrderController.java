@@ -7,9 +7,11 @@ import com.parut.order.order.application.OrderService;
 import com.parut.order.order.application.dto.CreateOrderCommand;
 import com.parut.order.order.application.dto.OrderDetailData;
 import com.parut.order.order.domain.Order;
+import com.parut.order.order.domain.OrderItem;
 import com.parut.order.order.presentation.dto.request.CreateOrderRequest;
 import com.parut.order.order.presentation.dto.response.OrderCreateResponse;
 import com.parut.order.order.presentation.dto.response.OrderDetailResponse;
+import com.parut.order.order.presentation.dto.response.OrderItemConfirmationResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -50,5 +52,17 @@ public class OrderController {
         OrderDetailData detail = orderService.getOrderDetail(orderId, userId, userRole);
 
         return ApiResponse.success(OrderDetailResponse.from(detail), traceId);
+    }
+
+    @PatchMapping("/{orderId}/items/{orderItemId}/confirm")
+    public ApiResponse<OrderItemConfirmationResponse> confirmOrderItem(
+            @PathVariable UUID orderId,
+            @PathVariable UUID orderItemId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID userId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+    ) {
+        OrderItem orderItem = orderService.confirmOrderItem(orderId, orderItemId, userId);
+
+        return ApiResponse.success(OrderItemConfirmationResponse.from(orderItem), traceId);
     }
 }
