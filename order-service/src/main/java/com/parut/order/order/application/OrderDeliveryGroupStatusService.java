@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.order.application.port.in.DeliveryGroupStatusUseCase;
+import com.parut.order.order.application.port.in.OrderDeliveryGroupStatusUseCase;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderDeliveryGroup;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
@@ -17,7 +17,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class DeliveryGroupStatusService implements DeliveryGroupStatusUseCase {
+public class OrderDeliveryGroupStatusService implements OrderDeliveryGroupStatusUseCase {
 
     private final OrderDeliveryGroupRepository orderDeliveryGroupRepository;
 

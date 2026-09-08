@@ -18,7 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
-import com.parut.order.order.application.port.in.DeliveryGroupStatusUseCase;
+import com.parut.order.order.application.port.in.OrderDeliveryGroupStatusUseCase;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,7 +35,7 @@ class DeliveryServiceTest {
     private OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
 
     @Mock
-    private DeliveryGroupStatusUseCase deliveryGroupStatusUseCase;
+    private OrderDeliveryGroupStatusUseCase orderDeliveryGroupStatusUseCase;
 
     @InjectMocks
     private DeliveryService deliveryService;
@@ -72,6 +72,6 @@ class DeliveryServiceTest {
         assertThat(completedCount).isOne();
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETION_TIME);
-        verify(deliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);
+        verify(orderDeliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);
     }
 }
