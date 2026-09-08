@@ -1,6 +1,6 @@
 
 -- 판매자 테이블
-CREATE TABLE user_service.p_sellers (
+CREATE TABLE user_schema.p_sellers (
             id              UUID            NOT NULL,
             login_id        VARCHAR(20)     NOT NULL,
             password        VARCHAR(255)    NOT NULL,
@@ -29,4 +29,4 @@ CREATE TABLE user_service.p_sellers (
                 CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
 );
 
-CREATE INDEX idx_p_sellers_login_id ON user_service.p_sellers (login_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_p_sellers_login_id ON user_schema.p_sellers (login_id) WHERE deleted_at IS NULL;

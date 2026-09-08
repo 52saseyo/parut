@@ -1,6 +1,6 @@
 
 -- 사용자 테이블
-CREATE TABLE user_service.p_users (
+CREATE TABLE user_schema.p_users (
           id          UUID            NOT NULL,
           username    VARCHAR(20)     NOT NULL,
           password    VARCHAR(100)    NOT NULL,
@@ -18,4 +18,4 @@ CREATE TABLE user_service.p_users (
 );
 
 
-CREATE UNIQUE INDEX uq_p_users_username_active ON user_service.p_users (username) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX uq_p_users_username_active ON user_schema.p_users (username) WHERE deleted_at IS NULL;
