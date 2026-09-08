@@ -5,26 +5,25 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.parut.order.delivery.application.dto.DeliveryGroupSnapshot;
-import com.parut.order.delivery.application.event.DeliveryStatusChangedEvent;
-import com.parut.order.delivery.application.port.OrderDeliveryGroupQueryPort;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.order.application.port.in.DeliveryGroupStatusUseCase;
+import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
+import com.parut.order.order.application.port.in.dto.OrderDeliveryGroupView;
 
 import lombok.RequiredArgsConstructor;
 
 /**
  * 배송 생성과 상태 변경을 처리한다.
  *
- * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 권한 검증, 트랜잭션과 상태 변경 이벤트 발행을 조율한다.
+ * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 권한 검증, 트랜잭션과
+ * Order 배송 그룹 상태 동기화를 조율한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,10 +34,8 @@ public class DeliveryService {
     private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
 
     private final DeliveryRepository deliveryRepository;
-
-    // NOTE: Order 구현이 들어오기 전까지는 조회 Port 없이도 애플리케이션이 기동되어야 한다.
-    private final ObjectProvider<OrderDeliveryGroupQueryPort> orderDeliveryGroupQueryPortProvider;
-    private final ApplicationEventPublisher eventPublisher;
+    private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
+    private final DeliveryGroupStatusUseCase deliveryGroupStatusUseCase;
 
     private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
         // TODO: UNIQUE 충돌 시 기존 배송을 다시 조회해 반환한다.
@@ -52,10 +49,8 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        return requireOrderQueryPort()
-                .findAllByOrderId(orderId)
-                .stream()
-                .map(DeliveryGroupSnapshot::deliveryGroupId)
+        return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
+                .map(OrderDeliveryGroupView::deliveryGroupId)
                 .distinct()
                 .map(this::findOrCreateDelivery)
                 .toList();
@@ -68,6 +63,9 @@ public class DeliveryService {
 
     /**
      * 운송장을 등록하기 전에 판매자 소유권과 발송할 상품이 남아 있는지 확인한다.
+     *
+     * <p>배송 시작과 Order 배송 그룹 상태 전이(SHIPPED)를 같은 트랜잭션으로 묶어,
+     * 한쪽만 반영되는 상태 불일치를 막는다.
      */
     @Transactional
     public Delivery startDelivery(
@@ -85,8 +83,8 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION);
         }
 
-        DeliveryGroupSnapshot deliveryGroup = requireOrderQueryPort()
-                .findById(delivery.getDeliveryGroupId())
+        OrderDeliveryGroupView deliveryGroup = orderDeliveryGroupQueryUseCase
+                .getDeliveryGroup(delivery.getDeliveryGroupId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
         if (!sellerId.equals(deliveryGroup.sellerId())) {
@@ -98,7 +96,7 @@ public class DeliveryService {
 
         Instant shippedAt = Instant.now();
         delivery.ship(trackingNumber, shippedAt);
-        eventPublisher.publishEvent(DeliveryStatusChangedEvent.shipped(delivery.getDeliveryGroupId()));
+        deliveryGroupStatusUseCase.markShipped(delivery.getDeliveryGroupId());
 
         return delivery;
     }
@@ -119,16 +117,8 @@ public class DeliveryService {
 
         deliveries.forEach(delivery -> {
             delivery.complete(completionTime);
-            eventPublisher.publishEvent(DeliveryStatusChangedEvent.delivered(delivery.getDeliveryGroupId()));
+            deliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
         });
         return deliveries.size();
-    }
-
-    private OrderDeliveryGroupQueryPort requireOrderQueryPort() {
-        OrderDeliveryGroupQueryPort port = orderDeliveryGroupQueryPortProvider.getIfAvailable();
-        if (port == null) {
-            throw new IllegalStateException("Order 배송 그룹 조회 Port 구현이 필요합니다.");
-        }
-        return port;
     }
 }

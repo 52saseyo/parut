@@ -14,14 +14,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.ApplicationEventPublisher;
 
-import com.parut.order.delivery.application.event.DeliveryStatusChangedEvent;
-import com.parut.order.delivery.application.port.OrderDeliveryGroupQueryPort;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.order.application.port.in.DeliveryGroupStatusUseCase;
+import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class DeliveryServiceTest {
@@ -34,10 +32,10 @@ class DeliveryServiceTest {
     private DeliveryRepository deliveryRepository;
 
     @Mock
-    private ObjectProvider<OrderDeliveryGroupQueryPort> orderDeliveryGroupQueryPortProvider;
+    private OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private DeliveryGroupStatusUseCase deliveryGroupStatusUseCase;
 
     @InjectMocks
     private DeliveryService deliveryService;
@@ -60,7 +58,7 @@ class DeliveryServiceTest {
     }
 
     @Test
-    @DisplayName("완료 대상 배송의 상태를 변경하고 이벤트를 발행한다")
+    @DisplayName("완료 대상 배송의 상태를 변경하고 Order 배송 그룹 상태를 동기화한다")
     void 배송_자동_완료() {
         Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
         delivery.ship("1234567890", COMPLETION_THRESHOLD);
@@ -74,6 +72,6 @@ class DeliveryServiceTest {
         assertThat(completedCount).isOne();
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETION_TIME);
-        verify(eventPublisher).publishEvent(DeliveryStatusChangedEvent.delivered(DELIVERY_GROUP_ID));
+        verify(deliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);
     }
 }
