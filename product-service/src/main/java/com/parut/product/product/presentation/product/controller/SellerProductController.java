@@ -128,7 +128,7 @@ public class SellerProductController {
 
         Page<SellerProductQueryResult> result = productService.searchSellerProducts(sellerId, request.toCondition(), pageable);
 
-        // application 조회 결과를 공통 Offset 응답 규격으로 조립한다.
+
         OffsetResponse<SellerProductListResponse> response = new OffsetResponse<>(
                 result.getContent().stream()
                         .map(SellerProductListResponse::from)

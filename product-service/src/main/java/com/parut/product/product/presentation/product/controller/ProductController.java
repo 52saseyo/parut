@@ -34,7 +34,9 @@ public class ProductController {
     }
 
     @GetMapping
-    /** 일반 사용자 상품 검색: 첫 요청에는 Cursor를 생략하고 다음 요청부터 응답값을 전달한다. */
+    /*
+     * 일반 사용자 상품 검색: 첫 요청에는 Cursor를 생략하고 다음 요청부터 응답값을 전달한다.
+     */
     public ResponseEntity<ApiResponse<CursorResponse<PublicProductListResponse>>> search(
             @ModelAttribute PublicProductSearchRequest request,
             @RequestParam(required = false) String cursor,

@@ -19,7 +19,7 @@ import java.util.UUID;
 import static com.parut.product.product.domain.product.QProduct.product;
 
 /**
- * 상품 목록 조회에서 공통으로 사용하는 QueryDSL 조건과 정렬식을 생성한다.
+ * 상품 목록 조회에서 공통으로 사용하는 QueryDSL 조건과 정렬식을 생성
  * 검색 조건 생성 로직을 별도 클래스로 분리
  */
 final class ProductQueryExpressions {
@@ -55,7 +55,7 @@ final class ProductQueryExpressions {
     }
 
     /**
-     * 외형 타입 필터 조건을 생성합니다.
+     * 외형 타입 필터 조건을 생성
      */
     static BooleanExpression appearanceTypeEq(AppearanceType appearanceType) {
         return appearanceType == null ? null : product.appearanceType.eq(appearanceType);
@@ -149,7 +149,7 @@ final class ProductQueryExpressions {
     }
 
     /**
-     * createdAt 기준 Cursor 조건을 생성한다.
+     * createdAt 기준 Cursor 조건을 생성
      *
      * ASC:
      * - createdAt이 cursor보다 큰 상품

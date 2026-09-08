@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Cursor 조회 결과를 application 계층 안에서 전달하기 위한 객체다.
- * API 응답 객체와 분리해 Repository가 presentation 계층에 의존하지 않도록 한다.
+ * Cursor 조회 결과를 application 계층 안에서 전달하기 위한 객체
  */
 public record ProductCursorResult<T>(
         List<T> content,
@@ -13,7 +12,9 @@ public record ProductCursorResult<T>(
         UUID nextIdAfter,
         boolean hasNext
 ) {
-    /** 다음 페이지가 존재하는 조회 결과를 생성한다. */
+    /**
+     * 다음 페이지가 존재하는 조회 결과를 생성
+     */
     public static <T> ProductCursorResult<T> of(
             List<T> content,
             String nextCursor,
@@ -23,7 +24,9 @@ public record ProductCursorResult<T>(
         return new ProductCursorResult<>(content, nextCursor, nextIdAfter, hasNext);
     }
 
-    /** 다음 페이지가 없으므로 Cursor 정보를 비워 반환한다. */
+    /**
+     * 다음 페이지가 없으므로 Cursor 정보를 비워 반환
+     * */
     public static <T> ProductCursorResult<T> empty(List<T> content) {
         return new ProductCursorResult<>(content, null, null, false);
     }

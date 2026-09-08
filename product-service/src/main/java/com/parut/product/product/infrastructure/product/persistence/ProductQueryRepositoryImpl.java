@@ -33,8 +33,7 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
 
     /**
      * 일반 사용자 상품 목록을 Cursor 방식으로 조회
-
-     * 전체 개수 count 쿼리를 실행하지 않고, size보다 1개 더 조회해서 다음 페이지 존재 여부를 판단한다.
+     * 전체 개수 count 쿼리를 실행하지 않고, size보다 1개 더 조회해서 다음 페이지 존재 여부를 판단
      */
     @Override
     public ProductCursorResult<PublicProductQueryResult> searchPublicProducts(
@@ -137,7 +136,7 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
             Tuple row,
             String sort
     ) {
-        // 다음 요청의 시작점으로 사용할 마지막 상품의 정렬값을 문자열로 반환한다.
+        // 다음 요청의 시작점으로 사용할 마지막 상품의 정렬값을 문자열로 반환
         return switch (sort) {
             case "createdAt" ->
                     row.get(product.createdAt).toString();
