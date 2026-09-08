@@ -8,6 +8,7 @@ import com.parut.product.product.application.stock.scheduler.ProductStockReserva
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
+@Slf4j
 @ExtendWith(MockitoExtension.class)
 public class ProductStockReservationExpirationSchedulerTest {
 
@@ -63,6 +65,8 @@ public class ProductStockReservationExpirationSchedulerTest {
 
             scheduler.expireReservations();
 
+            log.info("[Scheduler.expireReservations] 만료 대상 없음 -> expireOneReservation 미호출 기대");
+
             verify(productStockReservationExpirationProcessor, never()).expireOneReservation(any());
         }
 
@@ -79,6 +83,9 @@ public class ProductStockReservationExpirationSchedulerTest {
 
 
             scheduler.expireReservations();
+
+            log.info("[Scheduler.expireReservations] 조회된 2건(r1={}, r2={}) 각각 expireOneReservation 호출 기대",
+                    r1.getId(), r2.getId());
 
             verify(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());
             verify(productStockReservationExpirationProcessor).expireOneReservation(r2.getId());
@@ -102,6 +109,9 @@ public class ProductStockReservationExpirationSchedulerTest {
 
             assertThatCode(() -> scheduler.expireReservations())
                     .doesNotThrowAnyException();
+
+            log.info("[Scheduler.expireReservations] r2={} 처리 중 예상 못한 예외 발생 -> 격리 미호출, r1/r3은 계속 처리 기대",
+                    r2.getId());
 
             verify(productStockReservationExpirationProcessor, never()).expirationFailed(any());
             // 실패한 건 이후에도 나머지 건(r3)은 정상적으로 호출되어야 함
@@ -129,6 +139,9 @@ public class ProductStockReservationExpirationSchedulerTest {
             verify(productStockReservationRepository).findNextExpiredBatch(
                     statusCaptor.capture(), instantCaptor.capture(), any(), any(), pageableCaptor.capture());
 
+            log.info("[Scheduler.expireReservations] 조회 조건 status={}, now={}, pageSize={}",
+                    statusCaptor.getValue(), instantCaptor.getValue(), pageableCaptor.getValue().getPageSize());
+
             assertThat(statusCaptor.getValue()).isEqualTo(ReservationStatus.RESERVED);
             assertThat(instantCaptor.getValue()).isBetween(before, after);
             assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
@@ -149,12 +162,14 @@ public class ProductStockReservationExpirationSchedulerTest {
 
         scheduler.expireReservations();
 
+        log.info("[Scheduler.expireReservations] r1={} NOT_FOUND 예외 발생 -> expirationFailed 호출 기대", r1.getId());
+
         verify(productStockReservationExpirationProcessor).expirationFailed(r1.getId());
     }
 
     @Test
-    @DisplayName("ALREADY_PROCESSED 예외 발생 시 격리 처리 호출 안 됨")
-    void expireReservations_alreadyProcessed_doesNotMarkAsExpirationFailed() {
+    @DisplayName("ALREADY_PROCESSED도 BusinessException이므로 격리 처리 시도 (실제 필터링은 expirationFailed 내부 상태 가드에서 이뤄짐)")
+    void expireReservations_alreadyProcessed_alsoAttemptsExpirationFailed() {
         ProductStockReservation r1 = createReservation();
         given(productStockReservationRepository.findNextExpiredBatch(
                 eq(ReservationStatus.RESERVED), any(Instant.class),
@@ -166,6 +181,8 @@ public class ProductStockReservationExpirationSchedulerTest {
 
         scheduler.expireReservations();
 
-        verify(productStockReservationExpirationProcessor, never()).expirationFailed(any());
+        log.info("[Scheduler.expireReservations] r1={} ALREADY_PROCESSED 예외 발생 -> expirationFailed 호출은 시도됨(내부에서 필터링)", r1.getId());
+
+        verify(productStockReservationExpirationProcessor).expirationFailed(r1.getId());
     }
 }

@@ -4,6 +4,7 @@ import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.enums.StockStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@Slf4j
 public class ProductStockTest {
 
     private ProductStock createStock(int total, int lowStockThreshold) {
@@ -26,6 +28,9 @@ public class ProductStockTest {
         @DisplayName("총 재고와 가용 재고가 동일하게 초기화되고 있는 상태는 AVAILABLE")
         void create_initializesCorrectly() {
             ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.create] total={}, available={}, status={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity(), stock.getStatus());
 
             assertThat(stock.getTotalQuantity()).isEqualTo(100);
             assertThat(stock.getAvailableQuantity()).isEqualTo(100);
@@ -44,6 +49,9 @@ public class ProductStockTest {
             ProductStock stock = createStock(100, 10);
             stock.reserve(30);
 
+            log.info("[ProductStock.reserve] 30개 예약 후 available={}, total={}",
+                    stock.getAvailableQuantity(), stock.getTotalQuantity());
+
             assertThat(stock.getAvailableQuantity()).isEqualTo(70);
             assertThat(stock.getTotalQuantity()).isEqualTo(100);
         }
@@ -52,6 +60,8 @@ public class ProductStockTest {
         @DisplayName("가용 재고보다 많은 수량을 요청하면 예외가 발생")
         void reserve_shortage_throwsException() {
             ProductStock stock = createStock(10, 5);
+
+            log.info("[ProductStock.reserve] 가용 재고(10)보다 많은 20개 예약 시도 -> 재고 부족 예외 기대");
 
             assertThatThrownBy(() -> stock.reserve(20))
                     .isInstanceOf(BusinessException.class)
@@ -64,6 +74,9 @@ public class ProductStockTest {
             ProductStock stock = createStock(5, 1);
             stock.confirm(5);
 
+            log.info("[ProductStock.reserve] 전량 확정(품절) 상태에서 1개 예약 시도 -> 판매중지 예외 기대, status={}",
+                    stock.getStatus());
+
             assertThatThrownBy(()->stock.reserve(1))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
@@ -74,6 +87,10 @@ public class ProductStockTest {
         void reserve_belowThreshold_transitionToLowStock() {
             ProductStock stock = createStock(100, 20);
             stock.reserve(85); // available = 15 <= threshold = 20
+
+            log.info("[ProductStock.reserve] 85개 예약 후 available={} (임계치 20) -> status={}",
+                    stock.getAvailableQuantity(), stock.getStatus());
+
             assertThat(stock.getStatus()).isEqualTo(StockStatus.LOW_STOCK);
         }
     }
@@ -90,6 +107,9 @@ public class ProductStockTest {
 
             stock.confirm(30);
 
+            log.info("[ProductStock.confirm] 30개 확정 후 total={}, available={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity());
+
             assertThat(stock.getTotalQuantity()).isEqualTo(70);
             assertThat(stock.getAvailableQuantity()).isEqualTo(70);
         }
@@ -101,6 +121,9 @@ public class ProductStockTest {
             stock.reserve(10);
 
             stock.confirm(10);
+
+            log.info("[ProductStock.confirm] 전량(10개) 확정 후 total={} -> status={}",
+                    stock.getTotalQuantity(), stock.getStatus());
 
             assertThat(stock.getStatus()).isEqualTo(StockStatus.SOLD_OUT);
         }
@@ -117,6 +140,9 @@ public class ProductStockTest {
 
             stock.restore(40);
 
+            log.info("[ProductStock.restore] 40개 복구 후 available={}, total={}",
+                    stock.getAvailableQuantity(), stock.getTotalQuantity());
+
             assertThat(stock.getAvailableQuantity()).isEqualTo(100);
             assertThat(stock.getTotalQuantity()).isEqualTo(100);
         }
@@ -128,6 +154,8 @@ public class ProductStockTest {
             stock.reserve(85); // LOW_STOCK
 
             stock.restore(85);
+
+            log.info("[ProductStock.restore] LOW_STOCK 상태에서 85개 복구 후 status={}", stock.getStatus());
 
             assertThat(stock.getStatus()).isEqualTo(StockStatus.AVAILABLE);
         }
@@ -142,6 +170,9 @@ public class ProductStockTest {
             ProductStock stock = createStock(100, 10);
 
             stock.adjustQuantity(50, 30);
+
+            log.info("[ProductStock.adjustQuantity] (50, 30)으로 조정 후 total={}, available={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity());
 
             assertThat(stock.getTotalQuantity()).isEqualTo(50);
             assertThat(stock.getAvailableQuantity()).isEqualTo(30);
@@ -159,6 +190,8 @@ public class ProductStockTest {
 
             stock.softDelete("tester");
 
+            log.info("[ProductStock.softDelete] 예약 중인 수량 없이 삭제 -> isDeleted={}", stock.isDeleted());
+
             assertThat(stock.isDeleted()).isTrue();
         }
 
@@ -167,6 +200,8 @@ public class ProductStockTest {
         void softDelete_withReservedQuantity_throwsException() {
             ProductStock stock = createStock(100, 10);
             stock.reserve(30); // total(100) != available(70) -> 예약 중 30
+
+            log.info("[ProductStock.softDelete] 예약 중인 수량 30이 남아있는 상태에서 삭제 시도 -> 삭제 불가 예외 기대");
 
             assertThatThrownBy(() -> stock.softDelete("tester"))
                     .isInstanceOf(BusinessException.class)

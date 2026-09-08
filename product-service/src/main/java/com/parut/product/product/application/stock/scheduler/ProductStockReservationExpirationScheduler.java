@@ -1,7 +1,6 @@
 package com.parut.product.product.application.stock.scheduler;
 
 import com.parut.product.global.exception.BusinessException;
-import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
@@ -53,9 +52,7 @@ public class ProductStockReservationExpirationScheduler {
                 } catch (BusinessException e) {
                     log.warn("[ExpirationScheduler] 예약 만료 처리 실패: reservationId={}, errorCode={}, message={}",
                             reservation.getId(), e.getErrorCode(), e.getMessage());
-                    if (e.getErrorCode() == ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND) {
-                        productStockReservationExpirationProcessor.expirationFailed(reservation.getId());
-                    }
+                    productStockReservationExpirationProcessor.expirationFailed(reservation.getId());
                 } catch (Exception e) {
                     log.error("[ExpirationScheduler] 예상하지 못한 예약 만료 처리 실패: reservationId={}",
                             reservation.getId(), e);

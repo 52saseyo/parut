@@ -11,6 +11,7 @@ import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+@Slf4j
 @ExtendWith(MockitoExtension.class)
 public class ProductStockReservationExpirationProcessorTest {
     @Mock
@@ -71,6 +73,9 @@ public class ProductStockReservationExpirationProcessorTest {
 
             processor.expireOneReservation(reservationId);
 
+            log.info("[Processor.expireOneReservation] reservationId={} 만료 처리 후 reservation.status={}, stock.available={}",
+                    reservationId, reservation.getStatus(), stock.getAvailableQuantity());
+
             verify(productStockReservationRepository).saveAndFlush(reservation);
             verify(productStockRepository).saveAndFlush(stock);
             verify(productStockEventLogRepository).save(any(ProductStockEventLog.class));
@@ -94,6 +99,9 @@ public class ProductStockReservationExpirationProcessorTest {
 
             processor.expireOneReservation(reservationId);
 
+            log.info("[Processor.expireOneReservation] reservationId={} 이미 RESTORE 로그 존재 -> 재고 조회 및 저장 없이 종료 기대",
+                    reservationId);
+
             verify(productStockRepository, never()).findById(any());
             verify(productStockReservationRepository, never()).saveAndFlush(any());
         }
@@ -103,6 +111,9 @@ public class ProductStockReservationExpirationProcessorTest {
         void expireOneReservation_reservationNotFound_throwsException() {
             UUID reservationId = UUID.randomUUID();
             given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.empty());
+
+            log.info("[Processor.expireOneReservation] reservationId={} 예약 자체를 찾을 수 없음 -> NOT_FOUND 예외 기대",
+                    reservationId);
 
             assertThatThrownBy(() -> processor.expireOneReservation(reservationId))
                     .isInstanceOf(BusinessException.class)
@@ -125,6 +136,9 @@ public class ProductStockReservationExpirationProcessorTest {
                     .willReturn(Optional.of(reserveLog));
             given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
                     .willReturn(Optional.empty());
+
+            log.info("[Processor.expireOneReservation] reservationId={} 이미 CONFIRMED(status={}) 상태 -> ALREADY_PROCESSED 예외 기대",
+                    reservationId, reservation.getStatus());
 
             assertThatThrownBy(() -> processor.expireOneReservation(reservationId))
                     .isInstanceOf(BusinessException.class)
@@ -150,6 +164,9 @@ public class ProductStockReservationExpirationProcessorTest {
                     .willReturn(Optional.empty());
             given(productStockReservationRepository.saveAndFlush(any(ProductStockReservation.class)))
                     .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[Processor.expireOneReservation] reservationId={} 예약 저장 시 낙관적 락 충돌 -> 예외가 삼켜지지 않고 그대로 전파되어야 함",
+                    reservationId);
 
             // 여기서 try-catch로 삼켜지지 않고 그대로 던져져야 재고 복구(stock.restore)가 실행되지 않음
             assertThatThrownBy(() -> processor.expireOneReservation(reservationId))

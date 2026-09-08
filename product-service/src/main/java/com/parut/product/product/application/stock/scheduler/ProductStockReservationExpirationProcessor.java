@@ -79,16 +79,16 @@ public class ProductStockReservationExpirationProcessor {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void expirationFailed(UUID reservationId) {
-        productStockReservationRepository.findById(reservationId).ifPresent(reservation -> {
-            if (reservation.getStatus() != ReservationStatus.RESERVED) {
-                return;
-            }
-            reservation.fail();
-            try {
+        try {
+            productStockReservationRepository.findById(reservationId).ifPresent(reservation -> {
+                if (reservation.getStatus() != ReservationStatus.RESERVED) {
+                    return;
+                }
+                reservation.fail();
                 productStockReservationRepository.saveAndFlush(reservation);
-            } catch (OptimisticLockingFailureException e) {
-                log.warn("[ExpirationScheduler] 격리 처리 중 동시성 충돌로 스킵: reservationId={}", reservationId);
-            }
-        });
+            });
+        } catch (Exception e) {
+            log.warn("[ExpirationScheduler] 격리 처리 실패, 스킵: reservationId={}", reservationId, e);
+        }
     }
 }
