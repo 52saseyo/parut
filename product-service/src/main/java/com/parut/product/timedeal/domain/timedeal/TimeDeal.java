@@ -72,9 +72,7 @@ public class TimeDeal extends DeletableEntity {
         this.status = TimeDealStatus.SCHEDULED;
     }
 
-    // NOTE: 시간 판정에 쓰는 now는 도메인이 Instant.now()로 직접 조달하지 않고 항상 파라미터로 받는다.
-    // 한 유즈케이스가 같은 now를 모든 도메인 호출에 넘기면 판정 기준 시각이 하나로 고정되고,
-    // 테스트에서도 시각을 원하는 지점에 고정할 수 있다(종료 경계, 이미 끝난 타임딜 픽스처 등).
+    // NOTE: 시간 판정에 쓰는 now는 항상 파라미터로 받는다 — 유즈케이스당 하나로 고정하고 테스트에서 조작하기 위함.
     public static TimeDeal create(
             UUID productId,
             Long originalPrice,
@@ -87,16 +85,8 @@ public class TimeDeal extends DeletableEntity {
         return new TimeDeal(productId, originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity, now);
     }
 
-    // NOTE: 수정 정책 — SCHEDULED에서만 판매 조건을 수정할 수 있다.
-    // ACTIVE는 dealPrice/startAt/endAt/maxPurchaseQuantity 같은 핵심 판매 조건을 바꿀 수 없고,
-    // 현재 TimeDeal이 가진 필드가 전부 핵심 판매 조건이라 ACTIVE에서 수정 가능한 필드는 없다.
-    // (설명·타이틀처럼 핵심 조건이 아닌 필드가 추가되면 그때 ACTIVE 허용 분기를 따로 만든다.)
-    // ENDED/STOPPED는 수정 자체가 불가. productId는 생성 후 변경 불가라 파라미터에 없다.
-    // NOTE: 재고 수량 변경은 여기서 하지 않음 — TimeDealStock 책임.
-    // NOTE: PATCH 부분 수정 — null인 파라미터는 "변경하지 않음"을 뜻하므로 기존 값을 유지한다.
-    // 검증은 병합한 뒤의 값으로 해야 한다. 예를 들어 startAt만 넘어왔다면 기존 endAt과 비교해야
-    // 기간 역전을 잡을 수 있고, 개별 파라미터만 따로 검증하면 이 조합 오류를 놓친다.
-    // dealPrice는 originalPrice와 discountRate 중 하나만 바뀌어도 어긋나므로 항상 다시 계산한다.
+    // NOTE: SCHEDULED에서만 수정 가능하다 — 현재 필드가 전부 핵심 판매 조건이라 ACTIVE에서 바꿀 것이 없다.
+    // NOTE: PATCH 부분 수정(null = 변경 없음). 검증은 병합한 뒤의 값으로 해야 기간 역전 같은 조합 오류를 잡는다.
     public void update(
             Long originalPrice,
             BigDecimal discountRate,
@@ -132,8 +122,7 @@ public class TimeDeal extends DeletableEntity {
         this.maxPurchaseQuantity = newMaxPurchaseQuantity;
     }
 
-    // NOTE: 판매 기간 안에서만 활성화할 수 있다 — 시작 전에 미리 열거나 이미 끝난 타임딜을 여는 정당한 경우가 없다.
-    // endAt이 지난 SCHEDULED 타임딜은 activate()가 아니라 end()로 바로 정리한다.
+    // NOTE: 판매 기간 안에서만 활성화한다. endAt이 지난 SCHEDULED 타임딜은 activate()가 아니라 end()로 정리한다.
     public void activate(Instant now) {
         if (now == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
@@ -150,13 +139,8 @@ public class TimeDeal extends DeletableEntity {
         this.status = TimeDealStatus.ACTIVE;
     }
 
-    // NOTE: endAt 경과(배치) 또는 TimeDealStock.isDepleted() 감지(Application Service) 두 경로로 호출될 수 있음
-    // NOTE: ACTIVE뿐 아니라 SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면
-    // activate()가 한 번도 돌지 못한 채 endAt이 지날 수 있고, ACTIVE만 허용하면 그런 타임딜은 종료 배치가
-    // 영구히 정리할 수 없어 SCHEDULED로 박혀 남는다(구매 자체는 validatePurchasable()이 시간으로 막지만
-    // 예정 목록 노출·종료 이벤트 발행이 어긋난다). 판매가 열린 적이 없어도 시간상 끝난 것은 사실이므로 ENDED로 정리한다.
-    // NOTE: activate()와 달리 end()에는 시간 가드를 두지 않는다 — 재고 소진으로 인한 조기 종료가
-    // endAt 이전에 일어나는 정당한 경로이므로, now >= endAt을 요구하면 그 경로가 막힌다.
+    // NOTE: SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면 영구히 SCHEDULED로 남는다.
+    // NOTE: 시간 가드가 없는 이유는 재고 소진 조기 종료 때문이며, 호출 경로 제한은 TimeDealPolicy 책임이다.
     public void end() {
         if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -171,14 +155,20 @@ public class TimeDeal extends DeletableEntity {
         this.status = TimeDealStatus.STOPPED;
     }
 
-    @Override
-    public void softDelete(String deletedBy) {
+    // NOTE: 검증만 분리해둔 이유는 TimeDealPolicy가 재고까지 함께 확인한 뒤에 변경을 시작하기 위함이다
+    // (하나만 바뀐 채로 예외가 나가는 것을 막는다).
+    public void validateDeletable() {
         if (status == TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED);
         }
         if (status != TimeDealStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS);
         }
+    }
+
+    @Override
+    public void softDelete(String deletedBy) {
+        validateDeletable();
         super.softDelete(deletedBy);
     }
 
@@ -192,29 +182,23 @@ public class TimeDeal extends DeletableEntity {
         if (status == TimeDealStatus.STOPPED || status == TimeDealStatus.ENDED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
         }
-        // status가 아직 SCHEDULED여도 배치가 activate()를 못 돌렸을 뿐일 수 있으므로,
-        // 실제 구매 가능 여부는 배치 결과가 아니라 시간 자체로 판단한다.
+        // NOTE: 배치가 늦어도 정확하도록 구매 가능 여부는 status가 아니라 시간으로 판단한다.
         if (now.isBefore(startAt) || now.isAfter(endAt)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
         }
     }
 
-    // NOTE: maxPurchaseQuantity는 "1인당 누적 최대 구매 수량"이다 — 한 번의 요청 수량만 비교하면
-    // 같은 사용자가 주문을 여러 번 나눠 제한을 우회할 수 있다(10개 제한에 5개씩 두 번, 세 번...).
-    // alreadyPurchasedQuantity(해당 사용자가 이 타임딜에서 이미 확보한 수량)는 저장소 조회가 필요해
-    // 도메인이 스스로 알 수 없으므로 Application Service가 조회해서 넘긴다. 합산·비교 규칙만 여기 둔다.
-    // 합산 대상은 RESERVED + CONFIRMED이고 CANCELLED는 제외한다 — 취소했다면 그 수량은 다시 구매할 수 있어야 한다.
+    // NOTE: maxPurchaseQuantity는 1인당 누적 수량이다 — 단건만 비교하면 주문을 나눠 우회할 수 있다.
+    // 누적 수량은 저장소 조회가 필요해 Application Service가 넘기고, 합산·비교 규칙만 여기 둔다.
     public void validatePurchaseQuantity(Integer quantity, Integer alreadyPurchasedQuantity) {
         if (quantity == null || alreadyPurchasedQuantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        // 요청 수량은 1개 이상이어야 한다. 막지 않으면 음수 수량이 합계를 오히려 줄여
-        // 상한 비교를 그대로 통과한다(누적 8 + 요청 -5 = 3 <= 10). TimeDealPurchase.create()의
-        // 같은 검증과 기준을 맞춘다 — 이 메서드는 create()보다 먼저 단독 호출되므로 자체 방어가 필요하다.
+        // NOTE: 막지 않으면 음수 수량이 합계를 줄여 상한 비교를 통과한다(누적 8 + 요청 -5 = 3 <= 10).
         if (quantity < 1) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
         }
-        // 누적 수량은 저장소에서 집계해 넘어오는 값이라 0 이상이어야 정상이다.
+        // NOTE: 저장소에서 집계해 넘어오는 값이라 0 이상이어야 정상이다.
         if (alreadyPurchasedQuantity < 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
@@ -246,8 +230,7 @@ public class TimeDeal extends DeletableEntity {
         if (!endAt.isAfter(startAt)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
         }
-        // 등록·수정 시점에 이미 끝난 타임딜은 만들 수 없다. 기준 시각을 주입받으므로
-        // 테스트에서 now를 과거로 주면 "이미 종료된 타임딜" 픽스처도 만들 수 있다.
+        // NOTE: 이미 끝난 타임딜은 만들 수 없다.
         if (!endAt.isAfter(now)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PERIOD);
         }

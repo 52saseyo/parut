@@ -6,10 +6,10 @@ import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurch
 
 public interface TimeDealPurchaseCommandUseCase {
 
-    void reserve(TimeDealPurchaseReserveCommand command);
+    void reserve(TimeDealPurchaseReserveCommand timeDealPurchaseReserveCommand);
 
-    // NOTE: 구현체는 정리를 별도 트랜잭션(REQUIRES_NEW)에서 수행한 뒤 예외를 던져야 한다.
-    void confirm(TimeDealPurchaseConfirmCommand command);
+    // NOTE: 선점 만료로 확정하지 못하면 TIME_DEAL_RESERVATION_EXPIRED를 던진다.
+    void confirm(TimeDealPurchaseConfirmCommand timeDealPurchaseConfirmCommand);
 
-    void cancel(TimeDealPurchaseCancelCommand command);
+    void cancel(TimeDealPurchaseCancelCommand timeDealPurchaseCancelCommand);
 }

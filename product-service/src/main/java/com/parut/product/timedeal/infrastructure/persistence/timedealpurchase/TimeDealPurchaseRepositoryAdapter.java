@@ -16,12 +16,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseRepository {
 
-    /**
-     * 1인당 누적 구매 수량에 합산할 상태.
-     * CANCELLED를 제외하는 것이 핵심이다 — 취소한 수량은 다시 구매할 수 있어야 하므로
-     * 누적에 포함하면 사용자가 취소 후 재구매를 못 하게 된다.
-     * 이 집합을 넓히면 1인당 제한이 조용히 강해지므로 바꿀 때 주의한다.
-     */
+    // NOTE: CANCELLED를 제외하는 것이 핵심이다 — 포함하면 취소 후 재구매가 막힌다.
+    // 이 집합을 넓히면 1인당 제한이 조용히 강해진다.
     private static final Set<TimeDealPurchaseStatus> ACTIVE_STATUSES =
             EnumSet.of(TimeDealPurchaseStatus.RESERVED, TimeDealPurchaseStatus.CONFIRMED);
 
@@ -40,7 +36,7 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     @Override
     public int sumActiveQuantity(UUID timeDealId, UUID userId) {
         long sum = jpaTimeDealPurchaseRepository.sumQuantityByStatusIn(timeDealId, userId, ACTIVE_STATUSES);
-        // 수량 합이 int를 넘는 것은 데이터 이상이므로 잘라내지 않고 예외로 드러낸다.
+        // NOTE: int를 넘는 합은 데이터 이상이므로 잘라내지 않고 예외로 드러낸다.
         return Math.toIntExact(sum);
     }
 

@@ -1,14 +1,13 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.constant.HeaderConstants;
-import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseCancelCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
-import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseReserveCommand;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseCancelRequest;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseReserveRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,11 +26,11 @@ public class InternalTimeDealController {
     public ResponseEntity<Void> reserve(
             @PathVariable UUID timeDealId,
             @RequestHeader(HeaderConstants.USER_ID) UUID userId,
-            @Valid @RequestBody TimeDealPurchaseReserveRequest request
+            @Valid @RequestBody TimeDealPurchaseReserveRequest timeDealPurchaseReserveRequest
     ) {
-        timeDealPurchaseCommandUseCase.reserve(new TimeDealPurchaseReserveCommand(
-                timeDealId, request.orderId(), userId, request.quantity()));
-        return ResponseEntity.noContent().build();
+        timeDealPurchaseCommandUseCase.reserve(
+                timeDealPurchaseReserveRequest.toCommand(timeDealId, userId));
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
 
@@ -47,10 +46,9 @@ public class InternalTimeDealController {
     @PostMapping("/time-deal-purchases/{orderId}/cancel")
     public ResponseEntity<Void> cancel(
             @PathVariable UUID orderId,
-            @RequestBody TimeDealPurchaseCancelRequest request
+            @RequestBody TimeDealPurchaseCancelRequest timeDealPurchaseCancelRequest
     ) {
-
-        timeDealPurchaseCommandUseCase.cancel(new TimeDealPurchaseCancelCommand(orderId, request.reason()));
+        timeDealPurchaseCommandUseCase.cancel(timeDealPurchaseCancelRequest.toCommand(orderId));
         return ResponseEntity.noContent().build();
     }
 }
