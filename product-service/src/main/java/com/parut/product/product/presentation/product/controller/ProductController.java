@@ -1,32 +1,23 @@
 package com.parut.product.product.presentation.product.controller;
 
-import com.parut.product.global.common.ApiResponse;
-import com.parut.product.global.common.OffsetPageInfo;
-import com.parut.product.global.common.OffsetResponse;
-import com.parut.product.global.common.SortDirection;
-import com.parut.product.global.exception.BusinessException;
-import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.global.common.*;
+import com.parut.product.product.application.product.query.result.ProductCursorResult;
+import com.parut.product.product.application.product.query.result.PublicProductQueryResult;
 import com.parut.product.product.application.product.service.ProductService;
-import com.parut.product.product.presentation.product.dto.request.*;
+import com.parut.product.product.presentation.product.dto.request.PublicProductSearchRequest;
 import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.PublicProductListResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
-import java.util.Set;
+
+import static com.parut.product.product.presentation.product.support.ProductSearchRequestValidator.*;
 
 @RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 @RestController
 public class ProductController {
-    private static final Set<Integer> ALLOWED_SIZES = Set.of(10, 30, 50);
-    private static final Set<String> ALLOWED_SORTS = Set.of("createdAt", "updatedAt", "price");
-
     private final ProductService productService;
 
 
@@ -43,53 +34,44 @@ public class ProductController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<OffsetResponse<PublicProductListResponse>>> search(
-            @ModelAttribute PublicProductSearchCondition condition,
-            @RequestParam(defaultValue = "1") int page,
+    /** 일반 사용자 상품 검색: 첫 요청에는 Cursor를 생략하고 다음 요청부터 응답값을 전달한다. */
+    public ResponseEntity<ApiResponse<CursorResponse<PublicProductListResponse>>> search(
+            @ModelAttribute PublicProductSearchRequest request,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) UUID cursorId,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
             @RequestParam(defaultValue = "desc") String direction
     ){
-        validatePagination(page, size, sort);
-        SortDirection resolvedDirection = resolveDirection(direction);
-        Pageable pageable = PageRequest.of(
-                page - 1,
-                size,
-                Sort.by(resolvedDirection.toSpringDirection(), sort)
-        );
+        validateCursorRequest(cursor, cursorId, size, sort);
+        validatePriceRange(request.minPrice(), request.maxPrice());
 
-        Page<PublicProductListResponse> result = productService.searchPublicProducts(condition, pageable);
-        OffsetResponse<PublicProductListResponse> response = new OffsetResponse<>(
-                result.getContent(),
-                OffsetPageInfo.of(
-                        page,
+        SortDirection resolvedDirection = resolveDirection(direction);
+
+
+        ProductCursorResult<PublicProductQueryResult> result = productService.searchPublicProducts(
+                        request.toCondition(),
+                        cursor,
+                        cursorId,
                         size,
                         sort,
-                        resolvedDirection,
-                        result.getTotalElements(),
-                        result.getTotalPages(),
-                        result.isLast()
-                )
+                        resolvedDirection
         );
+
+        CursorResponse<PublicProductListResponse> response = new CursorResponse<>(
+                        result.content().stream()
+                                .map(PublicProductListResponse::from)
+                                .toList(),
+                        CursorPageInfo.of(
+                                result.nextCursor(),
+                                result.nextIdAfter(),
+                                result.hasNext(),
+                                sort,
+                                resolvedDirection
+                        )
+        );
+
         return ResponseEntity.ok(ApiResponse.success(response, null));
-    }
-
-    private void validatePagination(int page, int size, String sort) {
-        if (page < 1) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (!ALLOWED_SIZES.contains(size)) {
-            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
-        }
-        if (!ALLOWED_SORTS.contains(sort)) {
-            throw new BusinessException(ErrorCode.INVALID_SORT_FIELD);
-        }
-    }
-
-    private SortDirection resolveDirection(String direction) {
-        return "asc".equalsIgnoreCase(direction)
-                ? SortDirection.ASC
-                : SortDirection.DESC;
     }
 
 }

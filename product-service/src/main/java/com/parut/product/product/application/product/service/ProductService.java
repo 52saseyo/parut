@@ -1,8 +1,14 @@
 package com.parut.product.product.application.product.service;
 
+import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.product.query.ProductQueryRepository;
+import com.parut.product.product.application.product.query.condition.PublicProductSearchCondition;
+import com.parut.product.product.application.product.query.condition.SellerProductSearchCondition;
+import com.parut.product.product.application.product.query.result.ProductCursorResult;
+import com.parut.product.product.application.product.query.result.PublicProductQueryResult;
+import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
@@ -10,8 +16,6 @@ import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.infrastructure.product.persistence.ProductRepository;
 import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
-import com.parut.product.product.presentation.product.dto.request.PublicProductSearchCondition;
-import com.parut.product.product.presentation.product.dto.request.SellerProductSearchCondition;
 import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
 import com.parut.product.product.presentation.product.dto.response.*;
 import lombok.RequiredArgsConstructor;
@@ -211,15 +215,28 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PublicProductListResponse> searchPublicProducts(
+    public ProductCursorResult<PublicProductQueryResult> searchPublicProducts(
             PublicProductSearchCondition condition,
-            Pageable pageable
+            String cursor,
+            UUID cursorId,
+            int size,
+            String sort,
+            SortDirection direction
     ){
-        return productQueryRepository.searchPublicProducts(condition, pageable);
+        validatePublicStatus(condition.status());
+
+        return productQueryRepository.searchPublicProducts(
+                condition,
+                cursor,
+                cursorId,
+                size,
+                sort,
+                direction
+        );
     }
 
     @Transactional(readOnly = true)
-    public Page<SellerProductListResponse> searchSellerProducts(
+    public Page<SellerProductQueryResult> searchSellerProducts(
             UUID sellerId,
             SellerProductSearchCondition condition,
             Pageable pageable
@@ -230,6 +247,18 @@ public class ProductService {
                 pageable
         );
     }
+
+    private void validatePublicStatus(ProductStatus status) {
+        if (status == null) {
+            return;
+        }
+
+        if (status != ProductStatus.ON_SALE && status != ProductStatus.SOLD_OUT) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+
 
 
 
