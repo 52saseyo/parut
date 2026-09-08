@@ -3,6 +3,7 @@ package com.parut.product.product.application.stock.service;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
@@ -36,7 +37,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
-
+    private final ProductReader productReader;
     // 상품 등록 시 재고 등록
     @Override
     public void createStock(UUID productId, int totalQuantity, int lowStockThreshold) {
@@ -61,9 +62,13 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     // 재고 수정
     @Override
-    public void updateStock(UUID productId, int newTotalQuantity) {
+    public void updateStock(UUID productId, UUID sellerId, int newTotalQuantity) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        if(!productReader.isOwnedBy(productId, sellerId)) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
 
         int reservedQuantity = stock.getTotalQuantity() - stock.getAvailableQuantity();
         if (newTotalQuantity < reservedQuantity) {
@@ -177,8 +182,9 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProductStock> getStockList(Pageable pageable) {
-        return productStockRepository.findByDeletedAtIsNull(pageable);
+    public Page<ProductStock> getStockList(UUID sellerId, Pageable pageable) {
+        List<UUID> productIds = productReader.getProductIdsBySellerId(sellerId);
+        return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
     }
 
     // 낙관적 락 검증 (재고)

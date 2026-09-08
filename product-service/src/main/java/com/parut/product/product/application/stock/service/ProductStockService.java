@@ -11,10 +11,10 @@ public interface ProductStockService {
     void createStock(UUID productId, int totalQuantity, int lowStockThreshold);
     ProductStock getStock(UUID productId);
     List<ProductStock> getStocks(List<UUID> productIds);
-    void updateStock(UUID productId, int totalQuantity);
+    void updateStock(UUID productId, UUID sellerId, int totalQuantity);
     void deleteStock(UUID productId, String deletedBy);
     void reserve(UUID productId, UUID orderId, UUID orderItemId, int quantity);
     void confirm(UUID productId, UUID orderId, UUID orderItemId);
     void restore(UUID productId, UUID orderId, UUID orderItemId);
-    Page<ProductStock> getStockList(Pageable pageable);
+    Page<ProductStock> getStockList(UUID sellerId, Pageable pageable);
 }
