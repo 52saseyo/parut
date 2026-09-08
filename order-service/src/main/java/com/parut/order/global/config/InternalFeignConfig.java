@@ -1,11 +1,10 @@
 package com.parut.order.global.config;
 
+import com.parut.order.global.constant.HeaderConstants;
+import feign.RequestInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 
-import com.parut.order.global.constant.HeaderConstants;
-
-import feign.RequestInterceptor;
 
 public class InternalFeignConfig {
 

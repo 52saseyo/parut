@@ -13,7 +13,7 @@ spring:
 
 # Product의 internal.service-key와 동일 네이밍, 팀 공식 컨벤션은 아직 아님
 internal:
-  service-key: ${INTERNAL_SERVICE_KEY:temp-secret-key}
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
 
 product-service:
   base-url: ${PRODUCT_URL:http://localhost:8082}
