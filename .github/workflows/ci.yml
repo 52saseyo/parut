@@ -47,6 +47,8 @@ jobs:
             product-service:
               - 'product-service/**'
               - '.github/workflows/ci.yml'
+            gateway-service:
+              - 'gateway-service/**'
 
   # 변경된 서비스만 빌드하고 테스트
   build-and-test:
