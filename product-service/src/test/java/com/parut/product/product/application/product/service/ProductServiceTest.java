@@ -148,7 +148,7 @@ class ProductServiceTest {
     @Test
     void 재고가_있으면_판매를_시작한다() {
         Product product = product();
-        product.addMainImage("products/main.jpg");
+        product.addImage(UUID.randomUUID());
         ProductStock stock = ProductStock.create(PRODUCT_ID, 100, 10);
         given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
                 .willReturn(Optional.of(product));
@@ -167,7 +167,6 @@ class ProductServiceTest {
     @Test
     void 판매_가능한_재고가_없으면_판매를_시작할_수_없다() {
         Product product = product();
-        product.addMainImage("products/main.jpg");
         ProductStock stock = ProductStock.create(PRODUCT_ID, 10, 1);
         stock.reserve(10);
         given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
@@ -324,7 +323,7 @@ class ProductServiceTest {
 
     private Product onSaleProduct() {
         Product product = product();
-        product.addMainImage("products/main.jpg");
+        product.addImage(UUID.randomUUID());
         product.startSale();
         return product;
     }
