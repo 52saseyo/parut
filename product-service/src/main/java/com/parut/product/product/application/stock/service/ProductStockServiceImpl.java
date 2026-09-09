@@ -1,14 +1,20 @@
 package com.parut.product.product.application.stock.service;
 
 
+import com.parut.product.global.dto.ProductStockAllocateCommand;
+import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
+import com.parut.product.product.domain.product.Product;
+import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
+import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
@@ -32,13 +38,18 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     // 정상 운영 시 예약 만료 시간(30분)
     private static final Duration RESERVATION_TTL_PROD = Duration.ofMinutes(30);
-    // 시연을 위해 예약 만료 시간을 10초로 단축
-    private static final Duration RESERVATION_TTL_DEMO = Duration.ofSeconds(10);
+    // 시연을 위해 예약 만료 시간을 5분으로 단축
+    private static final Duration RESERVATION_TTL_DEMO = Duration.ofMinutes(5);
 
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
     private final ProductReader productReader;
+    private final ProductStateManager productStateManager;
+
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String SELLER_ROLE = "SELLER";
+
     // 상품 등록 시 재고 등록
     @Override
     public void createStock(UUID productId, int totalQuantity, int lowStockThreshold) {
@@ -75,6 +86,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         if(!productReader.isOwnedBy(productId, sellerId)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
         }
+        StockStatus previousStatus = stock.getStatus();
 
         int reservedQuantity = stock.getTotalQuantity() - stock.getAvailableQuantity();
         if (newTotalQuantity < reservedQuantity) {
@@ -84,6 +96,13 @@ public class ProductStockServiceImpl implements ProductStockService{
         int newAvailableQuantity = newTotalQuantity - reservedQuantity;
         stock.adjustQuantity(newTotalQuantity, newAvailableQuantity);
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+        if (stock.getStatus() == StockStatus.SOLD_OUT) {
+            notifySoldOut(productId);
+        } else if (previousStatus == StockStatus.SOLD_OUT) {
+            notifyRestocked(productId);
+        }
+
     }
 
     // 재고 삭제
@@ -138,7 +157,9 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         stock.confirm(reservation.getQuantity());
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-
+        if (stock.getStatus() == StockStatus.SOLD_OUT) {
+            notifySoldOut(productId);
+        }
         saveEventLog(reservation.getId(), orderItemId, StockEventType.CONFIRM);
     }
 
@@ -216,6 +237,40 @@ public class ProductStockServiceImpl implements ProductStockService{
         return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
     }
 
+    // 타임딜 전환 메서드
+    @Override
+    public ProductStockAllocateResult allocate(ProductStockAllocateCommand command) {
+        Product product = productReader.getProduct(command.productId());
+        validateRequester(command, product.getSellerId());
+
+        if (product.getStatus() != ProductStatus.ON_SALE) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
+        }
+
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        stock.allocate(command.quantity());
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+        if (stock.getStatus() == StockStatus.SOLD_OUT) {
+            notifySoldOut(command.productId());
+        }
+        return new ProductStockAllocateResult(
+                product.getId(),
+                product.getSellerId(),
+                product.getImageId(),
+                command.quantity(),
+                product.getName(),
+                product.getDescription(),
+                product.getAppearanceType().name(),
+                product.getOrigin(),
+                product.getHarvestDate(),
+                product.getPrice()
+        );
+    }
+
+
+
     // 낙관적 락 검증 (재고)
     private void saveStockSafely(ProductStock stock, ErrorCode conflictErrorCode) {
         try {
@@ -238,6 +293,40 @@ public class ProductStockServiceImpl implements ProductStockService{
     private void validateStockOwnership(ProductStock stock, UUID productId) {
         if (!stock.getProductId().equals(productId)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+        }
+    }
+
+    // 소유권 검증
+    private void validateRequester(ProductStockAllocateCommand command, UUID sellerId) {
+        boolean isAdmin = ADMIN_ROLE.equals(command.requesterRole());
+        boolean isOwner = SELLER_ROLE.equals(command.requesterRole())
+                && sellerId.equals(command.requesterId());
+
+        if (!isAdmin && !isOwner) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+    }
+
+    // 품절 알림 메서드
+    private void notifySoldOut(UUID productId) {
+        try {
+            productStateManager.soldOut(productId);
+        } catch (BusinessException e) {
+            if (e.getErrorCode() != ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED) {
+                throw e;
+            }
+            // 이미 SOLD_OUT 상태라 전이 불가 -> 멱등 처리, 무시
+        }
+    }
+
+    private void notifyRestocked(UUID productId) {
+        try {
+            productStateManager.resumeSaleAfterRestock(productId);
+        } catch (BusinessException e) {
+            if (e.getErrorCode() != ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED
+                    && e.getErrorCode() != ErrorCode.PRODUCT_IMAGE_REQUIRED) {
+                throw e;
+            }
         }
     }
 }

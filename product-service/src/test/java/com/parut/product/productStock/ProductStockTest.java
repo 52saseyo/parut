@@ -342,4 +342,144 @@ public class ProductStockTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_DELETE_NOT_ALLOWED);
         }
     }
+
+    @Nested
+    @DisplayName("allocate()")
+    class Allocate {
+
+        @Test
+        @DisplayName("가용 재고가 충분하면 totalQuantity와 availableQuantity가 함께 차감")
+        void allocate_success_decreasesBothQuantities() {
+            ProductStock stock = createStock(100, 10);
+
+            stock.allocate(30);
+
+            log.info("[ProductStock.allocate] 30개 할당 후 total={}, available={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity());
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(70);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(70);
+        }
+
+        @Test
+        @DisplayName("가용 재고보다 많은 수량을 요청하면 예외가 발생")
+        void allocate_shortage_throwsException() {
+            ProductStock stock = createStock(10, 5);
+
+            log.info("[ProductStock.allocate] 가용 재고(10)보다 많은 20개 할당 시도 -> 재고 부족 예외 기대");
+
+            assertThatThrownBy(() -> stock.allocate(20))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_SHORTAGE);
+        }
+
+        @Test
+        @DisplayName("quantity가 0 이하면 예외가 발생")
+        void allocate_nonPositiveQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.allocate] quantity=0 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.allocate(0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("quantity가 음수면 예외가 발생")
+        void allocate_negativeQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.allocate] quantity=-5 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.allocate(-5))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("전량 할당 시 totalQuantity가 0이 되어 SOLD_OUT으로 전이")
+        void allocate_allQuantity_transitionsToSoldOut() {
+            ProductStock stock = createStock(10, 2);
+
+            stock.allocate(10);
+
+            log.info("[ProductStock.allocate] 전량(10개) 할당 후 total={} -> status={}",
+                    stock.getTotalQuantity(), stock.getStatus());
+
+            assertThat(stock.getStatus()).isEqualTo(StockStatus.SOLD_OUT);
+        }
+
+        @Test
+        @DisplayName("할당 후 가용 재고가 임계치 이하로 내려가면 LOW_STOCK으로 전이")
+        void allocate_belowThreshold_transitionsToLowStock() {
+            ProductStock stock = createStock(100, 20);
+
+            stock.allocate(85); // available = 15 <= threshold = 20
+
+            log.info("[ProductStock.allocate] 85개 할당 후 available={} (임계치 20) -> status={}",
+                    stock.getAvailableQuantity(), stock.getStatus());
+
+            assertThat(stock.getStatus()).isEqualTo(StockStatus.LOW_STOCK);
+        }
+    }
+
+    @Nested
+    @DisplayName("deallocate()")
+    class Deallocate {
+
+        @Test
+        @DisplayName("반환 시 totalQuantity와 availableQuantity가 함께 증가")
+        void deallocate_success_increasesBothQuantities() {
+            ProductStock stock = createStock(100, 10);
+            stock.allocate(30); // total=70, available=70
+
+            stock.deallocate(30);
+
+            log.info("[ProductStock.deallocate] 30개 반환 후 total={}, available={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity());
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(100);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("quantity가 0 이하면 예외가 발생")
+        void deallocate_nonPositiveQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+            stock.allocate(30);
+
+            log.info("[ProductStock.deallocate] quantity=0 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.deallocate(0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("quantity가 음수면 예외가 발생")
+        void deallocate_negativeQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+            stock.allocate(30);
+
+            log.info("[ProductStock.deallocate] quantity=-5 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.deallocate(-5))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("SOLD_OUT 상태에서 반환되면 AVAILABLE 상태로 회복")
+        void deallocate_fromSoldOut_recoversToAvailableStatus() {
+            ProductStock stock = createStock(10, 2);
+            stock.allocate(10); // SOLD_OUT
+
+            stock.deallocate(10);
+
+            log.info("[ProductStock.deallocate] SOLD_OUT 상태에서 10개 반환 후 status={}", stock.getStatus());
+
+            assertThat(stock.getStatus()).isEqualTo(StockStatus.AVAILABLE);
+        }
+    }
 }
