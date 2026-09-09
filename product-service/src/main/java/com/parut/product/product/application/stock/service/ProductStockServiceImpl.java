@@ -7,6 +7,7 @@ import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
@@ -143,6 +144,19 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
 
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
+
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+            // 스케줄러가 이미 만료 처리(재고 복구 + RESTORE 이벤트로그 저장)까지 원자적으로 끝냄
+            // -> 재고/로그 재처리 없이 멱등 반환
+            return;
+        }
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRATION_FAILED) {
+            // 재고 복구 여부가 불확실한 격리 상태 -> 별도 에러로 명확히 구분
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+        }
+
         reservation.cancel();
         saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 

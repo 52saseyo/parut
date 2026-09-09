@@ -629,6 +629,53 @@ public class ProductStockServiceImplTest {
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
+
+        @Test
+        @DisplayName("예약이 이미 EXPIRED 상태면 재고/로그를 재처리하지 않고 반환한다")
+        void restore_reservationExpired_doesNothingSilently() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            reservation.expire(); // 스케줄러가 이미 만료 처리한 상태를 재현
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
+                    .willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.restore] 예약 상태=EXPIRED -> 재고/로그 재처리 없이 반환 기대");
+
+            productStockService.restore(productId, orderId, orderItemId);
+
+            verify(productStockRepository, never()).findById(any());
+            verify(productStockEventLogRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("예약이 EXPIRATION_FAILED 상태면 격리 에러로 응답한다")
+        void restore_reservationIsolated_throwsIsolatedError() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            reservation.fail(); // 격리 상태 재현
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
+                    .willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.restore] 예약 상태=EXPIRATION_FAILED -> ISOLATED 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+        }
     }
 
 
