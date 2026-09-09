@@ -30,7 +30,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**").permitAll() // 인증/인가 API는 모두 허용
+                        .requestMatchers("/api/v1/auth/**",
+                                         "/actuator/**"
+                                        ).permitAll() // 인증/인가 API는 모두 허용
                         .anyRequest().authenticated()
                 )
                 // 커스텀 JWT 필터를 UsernamePasswordAuthenticationFilter 이전에 동작하도록 설정
