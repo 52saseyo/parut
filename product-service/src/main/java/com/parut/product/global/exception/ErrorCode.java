@@ -8,6 +8,8 @@ public enum ErrorCode {
     // common
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "잘못된 요청입니다."),
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
+    INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "허용되지 않은 페이지 크기입니다."),
+    INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 미디어 타입입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 
@@ -53,6 +55,14 @@ public enum ErrorCode {
     TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다."),
     TIME_DEAL_INVALID_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "초기 재고는 1개 이상이어야 합니다."),
     TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 수량은 0일 수 없습니다."),
+    TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED(HttpStatus.CONFLICT, "종료되거나 중단된 타임딜의 재고는 조정할 수 없습니다."),
+    TIME_DEAL_MAX_PURCHASE_QUANTITY_EXCEEDS_STOCK(HttpStatus.BAD_REQUEST, "1인당 최대 구매 수량은 초기 재고 수량을 넘을 수 없습니다."),
+    TIME_DEAL_STOCK_MISMATCH(HttpStatus.CONFLICT, "다른 타임딜의 재고 또는 구매 이력입니다."),
+    TIME_DEAL_NOT_FOUND(HttpStatus.NOT_FOUND, "타임딜을 찾을 수 없습니다."),
+    TIME_DEAL_STOCK_NOT_FOUND(HttpStatus.NOT_FOUND, "타임딜 재고 정보가 없습니다."),
+    TIME_DEAL_PURCHASE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 처리된 주문입니다."),
+    TIME_DEAL_PURCHASE_NOT_FOUND(HttpStatus.NOT_FOUND, "타임딜 구매 이력을 찾을 수 없습니다."),
+    TIME_DEAL_SALE_PERIOD_NOT_ENDED(HttpStatus.CONFLICT, "판매 기간이 끝나지 않은 타임딜입니다."),
     TIME_DEAL_INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "할인율은 0 이상 100 미만이어야 합니다."),
 
 

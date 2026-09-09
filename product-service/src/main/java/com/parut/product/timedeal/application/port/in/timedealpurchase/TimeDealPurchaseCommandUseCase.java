@@ -6,10 +6,12 @@ import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurch
 
 public interface TimeDealPurchaseCommandUseCase {
 
-    void reserve(TimeDealPurchaseReserveCommand command);
+    void reserve(TimeDealPurchaseReserveCommand timeDealPurchaseReserveCommand);
 
-    // NOTE: 구현체는 정리를 별도 트랜잭션(REQUIRES_NEW)에서 수행한 뒤 예외를 던져야 한다.
-    void confirm(TimeDealPurchaseConfirmCommand command);
+    // NOTE: 선점 만료로 확정하지 못하면 TIME_DEAL_RESERVATION_EXPIRED를 던진다.
+    void confirm(TimeDealPurchaseConfirmCommand timeDealPurchaseConfirmCommand);
 
-    void cancel(TimeDealPurchaseCancelCommand command);
+    // NOTE: 배송 시작 전 주문 취소 전용이다 — 타임딜 재고를 복구하므로, 재고를 복구하지 않는
+    // 환불(배송 완료 후) 흐름에서는 호출하지 않는다. 배송 상태를 모르는 이 서비스는 그것을 검증할 수 없다.
+    void cancel(TimeDealPurchaseCancelCommand timeDealPurchaseCancelCommand);
 }
