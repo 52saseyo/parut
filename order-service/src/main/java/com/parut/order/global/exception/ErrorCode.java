@@ -13,6 +13,8 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     INTERNAL_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "내부 서비스 인증에 실패했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "연동 서비스와 통신할 수 없습니다."),
+    CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "동시 요청으로 처리할 수 없습니다. 다시 시도해주세요."),
+    INVALID_STATE_TRANSITION(HttpStatus.CONFLICT, "현재 상태에서는 처리할 수 없습니다."),
 
     // order
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다."),
@@ -22,6 +24,15 @@ public enum ErrorCode {
     STOCK_SHORTAGE(HttpStatus.CONFLICT, "재고가 부족합니다."),
     ORDER_DELIVERY_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 그룹을 찾을 수 없습니다."),
     ORDER_DELIVERY_GROUP_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "배송 그룹 상태를 변경할 수 없습니다."),
+    INVALID_ORDER_STATUS(HttpStatus.CONFLICT, "재고 예약이 완료되지 않은 주문입니다."),
+
+    // payment
+    PAYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "진행 중이거나 완료된 결제가 있습니다."),
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 일치하지 않습니다."),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다."),
+    INVALID_PAYMENT_STATUS(HttpStatus.CONFLICT, "현재 결제 상태에서는 처리할 수 없습니다."),
+    PG_APPROVE_FAILED(HttpStatus.BAD_GATEWAY, "PG 승인에 실패했습니다."),
+    PG_CANCEL_FAILED(HttpStatus.BAD_GATEWAY, "PG 취소에 실패했습니다."),
 
     // delivery
     DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 정보를 찾을 수 없습니다."),
