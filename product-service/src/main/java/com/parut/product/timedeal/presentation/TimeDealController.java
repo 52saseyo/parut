@@ -4,6 +4,7 @@ import com.parut.product.global.common.ApiResponse;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
+import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealConvertRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealCreateRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealCreateResponse;
 import jakarta.validation.Valid;
@@ -35,6 +36,20 @@ public class TimeDealController {
     ) {
         TimeDealCreateResult timeDealCreateResult =
                 timeDealCommandUseCase.create(timeDealCreateRequest.toCommand(sellerId));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(TimeDealCreateResponse.from(timeDealCreateResult), null));
+    }
+
+
+    // NOTE: 일반 상품 전환. 요청자가 판매자 본인이 아닐 수 있어(운영자) role까지 넘긴다 — 소유권 판정은 product 몫이다.
+    @PostMapping("/conversions")
+    public ResponseEntity<ApiResponse<TimeDealCreateResponse>> convert(
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @Valid @RequestBody TimeDealConvertRequest timeDealConvertRequest
+    ) {
+        TimeDealCreateResult timeDealCreateResult =
+                timeDealCommandUseCase.convert(timeDealConvertRequest.toCommand(requesterId, requesterRole));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(TimeDealCreateResponse.from(timeDealCreateResult), null));
     }

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -69,8 +70,8 @@ public class TimeDeal extends DeletableEntity {
     @Column(name = "origin", length = MAX_ORIGIN_LENGTH, nullable = false)
     private String origin;
 
-    @Column(name = "harvested_at", nullable = false)
-    private Instant harvestedAt;
+    @Column(name = "harvested_date", nullable = false)
+    private LocalDate harvestedDate;
 
     private TimeDeal(
             UUID sellerId,
@@ -80,7 +81,7 @@ public class TimeDeal extends DeletableEntity {
             String description,
             TimeDealProductGrade productGrade,
             String origin,
-            Instant harvestedAt,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -93,7 +94,7 @@ public class TimeDeal extends DeletableEntity {
         validateName(name);
         validateProductGrade(productGrade);
         validateOrigin(origin);
-        validateHarvestedAt(harvestedAt);
+        validateHarvestedDate(harvestedDate);
         validatePeriod(startAt, endAt, now);
         validateMaxPurchaseQuantity(maxPurchaseQuantity);
         validateOriginalPrice(originalPrice);
@@ -106,7 +107,7 @@ public class TimeDeal extends DeletableEntity {
         this.description = description;
         this.productGrade = productGrade;
         this.origin = origin;
-        this.harvestedAt = harvestedAt;
+        this.harvestedDate = harvestedDate;
         this.originalPrice = originalPrice;
         this.discountRate = discountRate;
         this.dealPrice = calculateTimeDealPrice(originalPrice, discountRate);
@@ -126,7 +127,7 @@ public class TimeDeal extends DeletableEntity {
             String description,
             TimeDealProductGrade productGrade,
             String origin,
-            Instant harvestedAt,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -142,7 +143,7 @@ public class TimeDeal extends DeletableEntity {
                 description,
                 productGrade,
                 origin,
-                harvestedAt,
+                harvestedDate,
                 originalPrice,
                 discountRate,
                 startAt,
@@ -161,7 +162,7 @@ public class TimeDeal extends DeletableEntity {
             String description,
             TimeDealProductGrade productGrade,
             String origin,
-            Instant harvestedAt,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -181,7 +182,7 @@ public class TimeDeal extends DeletableEntity {
         String newDescription = description != null ? description : this.description;
         TimeDealProductGrade newProductGrade = productGrade != null ? productGrade : this.productGrade;
         String newOrigin = origin != null ? origin : this.origin;
-        Instant newHarvestedAt = harvestedAt != null ? harvestedAt : this.harvestedAt;
+        LocalDate newHarvestedDate = harvestedDate != null ? harvestedDate : this.harvestedDate;
         Long newOriginalPrice = originalPrice != null ? originalPrice : this.originalPrice;
         BigDecimal newDiscountRate = discountRate != null ? discountRate : this.discountRate;
         Instant newStartAt = startAt != null ? startAt : this.startAt;
@@ -192,7 +193,7 @@ public class TimeDeal extends DeletableEntity {
         validateName(newName);
         validateProductGrade(newProductGrade);
         validateOrigin(newOrigin);
-        validateHarvestedAt(newHarvestedAt);
+        validateHarvestedDate(newHarvestedDate);
         validatePeriod(newStartAt, newEndAt, now);
         validateMaxPurchaseQuantity(newMaxPurchaseQuantity);
         validateOriginalPrice(newOriginalPrice);
@@ -203,7 +204,7 @@ public class TimeDeal extends DeletableEntity {
         this.description = newDescription;
         this.productGrade = newProductGrade;
         this.origin = newOrigin;
-        this.harvestedAt = newHarvestedAt;
+        this.harvestedDate = newHarvestedDate;
         this.originalPrice = newOriginalPrice;
         this.discountRate = newDiscountRate;
         this.dealPrice = calculateTimeDealPrice(newOriginalPrice, newDiscountRate);
@@ -337,9 +338,9 @@ public class TimeDeal extends DeletableEntity {
         }
     }
 
-    private static void validateHarvestedAt(Instant harvestedAt) {
-        if (harvestedAt == null) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_HARVESTED_AT);
+    private static void validateHarvestedDate(LocalDate harvestedDate) {
+        if (harvestedDate == null) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_HARVESTED_DATE);
         }
     }
 

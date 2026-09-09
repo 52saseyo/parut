@@ -5,6 +5,7 @@ import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
+import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
@@ -22,6 +23,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,7 +38,7 @@ import static org.mockito.Mockito.when;
 class TimeDealCommandServiceTest {
 
     private static final UUID SELLER_ID = UUID.randomUUID();
-    private static final Instant HARVESTED_AT = Instant.parse("2026-09-01T00:00:00Z");
+    private static final LocalDate HARVESTED_DATE = LocalDate.of(2026, 9, 1);
     private static final Instant CREATED_AT = Instant.parse("2026-08-30T10:10:00Z");
     private static final Instant START_AT = Instant.parse("2099-09-04T11:00:00Z");
     private static final Instant END_AT = Instant.parse("2099-09-04T12:00:00Z");
@@ -50,6 +52,10 @@ class TimeDealCommandServiceTest {
     @Mock
     private TimeDealStockRepository timeDealStockRepository;
 
+    // NOTE: create() 경로는 이 포트를 타지 않는다. 전환 경로 테스트는 allocate() 연결 후에 붙인다.
+    @Mock
+    private ProductStockAllocationPort productStockAllocationPort;
+
     private TimeDealCommandService timeDealCommandService;
 
     @BeforeEach
@@ -57,7 +63,8 @@ class TimeDealCommandServiceTest {
         timeDealCommandService = new TimeDealCommandService(
                 timeDealRepository,
                 timeDealStockRepository,
-                new TimeDealPolicy()
+                new TimeDealPolicy(),
+                productStockAllocationPort
         );
     }
 
@@ -69,7 +76,7 @@ class TimeDealCommandServiceTest {
                 "당일 수확한 사과입니다.",
                 TimeDealProductGrade.UGLY,
                 "경북 안동",
-                HARVESTED_AT,
+                HARVESTED_DATE,
                 10_000L,
                 BigDecimal.valueOf(30),
                 START_AT,
@@ -118,7 +125,7 @@ class TimeDealCommandServiceTest {
         assertThat(savedTimeDeal.getName()).isEqualTo("산지직송 사과 5kg");
         assertThat(savedTimeDeal.getProductGrade()).isEqualTo(TimeDealProductGrade.UGLY);
         assertThat(savedTimeDeal.getOrigin()).isEqualTo("경북 안동");
-        assertThat(savedTimeDeal.getHarvestedAt()).isEqualTo(HARVESTED_AT);
+        assertThat(savedTimeDeal.getHarvestedDate()).isEqualTo(HARVESTED_DATE);
         assertThat(savedTimeDeal.getDealPrice()).isEqualTo(7_000L);
         assertThat(savedTimeDeal.getStatus()).isEqualTo(TimeDealStatus.SCHEDULED);
     }

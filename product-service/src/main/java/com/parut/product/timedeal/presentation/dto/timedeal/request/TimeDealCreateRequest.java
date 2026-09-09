@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 
@@ -26,7 +27,7 @@ public record TimeDealCreateRequest(
         String origin,
 
         @NotNull(message = "수확일은 필수입니다.")
-        Instant harvestedAt,
+        LocalDate harvestedDate,
 
         @NotNull(message = "정가는 필수입니다.")
         Long originalPrice,
@@ -59,7 +60,7 @@ public record TimeDealCreateRequest(
                 description,
                 productGrade,
                 origin,
-                harvestedAt,
+                harvestedDate,
                 originalPrice,
                 discountRate,
                 startAt,

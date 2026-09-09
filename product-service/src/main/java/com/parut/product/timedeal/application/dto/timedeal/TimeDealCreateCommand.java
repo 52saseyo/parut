@@ -6,6 +6,7 @@ import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 
@@ -18,7 +19,7 @@ public record TimeDealCreateCommand(
         String description,
         TimeDealProductGrade productGrade,
         String origin,
-        Instant harvestedAt,
+        LocalDate harvestedDate,
         Long originalPrice,
         BigDecimal discountRate,
         Instant startAt,
@@ -32,7 +33,7 @@ public record TimeDealCreateCommand(
                 || name == null
                 || productGrade == null
                 || origin == null
-                || harvestedAt == null
+                || harvestedDate == null
                 || originalPrice == null
                 || discountRate == null
                 || startAt == null

@@ -17,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TimeDealPolicyTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-04T10:00:00Z");
-    private static final Instant HARVESTED_AT = Instant.parse("2026-09-01T00:00:00Z");
+    private static final LocalDate HARVESTED_DATE = LocalDate.of(2026, 9, 1);
     private static final Instant START_AT = Instant.parse("2026-09-04T11:00:00Z");
     private static final Instant END_AT = Instant.parse("2026-09-04T12:00:00Z");
     private static final Instant IN_WINDOW = Instant.parse("2026-09-04T11:30:00Z");
@@ -44,7 +45,7 @@ class TimeDealPolicyTest {
     private static TimeDeal scheduledTimeDeal(int maxPurchaseQuantity) {
         TimeDeal timeDeal = TimeDeal.create(
                 UUID.randomUUID(), UUID.randomUUID(), null,
-                "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_AT,
+                "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, maxPurchaseQuantity, CREATED_AT);
         // NOTE: 저장 전에는 id가 null이라 짝 검증(validateBelongsToTimeDeal)이 통과할 수 없다.
@@ -515,7 +516,7 @@ class TimeDealPolicyTest {
         void 저장전_타임딜() {
             TimeDeal unsavedTimeDeal = TimeDeal.create(
                     UUID.randomUUID(), UUID.randomUUID(), null,
-                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_AT,
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30),
                     START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);
 
