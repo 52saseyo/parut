@@ -86,6 +86,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.softDelete(deletedBy);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
     }
 
     @Override

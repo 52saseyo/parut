@@ -195,6 +195,22 @@ public class ProductStockServiceImplTest {
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_DELETE_NOT_ALLOWED);
         }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 에러로 변환된다")
+        void deleteStock_optimisticLockFailure_convertsToConflictError() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+            log.info("[ProductStockService.deleteStock] 저장 시 낙관적 락 충돌 발생 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.deleteStock(productId, "tester"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
+
     }
 
     @Nested
