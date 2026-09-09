@@ -57,8 +57,7 @@ class DeliveryServiceTest {
     void 주문_배송_생성() {
         when(orderDeliveryGroupQueryUseCase.getDeliveryGroups(ORDER_ID)).thenReturn(List.of(
                 new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1),
-                new OrderDeliveryGroupView(SECOND_DELIVERY_GROUP_ID, SELLER_ID, 1),
-                new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)
+                new OrderDeliveryGroupView(SECOND_DELIVERY_GROUP_ID, SELLER_ID, 1)
         ));
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID)).thenReturn(Optional.empty());
         when(deliveryRepository.findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID)).thenReturn(Optional.empty());
@@ -108,9 +107,8 @@ class DeliveryServiceTest {
                 COMPLETION_THRESHOLD
         )).thenReturn(List.of());
 
-        int completedCount = deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
+        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
 
-        assertThat(completedCount).isZero();
         verify(deliveryRepository).findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
                 COMPLETION_THRESHOLD
@@ -127,9 +125,8 @@ class DeliveryServiceTest {
                 COMPLETION_THRESHOLD
         )).thenReturn(List.of(delivery));
 
-        int completedCount = deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
+        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
 
-        assertThat(completedCount).isOne();
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETION_TIME);
         verify(orderDeliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);

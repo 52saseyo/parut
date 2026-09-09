@@ -1,6 +1,5 @@
 package com.parut.order.delivery.application;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -52,7 +51,6 @@ public class DeliveryService implements DeliveryCreateUseCase {
 
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
-                .distinct()
                 .forEach(this::findOrCreateDelivery);
     }
 
@@ -60,11 +58,6 @@ public class DeliveryService implements DeliveryCreateUseCase {
     private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
         return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
                 .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
-    }
-
-    private Delivery getDelivery(UUID deliveryId) {
-        return deliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
     }
 
     /**
@@ -84,7 +77,8 @@ public class DeliveryService implements DeliveryCreateUseCase {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        Delivery delivery = getDelivery(deliveryId);
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
         if (delivery.getStatus() != DeliveryStatus.PREPARING) {
             throw new BusinessException(ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION);
         }
@@ -111,20 +105,19 @@ public class DeliveryService implements DeliveryCreateUseCase {
      * 시작한 지 60초가 지난 배송을 완료한다.
      */
     @Transactional
-    public int completeEligibleDeliveries(Instant completionTime) {
+    public void completeEligibleDeliveries(Instant completionTime) {
         if (completionTime == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
-                completionTime.minus(Duration.ofSeconds(DELIVERY_COMPLETION_DELAY_SECONDS))
+                completionTime.minusSeconds(DELIVERY_COMPLETION_DELAY_SECONDS)
         );
 
         deliveries.forEach(delivery -> {
             delivery.complete(completionTime);
             orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
         });
-        return deliveries.size();
     }
 }
