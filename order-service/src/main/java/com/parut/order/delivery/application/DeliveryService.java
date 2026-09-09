@@ -2,6 +2,7 @@ package com.parut.order.delivery.application;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -52,6 +53,19 @@ public class DeliveryService implements DeliveryCreateUseCase {
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
                 .forEach(this::findOrCreateDelivery);
+    }
+
+    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
+        if (orderId == null || sellerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
+                .filter(deliveryGroup -> sellerId.equals(deliveryGroup.sellerId()))
+                .map(OrderDeliveryGroupView::deliveryGroupId)
+                .map(deliveryRepository::findByDeliveryGroupId)
+                .flatMap(Optional::stream)
+                .toList();
     }
 
     // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.

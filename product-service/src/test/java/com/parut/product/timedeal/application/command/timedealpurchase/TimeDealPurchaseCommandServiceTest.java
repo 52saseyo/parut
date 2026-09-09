@@ -11,6 +11,7 @@ import com.parut.product.timedeal.application.port.out.timedealpurchase.TimeDeal
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
+import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchase;
 import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchaseCancelReason;
 import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchaseStatus;
@@ -26,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +44,8 @@ import static org.mockito.Mockito.when;
 // "만료 정리가 커밋되는가"는 통합 테스트 영역이다.
 @ExtendWith(MockitoExtension.class)
 class TimeDealPurchaseCommandServiceTest {
+
+    private static final LocalDate HARVESTED_DATE = LocalDate.of(2026, 9, 1);
 
     private static final Instant START_AT = Instant.parse("2026-09-04T11:00:00Z");
     private static final Instant END_AT = Instant.parse("2099-09-04T12:00:00Z");
@@ -74,7 +78,9 @@ class TimeDealPurchaseCommandServiceTest {
 
         // NOTE: endAt을 먼 미래로 두어 Instant.now()를 쓰는 서비스에서도 판매 기간 안에 들도록 한다.
         timeDeal = TimeDeal.create(
-                UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30),
+                UUID.randomUUID(), UUID.randomUUID(), null,
+                "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
+                10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, MAX_PURCHASE_QUANTITY, START_AT);
         // NOTE: id는 @GeneratedValue라 저장 없이는 null이고, 그러면 짝 검증이 통과할 수 없다.
         ReflectionTestUtils.setField(timeDeal, "id", UUID.randomUUID());

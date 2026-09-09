@@ -141,10 +141,14 @@ public class TimeDealPolicy {
         if (timeDeal == null || initialQuantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        // NOTE: 재고 자체의 불변식을 먼저 태운다 — 수량이 0이면 max 비교가 먼저 걸려 "1인당 최대 구매 수량" 사유가 나가서
+        // 실제 원인(수량 0)을 가린다. 생성만 하고 저장하지 않으므로 뒤에서 예외가 나도 남는 변경이 없다.
+        TimeDealStock timeDealStock = TimeDealStock.create(timeDeal.getId(), initialQuantity, lowStockThreshold);
+
         if (timeDeal.getMaxPurchaseQuantity() > initialQuantity) {
             throw new BusinessException(ErrorCode.TIME_DEAL_MAX_PURCHASE_QUANTITY_EXCEEDS_STOCK);
         }
-        return TimeDealStock.create(timeDeal.getId(), initialQuantity, lowStockThreshold);
+        return timeDealStock;
     }
 
     // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이
