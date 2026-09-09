@@ -27,9 +27,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.CreatedOrder;
 import com.parut.order.order.application.port.out.ProductClient;
+import com.parut.order.order.application.port.out.TimeDealClient;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.TimeDealInfo;
 import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderItem;
 import com.parut.order.order.domain.OrderStatus;
@@ -41,6 +44,7 @@ class OrderFacadeTest {
     private static final UUID USER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b1");
     private static final UUID PRODUCT_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b2");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b3");
+    private static final UUID TIME_DEAL_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b4");
     private static final String IDEMPOTENCY_KEY = "idem-key-0001";
 
     @Mock
@@ -48,6 +52,9 @@ class OrderFacadeTest {
 
     @Mock
     private ProductClient productClient;
+
+    @Mock
+    private TimeDealClient timeDealClient;
 
     @InjectMocks
     private OrderFacade orderFacade;
@@ -81,6 +88,26 @@ class OrderFacadeTest {
                 order.getId(), UUID.randomUUID(), PRODUCT_ID, null, "신고배 5kg 특품",
                 "NORMAL", "국내산(전남 나주)", LocalDate.of(2026, 8, 20), "KG", BigDecimal.valueOf(5),
                 15_000L, 15_000L, 2
+        );
+        ReflectionTestUtils.setField(item, "id", UUID.randomUUID());
+        return item;
+    }
+
+    private CreateTimeDealOrderCommand createTimeDealCommand(int quantity) {
+        return new CreateTimeDealOrderCommand(
+                USER_ID, IDEMPOTENCY_KEY, TIME_DEAL_ID, PRODUCT_ID, quantity,
+                "홍길동", "01012345678", "06234", "서울특별시 강남구 테헤란로 123", "5층 501호", null
+        );
+    }
+
+    private TimeDealInfo timeDealInfo() {
+        return new TimeDealInfo(TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)", 12_000L);
+    }
+
+    private OrderItem existingTimeDealItem(Order order) {
+        OrderItem item = OrderItem.create(
+                order.getId(), UUID.randomUUID(), PRODUCT_ID, TIME_DEAL_ID, "신고배 5kg 특품(타임딜)",
+                null, null, null, null, null, null, 12_000L, 2
         );
         ReflectionTestUtils.setField(item, "id", UUID.randomUUID());
         return item;
@@ -156,5 +183,48 @@ class OrderFacadeTest {
                 .isEqualTo(ErrorCode.PRODUCT_UNAVAILABLE);
 
         verify(orderService, never()).saveNewOrder(any(), any());
+    }
+
+    @Test
+    @DisplayName("타임딜 재고 예약까지 성공하면 STOCK_RESERVED 주문을 반환한다")
+    void 타임딜주문생성_성공() {
+        Order created = existingOrder("ORD-20260908-GGGGGGGG");
+        OrderItem item = existingTimeDealItem(created);
+        Order reserved = existingOrder("ORD-20260908-GGGGGGGG");
+        ReflectionTestUtils.setField(reserved, "id", created.getId());
+        reserved.markStockReserved(java.time.Instant.now().plusSeconds(3600));
+
+        when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
+        when(timeDealClient.getOrderInfo(TIME_DEAL_ID)).thenReturn(timeDealInfo());
+        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        when(orderService.markStockReserved(created.getId(), USER_ID)).thenReturn(reserved);
+
+        Order result = orderFacade.createTimeDealOrder(createTimeDealCommand(2));
+
+        assertThat(result.getOrderStatus()).isEqualTo(OrderStatus.STOCK_RESERVED);
+        verify(timeDealClient).reserveStock(TIME_DEAL_ID, created.getId(), USER_ID, 2);
+        verifyNoInteractions(productClient);
+        verify(orderService, never()).deleteFailedOrder(any());
+    }
+
+    @Test
+    @DisplayName("타임딜 재고 예약이 실패하면 저장된 주문을 삭제하고 예외를 전파한다")
+    void 타임딜재고부족_주문삭제() {
+        Order created = existingOrder("ORD-20260908-HHHHHHHH");
+        OrderItem item = existingTimeDealItem(created);
+
+        when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
+        when(timeDealClient.getOrderInfo(TIME_DEAL_ID)).thenReturn(timeDealInfo());
+        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        doThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE))
+                .when(timeDealClient).reserveStock(any(), any(), any(), anyInt());
+
+        assertThatThrownBy(() -> orderFacade.createTimeDealOrder(createTimeDealCommand(1)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.STOCK_SHORTAGE);
+
+        verify(orderService).deleteFailedOrder(created.getId());
+        verify(orderService, never()).markStockReserved(any(), any());
     }
 }
