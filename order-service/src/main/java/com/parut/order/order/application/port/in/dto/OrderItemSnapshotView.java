@@ -7,9 +7,10 @@ import com.parut.order.order.domain.OrderItem;
 public record OrderItemSnapshotView(
         UUID orderItemId,
         UUID productId,
-        String productName
+        String productName,
+        UUID timeDealId
 ) {
     public static OrderItemSnapshotView from(OrderItem item) {
-        return new OrderItemSnapshotView(item.getId(), item.getProductId(), item.getProductName());
+        return new OrderItemSnapshotView(item.getId(), item.getProductId(), item.getProductName(), item.getTimeDealId());
     }
 }

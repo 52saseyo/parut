@@ -8,6 +8,7 @@ import com.parut.order.payment.application.dto.PaymentConfirmContext;
 import com.parut.order.payment.application.dto.PaymentConfirmResult;
 import com.parut.order.payment.application.port.out.PaymentGateway;
 import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
+import com.parut.order.payment.application.port.out.TimeDealStockConfirmClient;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
 import com.parut.order.payment.application.port.out.dto.PaymentCancelResult;
 import com.parut.order.payment.domain.PaymentMethod;
@@ -47,6 +48,9 @@ class PaymentFacadeTest {
     @Mock
     private ProductStockConfirmClient productStockConfirmClient;
 
+    @Mock
+    private TimeDealStockConfirmClient timeDealStockConfirmClient;
+
     @InjectMocks
     private PaymentFacade paymentFacade;
 
@@ -55,7 +59,11 @@ class PaymentFacadeTest {
     }
 
     private PaymentConfirmContext context() {
-        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, ORDER_ITEM_ID, PRODUCT_ID);
+        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, ORDER_ITEM_ID, PRODUCT_ID, null);
+    }
+
+    private PaymentConfirmContext timeDealContext() {
+        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, ORDER_ITEM_ID, PRODUCT_ID, UUID.randomUUID());
     }
 
     private PaymentApproveResult approveResult() {
@@ -86,9 +94,31 @@ class PaymentFacadeTest {
 
         assertThat(result.orderStatus()).isEqualTo(OrderStatus.PAID);
         verify(productStockConfirmClient).confirmStock(PRODUCT_ID, ORDER_ID, ORDER_ITEM_ID);
+        verifyNoInteractions(timeDealStockConfirmClient);
         verify(paymentService).markDeliveryPreparing(ORDER_ID);
         verify(paymentGateway, never()).cancel(any(), anyLong(), any());
         verify(paymentService, never()).applyStockShortageCancel(any(), any());
+    }
+
+    @Test
+    @DisplayName("결제 승인: 타임딜 주문이면 TimeDealStockConfirmClient로 확정한다")
+    void 결제승인_타임딜주문_확정성공() {
+        PaymentConfirmCommand command = command();
+        PaymentConfirmContext context = timeDealContext();
+        PaymentApproveResult approveResult = approveResult();
+        PaymentConfirmResult confirmResult = confirmResult(approveResult, command);
+
+        when(paymentService.loadForConfirm(command)).thenReturn(context);
+        when(paymentGateway.approve(command.paymentKey(), command.tossOrderId(), command.amount(), command.idempotencyKey()))
+                .thenReturn(approveResult);
+        when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
+
+        PaymentConfirmResult result = paymentFacade.confirm(command);
+
+        assertThat(result.orderStatus()).isEqualTo(OrderStatus.PAID);
+        verify(timeDealStockConfirmClient).confirmStock(ORDER_ID);
+        verifyNoInteractions(productStockConfirmClient);
+        verify(paymentService).markDeliveryPreparing(ORDER_ID);
     }
 
     @Test

@@ -6,10 +6,12 @@ import com.parut.order.order.application.OrderFacade;
 import com.parut.order.order.application.OrderItemConfirmationService;
 import com.parut.order.order.application.OrderService;
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.OrderDetailData;
 import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderItem;
 import com.parut.order.order.presentation.dto.request.CreateOrderRequest;
+import com.parut.order.order.presentation.dto.request.CreateTimeDealOrderRequest;
 import com.parut.order.order.presentation.dto.response.OrderCreateResponse;
 import com.parut.order.order.presentation.dto.response.OrderDetailResponse;
 import com.parut.order.order.presentation.dto.response.OrderItemConfirmationResponse;
@@ -39,6 +41,21 @@ public class OrderController {
         CreateOrderCommand command = request.toCommand(userId, idempotencyKey);
 
         Order order = orderFacade.createOrder(command);
+
+        return ApiResponse.success(OrderCreateResponse.from(order), traceId);
+    }
+
+    @PostMapping("/time-deals")
+    public ApiResponse<OrderCreateResponse> createTimeDealOrder(
+            // TODO: 공통 인터셉터 개발시, userId, traceId 부분 수정 예정
+            @RequestHeader(HeaderConstants.USER_ID) UUID userId,
+            @RequestHeader(HeaderConstants.IDEMPOTENCY_KEY) String idempotencyKey,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            @Valid @RequestBody CreateTimeDealOrderRequest request
+    ) {
+        CreateTimeDealOrderCommand command = request.toCommand(userId, idempotencyKey);
+
+        Order order = orderFacade.createTimeDealOrder(command);
 
         return ApiResponse.success(OrderCreateResponse.from(order), traceId);
     }

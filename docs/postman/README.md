@@ -6,6 +6,8 @@
 |---|---|---|
 | `parut.postman_collection.json` | 요청 구조(폴더·URL·헤더·본문). Collection Format v2.1.0 | O — 이게 팀 공유 대상 |
 | `local.postman_environment.json` | 값 서식(baseUrl, 시크릿, 테스트용 UUID) | O — **값은 비운 상태로만** |
+| `parut_mvp_v8.postman_collection.json` | MVP 시연 순서와 자동 변수 저장 스크립트 | O — PR #87 수정과 PR #90 병합 후 사용 |
+| `local_mvp_v8.postman_environment.json` | MVP 시연용 환경 변수 서식 | O — **값은 비운 상태로만** |
 
 ## 1. 임포트
 
@@ -19,6 +21,8 @@
 | `_postman_variable_scope: "environment"` | 왼쪽 **Environments** 탭 |
 
 임포트 후 **오른쪽 위 환경 드롭다운에서 `parut-local`을 선택**해야 `{{...}}`가 해석된다. 선택하지 않으면 컬렉션 변수만 살아 있어서 `{{productBaseUrl}}`은 동작하고 나머지는 `unresolved variable`로 빨갛게 뜬다.
+
+MVP 시연은 `parut_mvp_v8.postman_collection.json`과 `local_mvp_v8.postman_environment.json`을 임포트하고 `PARUT MVP LOCAL V8` 환경을 선택한다. 요청은 번호 순서대로 실행하며 선택 시연 폴더는 필요한 경우에만 사용한다.
 
 ## 2. 환경 값 채우기
 

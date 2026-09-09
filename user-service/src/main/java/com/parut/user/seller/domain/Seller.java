@@ -116,10 +116,11 @@ public class Seller {
         this.updatedBy = updatedBy;
     }
 
-    public void approve(String adminName) {
+    public void approve(String adminName, String rejectReason) {
         this.status = SellerStatus.APPROVED;
         this.approvedBy = adminName;
         this.approvedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        this.rejectReason = rejectReason;
         this.updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.updatedBy = adminName;
     }

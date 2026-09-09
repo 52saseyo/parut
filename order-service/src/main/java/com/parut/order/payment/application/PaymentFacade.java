@@ -9,6 +9,7 @@ import com.parut.order.payment.application.dto.PaymentConfirmContext;
 import com.parut.order.payment.application.dto.PaymentConfirmResult;
 import com.parut.order.payment.application.port.out.PaymentGateway;
 import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
+import com.parut.order.payment.application.port.out.TimeDealStockConfirmClient;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
 import com.parut.order.payment.application.port.out.dto.PaymentCancelResult;
 
@@ -29,6 +30,7 @@ public class PaymentFacade {
     private final PaymentService paymentService;
     private final PaymentGateway paymentGateway;
     private final ProductStockConfirmClient productStockConfirmClient;
+    private final TimeDealStockConfirmClient timeDealStockConfirmClient;
 
     public PaymentConfirmResult confirm(PaymentConfirmCommand command) {
         PaymentConfirmContext context = paymentService.loadForConfirm(command);
@@ -45,7 +47,11 @@ public class PaymentFacade {
         PaymentConfirmResult result = paymentService.applyApproved(context, command, approveResult);
 
         try {
-            productStockConfirmClient.confirmStock(context.productId(), context.orderId(), context.orderItemId());
+            if (context.timeDealId() != null) {
+                timeDealStockConfirmClient.confirmStock(context.orderId());
+            } else {
+                productStockConfirmClient.confirmStock(context.productId(), context.orderId(), context.orderItemId());
+            }
         } catch (BusinessException e) {
             if (e.getErrorCode() != ErrorCode.STOCK_SHORTAGE) {
                 throw e;

@@ -94,7 +94,7 @@ public class PaymentService {
         OrderItemSnapshotView item = orderSnapshotQueryUseCase.getFirstOrderItemSnapshot(payment.getOrderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
-        return new PaymentConfirmContext(payment.getId(), payment.getOrderId(), payment.getUserId(), item.orderItemId(), item.productId());
+        return new PaymentConfirmContext(payment.getId(), payment.getOrderId(), payment.getUserId(), item.orderItemId(), item.productId(), item.timeDealId());
     }
 
     @Transactional
