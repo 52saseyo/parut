@@ -84,7 +84,7 @@ class PaymentServiceTest {
     }
 
     private OrderItemSnapshotView itemSnapshot() {
-        return new OrderItemSnapshotView(UUID.randomUUID(), PRODUCT_ID, "신고배 5kg 특품");
+        return new OrderItemSnapshotView(UUID.randomUUID(), PRODUCT_ID, "신고배 5kg 특품", null);
     }
 
     private <T> T withId(T entity) {
@@ -148,7 +148,7 @@ class PaymentServiceTest {
         payment.start();
         UUID orderItemId = UUID.randomUUID();
         UUID productId = PRODUCT_ID;
-        PaymentConfirmContext context = new PaymentConfirmContext(payment.getId(), ORDER_ID, USER_ID, orderItemId, productId);
+        PaymentConfirmContext context = new PaymentConfirmContext(payment.getId(), ORDER_ID, USER_ID, orderItemId, productId, null);
         PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001");
         PaymentApproveResult approveResult = new PaymentApproveResult(
                 PaymentMethod.CREDIT_CARD, Instant.now(), "https://mock-pg.parut.local/receipts/1", "pg-tx-approve-1"

@@ -9,9 +9,12 @@ import org.springframework.stereotype.Component;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.CreatedOrder;
 import com.parut.order.order.application.port.out.ProductClient;
+import com.parut.order.order.application.port.out.TimeDealClient;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.TimeDealInfo;
 import com.parut.order.order.domain.Order;
 
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class OrderFacade {
 
     private final OrderService orderService;
     private final ProductClient productClient;
+    private final TimeDealClient timeDealClient;
 
     public Order createOrder(CreateOrderCommand command) {
         return orderService.findByIdempotencyKey(command.idempotencyKey())
@@ -80,6 +84,52 @@ public class OrderFacade {
             // 재고 복원 요청 실패 케이스 고려
             log.error("[OrderFacade] 재고 해제 실패. 수동 대응 필요 productId={}, orderId={}, orderItemId={}",
                     productId, orderId, orderItemId, e);
+        }
+    }
+
+    public Order createTimeDealOrder(CreateTimeDealOrderCommand command) {
+        return orderService.findByIdempotencyKey(command.idempotencyKey())
+                .orElseGet(() -> createNewTimeDealOrder(command));
+    }
+
+    private Order createNewTimeDealOrder(CreateTimeDealOrderCommand command) {
+        TimeDealInfo timeDealInfo = timeDealClient.getOrderInfo(command.timeDealId());
+
+        CreatedOrder created;
+        try {
+            created = orderService.saveNewTimeDealOrder(command, timeDealInfo);
+        } catch (DataIntegrityViolationException e) {
+            // 멱등키 충돌(동시 요청)시, 앞선 요청으로 이미 생성된 주문 반환
+            return orderService.findByIdempotencyKey(command.idempotencyKey())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.DUPLICATE_ORDER_REQUEST));
+        }
+
+        UUID orderId = created.order().getId();
+
+        try {
+            timeDealClient.reserveStock(command.timeDealId(), orderId, command.userId(), command.quantity());
+        } catch (RuntimeException e) {
+            // 재고 예약 실패(품절 등)시, 선 저장된 주문과 멱등키를 삭제하여 롤백 (클라이언트 재요청 가능하도록 원복)
+            orderService.deleteFailedOrder(orderId);
+            throw e;
+        }
+
+        try {
+            return orderService.markStockReserved(orderId, command.userId());
+        } catch (DataAccessException e) {
+            // 주문 저장 실패시, 예약된 재고 해제 (보상 트랜잭션)
+            log.error("[OrderFacade] 타임딜 주문 저장 실패로 재고 예약을 해제합니다. orderId={}", orderId, e);
+            safelyRestoreTimeDealStock(orderId);
+            throw e;
+        }
+    }
+
+    private void safelyRestoreTimeDealStock(UUID orderId) {
+        try {
+            timeDealClient.restoreStock(orderId, null);
+        } catch (RuntimeException e) {
+            // 재고 복원 요청 실패 케이스 고려
+            log.error("[OrderFacade] 타임딜 재고 해제 실패. 수동 대응 필요 orderId={}", orderId, e);
         }
     }
 }

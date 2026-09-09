@@ -29,7 +29,8 @@ public class OrderItem extends UpdatableEntity {
     @Column(name = "delivery_group_id", nullable = false)
     private UUID deliveryGroupId;
 
-    @Column(name = "product_id", nullable = false)
+    // 직접 등록 타임딜 주문은 NULL(참조할 원본 상품이 없음)
+    @Column(name = "product_id")
     private UUID productId;
 
     @Column(name = "time_deal_id")
@@ -39,22 +40,22 @@ public class OrderItem extends UpdatableEntity {
     private String productName;
 
     // Product Service의 AppearanceType Enum과 동일한 값 사용
-    @Column(name = "appearance_type", nullable = false, length = 20)
+    @Column(name = "appearance_type", length = 20)
     private String appearanceType;
 
-    @Column(name = "origin", nullable = false, length = 50)
+    @Column(name = "origin", length = 50)
     private String origin;
 
-    @Column(name = "harvest_date", nullable = false)
+    @Column(name = "harvest_date")
     private LocalDate harvestDate;
 
-    @Column(name = "sale_unit", nullable = false, length = 20)
+    @Column(name = "sale_unit", length = 20)
     private String saleUnit;
 
-    @Column(name = "unit_quantity", nullable = false, precision = 10, scale = 2)
+    @Column(name = "unit_quantity", precision = 10, scale = 2)
     private BigDecimal unitQuantity;
 
-    @Column(name = "original_price", nullable = false)
+    @Column(name = "original_price")
     private Long originalPrice;
 
     @Column(name = "unit_price", nullable = false)
@@ -88,7 +89,7 @@ public class OrderItem extends UpdatableEntity {
             LocalDate harvestDate,
             String saleUnit,
             BigDecimal unitQuantity,
-            long originalPrice,
+            Long originalPrice,
             long unitPrice,
             int quantity
     ) {
@@ -120,7 +121,7 @@ public class OrderItem extends UpdatableEntity {
             LocalDate harvestDate,
             String saleUnit,
             BigDecimal unitQuantity,
-            long originalPrice,
+            Long originalPrice,
             long unitPrice,
             int quantity
     ) {
@@ -130,28 +131,24 @@ public class OrderItem extends UpdatableEntity {
         if (deliveryGroupId == null) {
             throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
         }
-        if (productId == null) {
-            throw new IllegalArgumentException("상품 ID는 필수입니다.");
-        }
         if (productName == null || productName.isBlank()) {
             throw new IllegalArgumentException("상품명은 필수입니다.");
         }
-        if (appearanceType == null || appearanceType.isBlank()) {
-            throw new IllegalArgumentException("상품 속성은 필수입니다.");
+        // appearanceType, origin, harvestDate, saleUnit, unitQuantity, originalPrice는 스냅샷 부가 정보라
+        // null은 허용하되, 값이 있으면 유효성은 검증한다.
+        if (appearanceType != null && appearanceType.isBlank()) {
+            throw new IllegalArgumentException("상품 속성은 빈 값일 수 없습니다.");
         }
-        if (origin == null || origin.isBlank()) {
-            throw new IllegalArgumentException("생산지는 필수입니다.");
+        if (origin != null && origin.isBlank()) {
+            throw new IllegalArgumentException("생산지는 빈 값일 수 없습니다.");
         }
-        if (harvestDate == null) {
-            throw new IllegalArgumentException("수확일은 필수입니다.");
+        if (saleUnit != null && saleUnit.isBlank()) {
+            throw new IllegalArgumentException("판매 단위는 빈 값일 수 없습니다.");
         }
-        if (saleUnit == null || saleUnit.isBlank()) {
-            throw new IllegalArgumentException("판매 단위는 필수입니다.");
-        }
-        if (unitQuantity == null || unitQuantity.signum() <= 0) {
+        if (unitQuantity != null && unitQuantity.signum() <= 0) {
             throw new IllegalArgumentException("판매 단위 수량은 0보다 커야 합니다.");
         }
-        if (originalPrice < 0) {
+        if (originalPrice != null && originalPrice < 0) {
             throw new IllegalArgumentException("정가는 0 이상이어야 합니다.");
         }
         if (unitPrice < 0) {

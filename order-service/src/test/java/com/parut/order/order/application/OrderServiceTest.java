@@ -23,9 +23,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.CreatedOrder;
 import com.parut.order.order.application.dto.OrderDetailData;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.TimeDealInfo;
 import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderDeliveryGroup;
 import com.parut.order.order.domain.OrderItem;
@@ -44,6 +46,7 @@ class OrderServiceTest {
     private static final UUID USER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b1");
     private static final UUID PRODUCT_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b2");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b3");
+    private static final UUID TIME_DEAL_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b4");
     private static final String IDEMPOTENCY_KEY = "idem-key-0001";
 
     @Mock
@@ -89,6 +92,20 @@ class OrderServiceTest {
         );
     }
 
+    private CreateTimeDealOrderCommand createTimeDealCommand(int quantity) {
+        return new CreateTimeDealOrderCommand(
+                USER_ID, IDEMPOTENCY_KEY, TIME_DEAL_ID, PRODUCT_ID, quantity,
+                "홍길동", "01012345678", "06234", "서울특별시 강남구 테헤란로 123", "5층 501호", null
+        );
+    }
+
+    private TimeDealInfo timeDealInfo() {
+        return new TimeDealInfo(
+                TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)",
+                15_000L, 12_000L, "NORMAL", "국내산(전남 나주)", LocalDate.of(2026, 8, 20)
+        );
+    }
+
     private <T> T withId(T entity) {
         ReflectionTestUtils.setField(entity, "id", UUID.randomUUID());
         return entity;
@@ -110,6 +127,32 @@ class OrderServiceTest {
         assertThat(result.order().getTotalProductAmount()).isEqualTo(30_000L);
         assertThat(result.order().getTotalDeliveryFee()).isEqualTo(3_000L);
         assertThat(result.item().getQuantity()).isEqualTo(2);
+        verify(orderStatusHistoryRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("saveNewTimeDealOrder는 타임딜 조회 API가 주는 스냅샷 필드를 채우고, 미제공 필드만 null로 저장한다")
+    void 타임딜주문_저장() {
+        when(orderRepository.saveAndFlush(any(Order.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0)));
+        when(orderDeliveryGroupRepository.save(any(OrderDeliveryGroup.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0)));
+        when(orderItemRepository.save(any(OrderItem.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0)));
+
+        CreatedOrder result = orderService.saveNewTimeDealOrder(createTimeDealCommand(2), timeDealInfo());
+
+        assertThat(result.order().getOrderType()).isEqualTo(OrderType.TIME_DEAL);
+        assertThat(result.order().getOrderStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(result.order().getTotalProductAmount()).isEqualTo(24_000L);
+        assertThat(result.item().getTimeDealId()).isEqualTo(TIME_DEAL_ID);
+        assertThat(result.item().getUnitPrice()).isEqualTo(12_000L);
+        assertThat(result.item().getAppearanceType()).isEqualTo("NORMAL");
+        assertThat(result.item().getOrigin()).isEqualTo("국내산(전남 나주)");
+        assertThat(result.item().getHarvestDate()).isEqualTo(LocalDate.of(2026, 8, 20));
+        assertThat(result.item().getOriginalPrice()).isEqualTo(15_000L);
+        assertThat(result.item().getSaleUnit()).isNull();
+        assertThat(result.item().getUnitQuantity()).isNull();
         verify(orderStatusHistoryRepository).save(any());
     }
 
