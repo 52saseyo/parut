@@ -3,9 +3,11 @@ package com.parut.product.product.application.stock.service;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
@@ -36,12 +38,17 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
-
+    private final ProductReader productReader;
     // 상품 등록 시 재고 등록
     @Override
     public void createStock(UUID productId, int totalQuantity, int lowStockThreshold) {
         ProductStock stock = ProductStock.create(productId, totalQuantity, lowStockThreshold);
-        productStockRepository.save(stock);
+
+        try {
+            productStockRepository.save(stock);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_ALREADY_EXISTS);
+        }
     }
 
     // 상품 한 개의 재고 조회
@@ -61,9 +68,13 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     // 재고 수정
     @Override
-    public void updateStock(UUID productId, int newTotalQuantity) {
+    public void updateStock(UUID productId, UUID sellerId, int newTotalQuantity) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        if(!productReader.isOwnedBy(productId, sellerId)) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
 
         int reservedQuantity = stock.getTotalQuantity() - stock.getAvailableQuantity();
         if (newTotalQuantity < reservedQuantity) {
@@ -81,6 +92,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.softDelete(deletedBy);
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
     }
 
     @Override
@@ -91,7 +103,16 @@ public class ProductStockServiceImpl implements ProductStockService{
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.reserve(quantity);
-        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+        try {
+            productStockRepository.saveAndFlush(stock);
+
+        } catch (OptimisticLockingFailureException e) {
+            if(isAlreadyProcessed(orderItemId, StockEventType.RESERVE)) {
+                return; // 동시 재시도 - 이미 성공, 멱등 처리
+            }
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
@@ -128,6 +149,19 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
 
         ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
+
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+            // 스케줄러가 이미 만료 처리(재고 복구 + RESTORE 이벤트로그 저장)까지 원자적으로 끝냄
+            // -> 재고/로그 재처리 없이 멱등 반환
+            return;
+        }
+
+        if (reservation.getStatus() == ReservationStatus.EXPIRATION_FAILED) {
+            // 재고 복구 여부가 불확실한 격리 상태 -> 별도 에러로 명확히 구분
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+        }
+
         reservation.cancel();
         saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
 
@@ -177,8 +211,9 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProductStock> getStockList(Pageable pageable) {
-        return productStockRepository.findByDeletedAtIsNull(pageable);
+    public Page<ProductStock> getStockList(UUID sellerId, Pageable pageable) {
+        List<UUID> productIds = productReader.getProductIdsBySellerId(sellerId);
+        return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
     }
 
     // 낙관적 락 검증 (재고)

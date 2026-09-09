@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -21,9 +22,18 @@ public class TimeDeal extends DeletableEntity {
 
     private static final BigDecimal MIN_DISCOUNT_RATE = BigDecimal.ZERO;
     private static final BigDecimal MAX_DISCOUNT_RATE = BigDecimal.valueOf(100);
+    private static final int MAX_NAME_LENGTH = 150;
+    private static final int MAX_ORIGIN_LENGTH = 100;
 
-    @Column(name = "product_id", columnDefinition = "uuid")
+    @Column(name = "seller_id", nullable = false, updatable = false)
+    private UUID sellerId;
+
+    // NOTE: 전환 출처 추적용이며 직접 등록이면 null이다. 표시 정보는 스냅샷으로 갖고 있으므로 조회 시 상품을 join하지 않는다.
+    @Column(name = "product_id", columnDefinition = "uuid", updatable = false)
     private UUID productId;
+
+    @Column(name = "image_id", columnDefinition = "uuid")
+    private UUID imageId;
 
     @Column(name = "original_price", nullable = false)
     private Long originalPrice;
@@ -47,8 +57,31 @@ public class TimeDeal extends DeletableEntity {
     @Column(name = "status", length = 20, nullable = false)
     private TimeDealStatus status;
 
+    @Column(name = "name", length = MAX_NAME_LENGTH, nullable = false)
+    private String name;
+
+    @Column(name = "description", columnDefinition = "text")
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_grade", length = 20, nullable = false)
+    private TimeDealProductGrade productGrade;
+
+    @Column(name = "origin", length = MAX_ORIGIN_LENGTH, nullable = false)
+    private String origin;
+
+    @Column(name = "harvested_date", nullable = false)
+    private LocalDate harvestedDate;
+
     private TimeDeal(
+            UUID sellerId,
             UUID productId,
+            UUID imageId,
+            String name,
+            String description,
+            TimeDealProductGrade productGrade,
+            String origin,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -57,12 +90,24 @@ public class TimeDeal extends DeletableEntity {
             Instant now
     ) {
         validateRequiredFields(originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity);
+        validateSellerId(sellerId);
+        validateName(name);
+        validateProductGrade(productGrade);
+        validateOrigin(origin);
+        validateHarvestedDate(harvestedDate);
         validatePeriod(startAt, endAt, now);
         validateMaxPurchaseQuantity(maxPurchaseQuantity);
         validateOriginalPrice(originalPrice);
         validateDiscountRate(discountRate);
 
+        this.sellerId = sellerId;
         this.productId = productId;
+        this.imageId = imageId;
+        this.name = name;
+        this.description = description;
+        this.productGrade = productGrade;
+        this.origin = origin;
+        this.harvestedDate = harvestedDate;
         this.originalPrice = originalPrice;
         this.discountRate = discountRate;
         this.dealPrice = calculateTimeDealPrice(originalPrice, discountRate);
@@ -73,8 +118,16 @@ public class TimeDeal extends DeletableEntity {
     }
 
     // NOTE: 시간 판정에 쓰는 now는 항상 파라미터로 받는다 — 유즈케이스당 하나로 고정하고 테스트에서 조작하기 위함.
+    // NOTE: 표시 정보는 생성 시점 스냅샷이다 — 전환이면 상품에서 복사하고, 직접 등록이면 판매자가 입력한다.
     public static TimeDeal create(
+            UUID sellerId,
             UUID productId,
+            UUID imageId,
+            String name,
+            String description,
+            TimeDealProductGrade productGrade,
+            String origin,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -82,12 +135,34 @@ public class TimeDeal extends DeletableEntity {
             Integer maxPurchaseQuantity,
             Instant now
     ) {
-        return new TimeDeal(productId, originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity, now);
+        return new TimeDeal(
+                sellerId,
+                productId,
+                imageId,
+                name,
+                description,
+                productGrade,
+                origin,
+                harvestedDate,
+                originalPrice,
+                discountRate,
+                startAt,
+                endAt,
+                maxPurchaseQuantity,
+                now
+        );
     }
 
     // NOTE: SCHEDULED에서만 수정 가능하다 — 현재 필드가 전부 핵심 판매 조건이라 ACTIVE에서 바꿀 것이 없다.
     // NOTE: PATCH 부분 수정(null = 변경 없음). 검증은 병합한 뒤의 값으로 해야 기간 역전 같은 조합 오류를 잡는다.
+    // NOTE: sellerId·productId는 수정 대상이 아니다 — 소유권과 전환 출처는 생성 시점에 고정된다.
     public void update(
+            UUID imageId,
+            String name,
+            String description,
+            TimeDealProductGrade productGrade,
+            String origin,
+            LocalDate harvestedDate,
             Long originalPrice,
             BigDecimal discountRate,
             Instant startAt,
@@ -102,6 +177,12 @@ public class TimeDeal extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
         }
 
+        UUID newImageId = imageId != null ? imageId : this.imageId;
+        String newName = name != null ? name : this.name;
+        String newDescription = description != null ? description : this.description;
+        TimeDealProductGrade newProductGrade = productGrade != null ? productGrade : this.productGrade;
+        String newOrigin = origin != null ? origin : this.origin;
+        LocalDate newHarvestedDate = harvestedDate != null ? harvestedDate : this.harvestedDate;
         Long newOriginalPrice = originalPrice != null ? originalPrice : this.originalPrice;
         BigDecimal newDiscountRate = discountRate != null ? discountRate : this.discountRate;
         Instant newStartAt = startAt != null ? startAt : this.startAt;
@@ -109,11 +190,21 @@ public class TimeDeal extends DeletableEntity {
         Integer newMaxPurchaseQuantity =
                 maxPurchaseQuantity != null ? maxPurchaseQuantity : this.maxPurchaseQuantity;
 
+        validateName(newName);
+        validateProductGrade(newProductGrade);
+        validateOrigin(newOrigin);
+        validateHarvestedDate(newHarvestedDate);
         validatePeriod(newStartAt, newEndAt, now);
         validateMaxPurchaseQuantity(newMaxPurchaseQuantity);
         validateOriginalPrice(newOriginalPrice);
         validateDiscountRate(newDiscountRate);
 
+        this.imageId = newImageId;
+        this.name = newName;
+        this.description = newDescription;
+        this.productGrade = newProductGrade;
+        this.origin = newOrigin;
+        this.harvestedDate = newHarvestedDate;
         this.originalPrice = newOriginalPrice;
         this.discountRate = newDiscountRate;
         this.dealPrice = calculateTimeDealPrice(newOriginalPrice, newDiscountRate);
@@ -220,6 +311,36 @@ public class TimeDeal extends DeletableEntity {
                 || endAt == null
                 || maxPurchaseQuantity == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private static void validateSellerId(UUID sellerId) {
+        if (sellerId == null) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_SELLER_ID);
+        }
+    }
+
+    private static void validateName(String name) {
+        if (name == null || name.isBlank() || name.length() > MAX_NAME_LENGTH) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_NAME);
+        }
+    }
+
+    private static void validateProductGrade(TimeDealProductGrade productGrade) {
+        if (productGrade == null) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PRODUCT_GRADE);
+        }
+    }
+
+    private static void validateOrigin(String origin) {
+        if (origin == null || origin.isBlank() || origin.length() > MAX_ORIGIN_LENGTH) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_ORIGIN);
+        }
+    }
+
+    private static void validateHarvestedDate(LocalDate harvestedDate) {
+        if (harvestedDate == null) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_HARVESTED_DATE);
         }
     }
 

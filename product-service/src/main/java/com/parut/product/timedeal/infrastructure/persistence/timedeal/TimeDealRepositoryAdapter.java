@@ -23,4 +23,9 @@ public class TimeDealRepositoryAdapter implements TimeDealRepository {
     public TimeDeal save(TimeDeal timeDeal) {
         return jpaTimeDealRepository.save(timeDeal);
     }
+
+    @Override
+    public TimeDeal saveAndFlush(TimeDeal timeDeal) {
+        return jpaTimeDealRepository.saveAndFlush(timeDeal);
+    }
 }

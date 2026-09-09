@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,9 +24,78 @@ class TimeDealTest {
     private static final Instant BEFORE_START = Instant.parse("2026-09-04T10:59:59Z");
     private static final Instant AFTER_END = Instant.parse("2026-09-04T12:00:01Z");
 
+    private static final LocalDate HARVESTED_DATE = LocalDate.of(2026, 9, 1);
+
     private static TimeDeal scheduledTimeDeal() {
+        return create(10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT);
+    }
+
+    // 표시용 스냅샷은 판매 조건 검증과 무관하므로 고정값으로 채우고, 각 테스트가 다루는 값만 파라미터로 받는다.
+    private static TimeDeal create(
+            Long originalPrice,
+            BigDecimal discountRate,
+            Instant startAt,
+            Instant endAt,
+            Integer maxPurchaseQuantity,
+            Instant now
+    ) {
         return TimeDeal.create(
-                UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT);
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                "산지직송 사과 5kg",
+                "당일 수확한 사과입니다.",
+                TimeDealProductGrade.NORMAL,
+                "경북 안동",
+                HARVESTED_DATE,
+                originalPrice,
+                discountRate,
+                startAt,
+                endAt,
+                maxPurchaseQuantity,
+                now
+        );
+    }
+
+    // 판매 조건은 고정하고 표시용 스냅샷만 파라미터로 받는다 (create 헬퍼와 반대 방향).
+    private static TimeDeal snapshot(
+            String name,
+            String description,
+            TimeDealProductGrade productGrade,
+            String origin,
+            LocalDate harvestedDate
+    ) {
+        return TimeDeal.create(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                null,
+                name,
+                description,
+                productGrade,
+                origin,
+                harvestedDate,
+                10_000L,
+                BigDecimal.valueOf(30),
+                START_AT,
+                END_AT,
+                5,
+                CREATED_AT
+        );
+    }
+
+    private static void updateSaleTerms(
+            TimeDeal timeDeal,
+            Long originalPrice,
+            BigDecimal discountRate,
+            Instant startAt,
+            Instant endAt,
+            Integer maxPurchaseQuantity,
+            Instant now
+    ) {
+        timeDeal.update(
+                null, null, null, null, null, null,
+                originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity, now
+        );
     }
 
     private static TimeDeal activeTimeDeal() {
@@ -51,8 +121,7 @@ class TimeDealTest {
         @Test
         @DisplayName("timeDealPrice는 원 단위 아래를 절삭한다")
         void timeDealPrice_절삭() {
-            TimeDeal timeDeal = TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.valueOf(33.33), START_AT, END_AT, 5, CREATED_AT);
+            TimeDeal timeDeal = create(10_000L, BigDecimal.valueOf(33.33), START_AT, END_AT, 5, CREATED_AT);
 
             assertThat(timeDeal.getDealPrice()).isEqualTo(6_667L);
         }
@@ -60,8 +129,7 @@ class TimeDealTest {
         @Test
         @DisplayName("할인율 0%는 정가 판매로 허용된다")
         void 할인율_0_허용() {
-            TimeDeal timeDeal = TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.ZERO, START_AT, END_AT, 5, CREATED_AT);
+            TimeDeal timeDeal = create(10_000L, BigDecimal.ZERO, START_AT, END_AT, 5, CREATED_AT);
 
             assertThat(timeDeal.getDealPrice()).isEqualTo(timeDeal.getOriginalPrice());
         }
@@ -69,8 +137,7 @@ class TimeDealTest {
         @Test
         @DisplayName("종료 시각이 시작 시각보다 앞이면 예외")
         void 기간_역전() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30), END_AT, START_AT, 5, CREATED_AT))
+            assertThatThrownBy(() -> create(10_000L, BigDecimal.valueOf(30), END_AT, START_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PERIOD);
@@ -79,8 +146,7 @@ class TimeDealTest {
         @Test
         @DisplayName("종료 시각이 기준 시각보다 과거면 예외")
         void 이미_끝난_기간() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, AFTER_END))
+            assertThatThrownBy(() -> create(10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, AFTER_END))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PERIOD);
@@ -89,8 +155,7 @@ class TimeDealTest {
         @Test
         @DisplayName("필수값이 null이면 예외")
         void 필수값_null() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), null, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
+            assertThatThrownBy(() -> create(null, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
@@ -99,8 +164,7 @@ class TimeDealTest {
         @Test
         @DisplayName("정가가 0 이하면 예외")
         void 잘못된_가격() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), 0L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
+            assertThatThrownBy(() -> create(0L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PRICE);
@@ -109,8 +173,7 @@ class TimeDealTest {
         @Test
         @DisplayName("할인율이 100 이상이면 예외")
         void 할인율_상한() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.valueOf(100), START_AT, END_AT, 5, CREATED_AT))
+            assertThatThrownBy(() -> create(10_000L, BigDecimal.valueOf(100), START_AT, END_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_DISCOUNT_RATE);
@@ -119,11 +182,111 @@ class TimeDealTest {
         @Test
         @DisplayName("최대 구매 수량이 1개 미만이면 예외")
         void 최대구매수량_하한() {
-            assertThatThrownBy(() -> TimeDeal.create(
-                    UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 0, CREATED_AT))
+            assertThatThrownBy(() -> create(10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 0, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY);
+        }
+    }
+
+    @Nested
+    @DisplayName("생성 - 표시용 스냅샷")
+    class CreateSnapshot {
+
+        @Test
+        @DisplayName("판매자가 입력한 표시 정보를 그대로 보관한다")
+        void 스냅샷_보관() {
+            TimeDeal timeDeal = snapshot(
+                    "산지직송 사과 5kg", "당일 수확한 사과입니다.", TimeDealProductGrade.UGLY, "경북 안동", HARVESTED_DATE);
+
+            assertThat(timeDeal.getName()).isEqualTo("산지직송 사과 5kg");
+            assertThat(timeDeal.getDescription()).isEqualTo("당일 수확한 사과입니다.");
+            assertThat(timeDeal.getProductGrade()).isEqualTo(TimeDealProductGrade.UGLY);
+            assertThat(timeDeal.getOrigin()).isEqualTo("경북 안동");
+            assertThat(timeDeal.getHarvestedDate()).isEqualTo(HARVESTED_DATE);
+        }
+
+        @Test
+        @DisplayName("직접 등록이면 productId 없이도 생성된다")
+        void 직접_등록() {
+            TimeDeal timeDeal = TimeDeal.create(
+                    UUID.randomUUID(), null, null,
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
+                    10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT);
+
+            assertThat(timeDeal.getProductId()).isNull();
+            assertThat(timeDeal.getName()).isEqualTo("산지직송 사과 5kg");
+        }
+
+        @Test
+        @DisplayName("설명은 없어도 된다")
+        void 설명_없음_허용() {
+            TimeDeal timeDeal = snapshot(
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE);
+
+            assertThat(timeDeal.getDescription()).isNull();
+        }
+
+        @Test
+        @DisplayName("판매자가 없으면 예외")
+        void 판매자_null() {
+            assertThatThrownBy(() -> TimeDeal.create(
+                    null, UUID.randomUUID(), null,
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
+                    10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_SELLER_ID);
+        }
+
+        @Test
+        @DisplayName("상품명이 공백이면 예외")
+        void 상품명_공백() {
+            assertThatThrownBy(() -> snapshot(
+                    "   ", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_NAME);
+        }
+
+        @Test
+        @DisplayName("상품명이 150자를 넘으면 예외")
+        void 상품명_길이_초과() {
+            assertThatThrownBy(() -> snapshot(
+                    "가".repeat(151), null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_NAME);
+        }
+
+        @Test
+        @DisplayName("상품 품질이 없으면 예외")
+        void 상품품질_null() {
+            assertThatThrownBy(() -> snapshot(
+                    "산지직송 사과 5kg", null, null, "경북 안동", HARVESTED_DATE))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PRODUCT_GRADE);
+        }
+
+        @Test
+        @DisplayName("생산지가 100자를 넘으면 예외")
+        void 생산지_길이_초과() {
+            assertThatThrownBy(() -> snapshot(
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "가".repeat(101), HARVESTED_DATE))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_ORIGIN);
+        }
+
+        @Test
+        @DisplayName("수확일이 없으면 예외")
+        void 수확일_null() {
+            assertThatThrownBy(() -> snapshot(
+                    "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", null))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_HARVESTED_DATE);
         }
     }
 
@@ -136,7 +299,7 @@ class TimeDealTest {
         void 전체_null이면_유지() {
             TimeDeal timeDeal = scheduledTimeDeal();
 
-            timeDeal.update(null, null, null, null, null, CREATED_AT);
+            updateSaleTerms(timeDeal, null, null, null, null, null, CREATED_AT);
 
             assertThat(timeDeal.getOriginalPrice()).isEqualTo(10_000L);
             assertThat(timeDeal.getDealPrice()).isEqualTo(7_000L);
@@ -150,7 +313,7 @@ class TimeDealTest {
         void 부분_수정() {
             TimeDeal timeDeal = scheduledTimeDeal();
 
-            timeDeal.update(null, null, null, null, 9, CREATED_AT);
+            updateSaleTerms(timeDeal, null, null, null, null, 9, CREATED_AT);
 
             assertThat(timeDeal.getMaxPurchaseQuantity()).isEqualTo(9);
             assertThat(timeDeal.getOriginalPrice()).isEqualTo(10_000L);
@@ -161,7 +324,7 @@ class TimeDealTest {
         void 정가만_바꿔도_할인가_재계산() {
             TimeDeal timeDeal = scheduledTimeDeal();
 
-            timeDeal.update(20_000L, null, null, null, null, CREATED_AT);
+            updateSaleTerms(timeDeal, 20_000L, null, null, null, null, CREATED_AT);
 
             assertThat(timeDeal.getDealPrice()).isEqualTo(14_000L);
         }
@@ -172,7 +335,7 @@ class TimeDealTest {
             TimeDeal timeDeal = scheduledTimeDeal();
             Instant afterExistingEnd = Instant.parse("2026-09-04T13:00:00Z");
 
-            assertThatThrownBy(() -> timeDeal.update(null, null, afterExistingEnd, null, null, CREATED_AT))
+            assertThatThrownBy(() -> updateSaleTerms(timeDeal, null, null, afterExistingEnd, null, null, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_PERIOD);
@@ -183,7 +346,7 @@ class TimeDealTest {
         void 활성화된_타임딜은_수정_불가() {
             TimeDeal timeDeal = activeTimeDeal();
 
-            assertThatThrownBy(() -> timeDeal.update(20_000L, null, null, null, null, IN_WINDOW))
+            assertThatThrownBy(() -> updateSaleTerms(timeDeal, 20_000L, null, null, null, null, IN_WINDOW))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
@@ -195,10 +358,40 @@ class TimeDealTest {
             TimeDeal timeDeal = scheduledTimeDeal();
             timeDeal.softDelete("tester");
 
-            assertThatThrownBy(() -> timeDeal.update(20_000L, null, null, null, null, CREATED_AT))
+            assertThatThrownBy(() -> updateSaleTerms(timeDeal, 20_000L, null, null, null, null, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_DELETED);
+        }
+
+        @Test
+        @DisplayName("표시용 스냅샷도 부분 수정된다")
+        void 스냅샷_부분_수정() {
+            TimeDeal timeDeal = scheduledTimeDeal();
+            UUID newImageId = UUID.randomUUID();
+
+            timeDeal.update(
+                    newImageId, "못난이 사과 5kg", null, TimeDealProductGrade.UGLY, null, null,
+                    null, null, null, null, null, CREATED_AT);
+
+            assertThat(timeDeal.getImageId()).isEqualTo(newImageId);
+            assertThat(timeDeal.getName()).isEqualTo("못난이 사과 5kg");
+            assertThat(timeDeal.getProductGrade()).isEqualTo(TimeDealProductGrade.UGLY);
+            assertThat(timeDeal.getOrigin()).isEqualTo("경북 안동");
+            assertThat(timeDeal.getHarvestedDate()).isEqualTo(HARVESTED_DATE);
+        }
+
+        @Test
+        @DisplayName("상품명을 공백으로 바꾸면 예외")
+        void 상품명_공백으로_수정() {
+            TimeDeal timeDeal = scheduledTimeDeal();
+
+            assertThatThrownBy(() -> timeDeal.update(
+                    null, "   ", null, null, null, null,
+                    null, null, null, null, null, CREATED_AT))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_NAME);
         }
     }
 

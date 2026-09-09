@@ -25,6 +25,8 @@ public enum ErrorCode {
     ORDER_DELIVERY_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 그룹을 찾을 수 없습니다."),
     ORDER_DELIVERY_GROUP_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "배송 그룹 상태를 변경할 수 없습니다."),
     INVALID_ORDER_STATUS(HttpStatus.CONFLICT, "재고 예약이 완료되지 않은 주문입니다."),
+    ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "주문상품을 찾을 수 없습니다."),
+    ORDER_ITEM_CONFIRMATION_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 주문상품은 구매 확정할 수 없습니다."),
 
     // payment
     PAYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "진행 중이거나 완료된 결제가 있습니다."),

@@ -1,5 +1,6 @@
 package com.parut.product.global.dto;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 
@@ -7,8 +8,14 @@ import java.util.UUID;
 // TimeDeal의 originalPrice와 판매자로 쓴다 — 요청에서 받은 값을 쓰면 원가,소유자 위조가 가능하다.
 public record ProductStockAllocateResult(
         UUID productId,
-        Integer quantity,
         UUID sellerId,
+        UUID imageId,
+        Integer quantity,
+        String productName,
+        String productDescription,
+        String appearanceType,
+        String productOrigin,
+        LocalDate productHarvestedDate,
         Long price
 ) {
 }

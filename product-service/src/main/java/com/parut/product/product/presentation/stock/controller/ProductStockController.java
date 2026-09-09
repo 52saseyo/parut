@@ -38,8 +38,7 @@ public class ProductStockController {
             @RequestHeader("X-User-Id") UUID userId,
             @Valid @RequestBody ProductStockUpdateRequest request
     ) {
-
-        productStockService.updateStock(productId, request.totalQuantity());
+        productStockService.updateStock(productId, userId, request.totalQuantity());
         ProductStock stock = productStockService.getStock(productId);
         return ResponseEntity.ok(ApiResponse.success(ProductStockResponse.from(stock), null));
     }
@@ -65,7 +64,7 @@ public class ProductStockController {
         // page는 1부터 시작, Pageable은 0부터 시작이라 -1 보정
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(sortDirection, sort));
 
-        Page<ProductStock> stockPage = productStockService.getStockList(pageable);
+        Page<ProductStock> stockPage = productStockService.getStockList(userId, pageable);
 
         List<ProductStockResponse> content = stockPage.getContent().stream()
                 .map(ProductStockResponse::from)

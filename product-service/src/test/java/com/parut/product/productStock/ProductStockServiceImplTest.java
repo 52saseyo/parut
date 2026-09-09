@@ -2,6 +2,7 @@ package com.parut.product.productStock;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.application.stock.service.ProductStockServiceImpl;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
@@ -49,6 +50,8 @@ public class ProductStockServiceImplTest {
     private ProductStockReservationRepository productStockReservationRepository;
     @Mock
     private ProductStockEventLogRepository productStockEventLogRepository;
+    @Mock
+    private ProductReader productReader;
 
     @InjectMocks
     private ProductStockServiceImpl productStockService;
@@ -56,12 +59,14 @@ public class ProductStockServiceImplTest {
     private UUID productId;
     private UUID orderId;
     private UUID orderItemId;
+    private UUID sellerId;
 
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
+        sellerId = UUID.randomUUID();
     }
 
     @Nested
@@ -85,6 +90,19 @@ public class ProductStockServiceImplTest {
             assertThat(saved.getTotalQuantity()).isEqualTo(100);
             assertThat(saved.getAvailableQuantity()).isEqualTo(100);
             assertThat(saved.getLowStockThreshold()).isEqualTo(10);
+        }
+
+        @Test
+        @DisplayName("이미 살아있는 재고가 있으면 중복 생성 시 예외가 발생")
+        void createStock_duplicateProductId_throwsAlreadyExistsException() {
+            given(productStockRepository.save(any(ProductStock.class)))
+                    .willThrow(DataIntegrityViolationException.class);
+
+            log.info("[ProductStockService.createStock] product_id 중복 저장 시도 -> ALREADY_EXISTS 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.createStock(productId, 100, 10))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_ALREADY_EXISTS);
         }
     }
 
@@ -190,6 +208,22 @@ public class ProductStockServiceImplTest {
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_DELETE_NOT_ALLOWED);
         }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 에러로 변환된다")
+        void deleteStock_optimisticLockFailure_convertsToConflictError() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+            log.info("[ProductStockService.deleteStock] 저장 시 낙관적 락 충돌 발생 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.deleteStock(productId, "tester"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
+
     }
 
     @Nested
@@ -202,15 +236,30 @@ public class ProductStockServiceImplTest {
             Pageable pageable = PageRequest.of(0, 10);
             ProductStock stock = ProductStock.create(productId, 100, 10);
             Page<ProductStock> page = new PageImpl<>(List.of(stock));
-            given(productStockRepository.findByDeletedAtIsNull(pageable)).willReturn(page);
+            given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of(productId));
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId), pageable))
+                    .willReturn(page);
 
-            Page<ProductStock> result = productStockService.getStockList(pageable);
-
+            Page<ProductStock> result = productStockService.getStockList(sellerId, pageable);
             log.info("[ProductStockService.getStockList] 조회된 건수={}, 첫 건 productId={}",
                     result.getContent().size(), result.getContent().get(0).getProductId());
 
             assertThat(result.getContent()).containsExactly(stock);
             assertThat(result.getContent().get(0).getProductId()).isEqualTo(productId);
+        }
+
+        @Test
+        @DisplayName("소유한 상품이 없으면 빈 목록을 반환한다")
+        void getStockList_noOwnedProducts_returnsEmpty() {
+            Pageable pageable = PageRequest.of(0, 10);
+
+            given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(), pageable))
+                    .willReturn(Page.empty());
+
+            Page<ProductStock> result = productStockService.getStockList(sellerId, pageable);
+
+            assertThat(result.getContent()).isEmpty();
         }
     }
 
@@ -226,7 +275,7 @@ public class ProductStockServiceImplTest {
 
             log.info("[ProductStockService.updateStock] productId={} 재고 없음 -> NOT_FOUND 예외 기대", productId);
 
-            assertThatThrownBy(() -> productStockService.updateStock(productId, 100))
+            assertThatThrownBy(() -> productStockService.updateStock(productId,  sellerId, 100))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_NOT_FOUND);
         }
@@ -238,10 +287,10 @@ public class ProductStockServiceImplTest {
             stock.reserve(30); // reserved = 30
             given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
                     .willReturn(Optional.of(stock));
-
+            given(productReader.isOwnedBy(productId, sellerId)).willReturn(true);
             log.info("[ProductStockService.updateStock] 예약 중 수량 30 > 새 총수량 20 -> 잘못된 수량 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.updateStock(productId, 20))
+            assertThatThrownBy(() -> productStockService.updateStock(productId, sellerId,20))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
         }
@@ -254,13 +303,28 @@ public class ProductStockServiceImplTest {
                     .willReturn(Optional.of(stock));
             given(productStockRepository.saveAndFlush(any(ProductStock.class)))
                     .willThrow(OptimisticLockingFailureException.class);
-
+            given(productReader.isOwnedBy(productId, sellerId)).willReturn(true);
             log.info("[ProductStockService.updateStock] 저장 시 낙관적 락 충돌 발생 -> CONFLICT 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.updateStock(productId, 150))
+            assertThatThrownBy(() -> productStockService.updateStock(productId, sellerId, 150))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
         }
+
+        @Test
+        @DisplayName("소유하지 않은 상품의 재고는 수정할 수 없다")
+        void updateStock_notOwner_throwsForbiddenException() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productReader.isOwnedBy(productId, sellerId)).willReturn(false);
+
+            assertThatThrownBy(() -> productStockService.updateStock(productId, sellerId, 150))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+
+
     }
 
     @Nested
@@ -315,6 +379,43 @@ public class ProductStockServiceImplTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_SHORTAGE);
 
             verify(productStockReservationRepository, never()).save(any());
+        }
+        @Test
+        @DisplayName("낙관적 락 충돌 + 동시 재시도로 이미 처리됨 -> 멱등 처리(예외 없음)")
+        void reserve_optimisticLockFailure_butAlreadyProcessed_doesNothingSilently() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.empty())  // 첫 번째 체크: 아직 처리 안 됨
+                    .willReturn(Optional.of(mock(ProductStockEventLog.class)));  // 두 번째 체크(catch 안): 이미 처리됨
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 동시 재시도(이미 처리됨) -> 예외 없이 반환 기대");
+
+            productStockService.reserve(productId, orderId, orderItemId, 20);
+
+            verify(productStockReservationRepository, never()).save(any());
+            verify(productStockEventLogRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 + 실제로 처리 안 됨 -> CONFLICT 예외")
+        void reserve_optimisticLockFailure_notProcessed_throwsConflict() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.empty());  // 첫 번째, 두 번째 체크 모두 없음
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 실제 미처리 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.reserve(productId, orderId, orderItemId, 20))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
         }
     }
 
@@ -540,6 +641,53 @@ public class ProductStockServiceImplTest {
             assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+
+        @Test
+        @DisplayName("예약이 이미 EXPIRED 상태면 재고/로그를 재처리하지 않고 반환한다")
+        void restore_reservationExpired_doesNothingSilently() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            reservation.expire(); // 스케줄러가 이미 만료 처리한 상태를 재현
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
+                    .willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.restore] 예약 상태=EXPIRED -> 재고/로그 재처리 없이 반환 기대");
+
+            productStockService.restore(productId, orderId, orderItemId);
+
+            verify(productStockRepository, never()).findById(any());
+            verify(productStockEventLogRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("예약이 EXPIRATION_FAILED 상태면 격리 에러로 응답한다")
+        void restore_reservationIsolated_throwsIsolatedError() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            reservation.fail(); // 격리 상태 재현
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
+                    .willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.restore] 예약 상태=EXPIRATION_FAILED -> ISOLATED 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
         }
     }
 
