@@ -12,8 +12,14 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     INTERNAL_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "내부 서비스 인증에 실패했습니다."),
+    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "연동 서비스와 통신할 수 없습니다."),
 
     // order
+    ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다."),
+    ORDER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인의 주문만 조회할 수 있습니다."),
+    DUPLICATE_ORDER_REQUEST(HttpStatus.CONFLICT, "이미 처리 중인 주문 요청입니다."),
+    PRODUCT_UNAVAILABLE(HttpStatus.CONFLICT, "판매 중이 아닌 상품입니다."),
+    STOCK_SHORTAGE(HttpStatus.CONFLICT, "재고가 부족합니다."),
     ORDER_DELIVERY_GROUP_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 그룹을 찾을 수 없습니다."),
     ORDER_DELIVERY_GROUP_INVALID_STATUS_TRANSITION(HttpStatus.CONFLICT, "배송 그룹 상태를 변경할 수 없습니다."),
 

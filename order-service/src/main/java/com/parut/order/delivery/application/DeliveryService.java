@@ -13,8 +13,8 @@ import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.order.application.port.in.DeliveryGroupStatusUseCase;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
+import com.parut.order.order.application.port.in.OrderDeliveryGroupStatusUseCase;
 import com.parut.order.order.application.port.in.dto.OrderDeliveryGroupView;
 
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
-    private final DeliveryGroupStatusUseCase deliveryGroupStatusUseCase;
+    private final OrderDeliveryGroupStatusUseCase orderDeliveryGroupStatusUseCase;
 
     private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
         // TODO: UNIQUE 충돌 시 기존 배송을 다시 조회해 반환한다.
@@ -96,7 +96,7 @@ public class DeliveryService {
 
         Instant shippedAt = Instant.now();
         delivery.ship(trackingNumber, shippedAt);
-        deliveryGroupStatusUseCase.markShipped(delivery.getDeliveryGroupId());
+        orderDeliveryGroupStatusUseCase.markShipped(delivery.getDeliveryGroupId());
 
         return delivery;
     }
@@ -117,7 +117,7 @@ public class DeliveryService {
 
         deliveries.forEach(delivery -> {
             delivery.complete(completionTime);
-            deliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
+            orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
         });
         return deliveries.size();
     }
