@@ -48,6 +48,8 @@ public class TimeDealPolicy {
 
     // NOTE: 결제 완료된 선점을 판매 확정한다. 만료됐으면 정리만 하고 CANCELLED를 반환한다 —
     // 예외를 던지면 그 정리까지 롤백되므로 실패를 반환값으로 표현한다.
+    // NOTE: 이미 CONFIRMED면 성공을 그대로 돌려준다(멱등). 이미 CANCELLED인 건은 정리할 것이 없어
+    // 반환값을 쓸 이유가 없으므로 도메인의 confirm() 상태 가드가 던지게 둔다.
     public TimeDealPurchaseConfirmResult confirmSale(
             TimeDealPurchase purchase,
             TimeDealStock stock,
@@ -55,6 +57,11 @@ public class TimeDealPolicy {
     ) {
         validateRequiredFields(purchase, stock);
         stock.validateBelongsToTimeDeal(purchase.getTimeDealId());
+
+        // NOTE: 재시도로 같은 확정이 또 들어온 경우다(멱등) — 재고를 또 옮기지 않고 원래 결과를 돌려준다.
+        if (purchase.getStatus() == TimeDealPurchaseStatus.CONFIRMED) {
+            return TimeDealPurchaseConfirmResult.CONFIRMED;
+        }
 
         // NOTE: 수량은 반드시 purchase에서 가져온다. 호출자가 넘긴 값을 쓰면 두 애그리거트가 어긋난다.
         Integer quantity = purchase.getQuantity();

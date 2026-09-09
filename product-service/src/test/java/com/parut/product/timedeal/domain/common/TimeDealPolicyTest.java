@@ -223,18 +223,62 @@ class TimeDealPolicyTest {
         }
 
         @Test
-        @DisplayName("이미 확정된 건을 다시 확정하면 예외")
-        void 중복_확정() {
+        @DisplayName("이미 확정된 건을 다시 확정하면 예외 없이 CONFIRMED를 반환하고 재고가 이중 이동하지 않는다")
+        void 확정_멱등() {
             TimeDeal timeDeal = activeTimeDeal();
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
             TimeDealPurchase purchase = timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
             timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
 
+            TimeDealPurchaseConfirmResult result =
+                    timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+
+            assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CONFIRMED);
+            assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CONFIRMED);
+            assertThat(stock.getReservedQuantity()).isZero();
+            assertThat(stock.getSoldQuantity()).isEqualTo(5);
+            assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("선점 TTL이 지난 뒤 확정이 또 들어와도 확정 상태는 그대로다 — 만료 분기를 타지 않는다")
+        void 확정_멱등_TTL경과후() {
+            TimeDeal timeDeal = activeTimeDeal();
+            TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
+            TimeDealPurchase purchase = timeDealPolicy.reserve(
+                    timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
+            timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+
+            TimeDealPurchaseConfirmResult result =
+                    timeDealPolicy.confirmSale(purchase, stock, AFTER_RESERVATION_TTL);
+
+            assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CONFIRMED);
+            assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CONFIRMED);
+            assertThat(stock.getSoldQuantity()).isEqualTo(5);
+            assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("이미 취소된 건에 확정이 오면 예외 — 만료가 아닌 사유로 취소됐을 수 있어 멱등 대상이 아니다")
+        void 취소된건_확정() {
+            TimeDeal timeDeal = activeTimeDeal();
+            TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
+            TimeDealPurchase purchase = timeDealPolicy.reserve(
+                    timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
+            timeDealPolicy.cancelPurchase(
+                    purchase, stock, TimeDealPurchaseCancelReason.PAYMENT_FAILED.name());
+
             assertThatThrownBy(() -> timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
+
+            assertThat(purchase.getCancelReason())
+                    .isEqualTo(TimeDealPurchaseCancelReason.PAYMENT_FAILED.name());
+            assertThat(stock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
+            assertThat(stock.getSoldQuantity()).isZero();
+            assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
         }
 
         @Test
