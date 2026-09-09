@@ -1,5 +1,6 @@
 package com.parut.order.order.application.port.out.dto;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record TimeDealInfo(
@@ -7,6 +8,10 @@ public record TimeDealInfo(
         UUID productId,
         UUID sellerId,
         String productName,
-        long dealPrice
+        long originalPrice,
+        long dealPrice,
+        String productGrade,
+        String origin,
+        LocalDate harvestedDate
 ) {
 }

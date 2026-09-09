@@ -100,7 +100,10 @@ class OrderServiceTest {
     }
 
     private TimeDealInfo timeDealInfo() {
-        return new TimeDealInfo(TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)", 12_000L);
+        return new TimeDealInfo(
+                TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)",
+                15_000L, 12_000L, "NORMAL", "국내산(전남 나주)", LocalDate.of(2026, 8, 20)
+        );
     }
 
     private <T> T withId(T entity) {
@@ -128,7 +131,7 @@ class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("saveNewTimeDealOrder는 타임딜 스냅샷 필드를 null로, timeDealId를 채워 저장한다")
+    @DisplayName("saveNewTimeDealOrder는 타임딜 조회 API가 주는 스냅샷 필드를 채우고, 미제공 필드만 null로 저장한다")
     void 타임딜주문_저장() {
         when(orderRepository.saveAndFlush(any(Order.class)))
                 .thenAnswer(invocation -> withId(invocation.getArgument(0)));
@@ -144,12 +147,12 @@ class OrderServiceTest {
         assertThat(result.order().getTotalProductAmount()).isEqualTo(24_000L);
         assertThat(result.item().getTimeDealId()).isEqualTo(TIME_DEAL_ID);
         assertThat(result.item().getUnitPrice()).isEqualTo(12_000L);
-        assertThat(result.item().getAppearanceType()).isNull();
-        assertThat(result.item().getOrigin()).isNull();
-        assertThat(result.item().getHarvestDate()).isNull();
+        assertThat(result.item().getAppearanceType()).isEqualTo("NORMAL");
+        assertThat(result.item().getOrigin()).isEqualTo("국내산(전남 나주)");
+        assertThat(result.item().getHarvestDate()).isEqualTo(LocalDate.of(2026, 8, 20));
+        assertThat(result.item().getOriginalPrice()).isEqualTo(15_000L);
         assertThat(result.item().getSaleUnit()).isNull();
         assertThat(result.item().getUnitQuantity()).isNull();
-        assertThat(result.item().getOriginalPrice()).isNull();
         verify(orderStatusHistoryRepository).save(any());
     }
 

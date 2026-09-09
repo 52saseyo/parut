@@ -128,12 +128,12 @@ public class OrderService {
                         timeDealInfo.productId(),
                         timeDealInfo.timeDealId(),
                         timeDealInfo.productName(),
+                        timeDealInfo.productGrade(),
+                        timeDealInfo.origin(),
+                        timeDealInfo.harvestedDate(),
                         null,
                         null,
-                        null,
-                        null,
-                        null,
-                        null,
+                        timeDealInfo.originalPrice(),
                         unitPrice,
                         command.quantity()
                 )

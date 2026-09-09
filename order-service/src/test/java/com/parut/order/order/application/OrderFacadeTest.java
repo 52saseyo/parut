@@ -101,7 +101,10 @@ class OrderFacadeTest {
     }
 
     private TimeDealInfo timeDealInfo() {
-        return new TimeDealInfo(TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)", 12_000L);
+        return new TimeDealInfo(
+                TIME_DEAL_ID, PRODUCT_ID, SELLER_ID, "신고배 5kg 특품(타임딜)",
+                15_000L, 12_000L, "NORMAL", "국내산(전남 나주)", LocalDate.of(2026, 8, 20)
+        );
     }
 
     private OrderItem existingTimeDealItem(Order order) {

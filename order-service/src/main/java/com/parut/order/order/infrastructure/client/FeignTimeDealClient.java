@@ -32,7 +32,11 @@ public class FeignTimeDealClient implements TimeDealClient {
                     response.productId(),
                     response.sellerId(),
                     response.productName(),
-                    response.dealPrice()
+                    response.originalPrice(),
+                    response.dealPrice(),
+                    response.productGrade(),
+                    response.origin(),
+                    response.harvestedDate()
             );
         } catch (FeignException.NotFound e) {
             throw new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE);

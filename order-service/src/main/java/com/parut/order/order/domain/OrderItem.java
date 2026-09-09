@@ -29,7 +29,8 @@ public class OrderItem extends UpdatableEntity {
     @Column(name = "delivery_group_id", nullable = false)
     private UUID deliveryGroupId;
 
-    @Column(name = "product_id", nullable = false)
+    // 직접 등록 타임딜 주문은 NULL(참조할 원본 상품이 없음)
+    @Column(name = "product_id")
     private UUID productId;
 
     @Column(name = "time_deal_id")
@@ -129,9 +130,6 @@ public class OrderItem extends UpdatableEntity {
         }
         if (deliveryGroupId == null) {
             throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
-        }
-        if (productId == null) {
-            throw new IllegalArgumentException("상품 ID는 필수입니다.");
         }
         if (productName == null || productName.isBlank()) {
             throw new IllegalArgumentException("상품명은 필수입니다.");
