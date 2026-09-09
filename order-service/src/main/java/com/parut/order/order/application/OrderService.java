@@ -14,9 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.CreatedOrder;
 import com.parut.order.order.application.dto.OrderDetailData;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.TimeDealInfo;
 import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderCancel;
 import com.parut.order.order.domain.OrderDeliveryGroup;
@@ -104,6 +106,42 @@ public class OrderService {
         return new CreatedOrder(order, item);
     }
 
+    /**
+     * 타임딜 주문 초기 데이터를 DB에 확정 저장합니다.
+     * unitPrice는 정가가 아닌 dealPrice(할인가)로 저장합니다.
+     */
+    @Transactional
+    public CreatedOrder saveNewTimeDealOrder(CreateTimeDealOrderCommand command, TimeDealInfo timeDealInfo) {
+        long unitPrice = timeDealInfo.dealPrice();
+        long totalProductAmount = unitPrice * command.quantity();
+
+        Order order = orderRepository.saveAndFlush(buildTimeDealOrder(command, totalProductAmount));
+        recordHistory(order.getId(), null, OrderStatus.CREATED, "주문 생성", command.userId());
+
+        OrderDeliveryGroup group = orderDeliveryGroupRepository.save(
+                OrderDeliveryGroup.create(order.getId(), timeDealInfo.sellerId(), totalProductAmount, DELIVERY_FEE_PER_SELLER)
+        );
+        OrderItem item = orderItemRepository.save(
+                OrderItem.create(
+                        order.getId(),
+                        group.getId(),
+                        timeDealInfo.productId(),
+                        timeDealInfo.timeDealId(),
+                        timeDealInfo.productName(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        unitPrice,
+                        command.quantity()
+                )
+        );
+
+        return new CreatedOrder(order, item);
+    }
+
     @Transactional
     public Order markStockReserved(UUID orderId, UUID actorId) {
         Order order = orderRepository.findById(orderId)
@@ -138,6 +176,23 @@ public class OrderService {
                 generateOrderNo(),
                 command.userId(),
                 OrderType.NORMAL,
+                command.recipientName(),
+                command.recipientPhone(),
+                command.zipCode(),
+                command.addressBase(),
+                command.addressDetail(),
+                command.deliveryRequest(),
+                totalProductAmount,
+                DELIVERY_FEE_PER_SELLER,
+                command.idempotencyKey()
+        );
+    }
+
+    private Order buildTimeDealOrder(CreateTimeDealOrderCommand command, long totalProductAmount) {
+        return Order.create(
+                generateOrderNo(),
+                command.userId(),
+                OrderType.TIME_DEAL,
                 command.recipientName(),
                 command.recipientPhone(),
                 command.zipCode(),
