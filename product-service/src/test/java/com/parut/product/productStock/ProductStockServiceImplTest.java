@@ -91,6 +91,19 @@ public class ProductStockServiceImplTest {
             assertThat(saved.getAvailableQuantity()).isEqualTo(100);
             assertThat(saved.getLowStockThreshold()).isEqualTo(10);
         }
+
+        @Test
+        @DisplayName("이미 살아있는 재고가 있으면 중복 생성 시 예외가 발생")
+        void createStock_duplicateProductId_throwsAlreadyExistsException() {
+            given(productStockRepository.save(any(ProductStock.class)))
+                    .willThrow(DataIntegrityViolationException.class);
+
+            log.info("[ProductStockService.createStock] product_id 중복 저장 시도 -> ALREADY_EXISTS 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.createStock(productId, 100, 10))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_ALREADY_EXISTS);
+        }
     }
 
     @Nested

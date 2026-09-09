@@ -43,7 +43,12 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     public void createStock(UUID productId, int totalQuantity, int lowStockThreshold) {
         ProductStock stock = ProductStock.create(productId, totalQuantity, lowStockThreshold);
-        productStockRepository.save(stock);
+
+        try {
+            productStockRepository.save(stock);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_ALREADY_EXISTS);
+        }
     }
 
     // 상품 한 개의 재고 조회
