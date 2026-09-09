@@ -22,6 +22,16 @@ public class OrderDeliveryGroupStatusService implements OrderDeliveryGroupStatus
     private final OrderDeliveryGroupRepository orderDeliveryGroupRepository;
 
     @Override
+    public void markPreparing(UUID deliveryGroupId) {
+        OrderDeliveryGroup group = getDeliveryGroup(deliveryGroupId);
+        if (group.getGroupStatus() != DeliveryGroupStatus.PENDING) {
+            throw new BusinessException(ErrorCode.ORDER_DELIVERY_GROUP_INVALID_STATUS_TRANSITION);
+        }
+
+        group.markPreparing();
+    }
+
+    @Override
     public void markShipped(UUID deliveryGroupId) {
         OrderDeliveryGroup group = getDeliveryGroup(deliveryGroupId);
         if (group.getGroupStatus() != DeliveryGroupStatus.PREPARING) {
