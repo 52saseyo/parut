@@ -24,8 +24,8 @@ public class ProductStockReservationExpirationScheduler {
 
     // 10분마다 만료된 예약을 찾아 자동 복구
     private static final long SCHEDULE_RATE_PROD = 10 * 60 * 1000L;
-    // 시연을 위해 스케줄러 실행 주기를 1분으로 단축
-    private static final long SCHEDULE_RATE_DEMO = 60 * 1000L;
+    // 시연을 위해 스케줄러 실행 주기를 5분으로 단축
+    private static final long SCHEDULE_RATE_DEMO = 5 * 60 * 1000L;
 
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockReservationExpirationProcessor productStockReservationExpirationProcessor;
