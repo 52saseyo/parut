@@ -1,6 +1,5 @@
 package com.parut.order.delivery.application;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -8,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
@@ -28,7 +28,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class DeliveryService {
+public class DeliveryService implements DeliveryCreateUseCase {
 
     /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
     private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
@@ -37,28 +37,27 @@ public class DeliveryService {
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
     private final OrderDeliveryGroupStatusUseCase orderDeliveryGroupStatusUseCase;
 
-    private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
-        // TODO: UNIQUE 충돌 시 기존 배송을 다시 조회해 반환한다.
-        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
-                .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
-    }
-
+    /**
+     * 주문의 배송 그룹별 Delivery를 생성한다.
+     *
+     * <p>이미 생성된 배송은 유지하여 순차 재호출로 인한 중복 생성을 방지한다.
+     */
+    @Override
     @Transactional
-    public List<Delivery> initializeDeliveriesForOrder(UUID orderId) {
+    public void createDeliveries(UUID orderId) {
         if (orderId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
+        orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
-                .distinct()
-                .map(this::findOrCreateDelivery)
-                .toList();
+                .forEach(this::findOrCreateDelivery);
     }
 
-    private Delivery getDelivery(UUID deliveryId) {
-        return deliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+    // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.
+    private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
+        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
+                .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
     }
 
     /**
@@ -78,7 +77,8 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        Delivery delivery = getDelivery(deliveryId);
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
         if (delivery.getStatus() != DeliveryStatus.PREPARING) {
             throw new BusinessException(ErrorCode.DELIVERY_INVALID_STATUS_TRANSITION);
         }
@@ -105,20 +105,19 @@ public class DeliveryService {
      * 시작한 지 60초가 지난 배송을 완료한다.
      */
     @Transactional
-    public int completeEligibleDeliveries(Instant completionTime) {
+    public void completeEligibleDeliveries(Instant completionTime) {
         if (completionTime == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
         List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
                 DeliveryStatus.SHIPPED,
-                completionTime.minus(Duration.ofSeconds(DELIVERY_COMPLETION_DELAY_SECONDS))
+                completionTime.minusSeconds(DELIVERY_COMPLETION_DELAY_SECONDS)
         );
 
         deliveries.forEach(delivery -> {
             delivery.complete(completionTime);
             orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
         });
-        return deliveries.size();
     }
 }
