@@ -326,6 +326,62 @@ class TimeDealPurchaseTest {
     }
 
     @Nested
+    @DisplayName("동일 예약 요청 판정")
+    class IsSameReservationRequest {
+
+        @Test
+        @DisplayName("타임딜/사용자/수량이 모두 같으면 같은 요청이다")
+        void 모두_일치() {
+            TimeDealPurchase purchase = purchase();
+
+            assertThat(purchase.isSameReservationRequest(
+                    purchase.getTimeDealId(), purchase.getUserId(), purchase.getQuantity())).isTrue();
+        }
+
+        @Test
+        @DisplayName("수량이 다르면 같은 요청이 아니다 — 재시도가 아니라 orderId 충돌이다")
+        void 수량_불일치() {
+            TimeDealPurchase purchase = purchase();
+
+            assertThat(purchase.isSameReservationRequest(
+                    purchase.getTimeDealId(), purchase.getUserId(), purchase.getQuantity() + 1)).isFalse();
+        }
+
+        @Test
+        @DisplayName("사용자가 다르면 같은 요청이 아니다")
+        void 사용자_불일치() {
+            TimeDealPurchase purchase = purchase();
+
+            assertThat(purchase.isSameReservationRequest(
+                    purchase.getTimeDealId(), UUID.randomUUID(), purchase.getQuantity())).isFalse();
+        }
+
+        @Test
+        @DisplayName("타임딜이 다르면 같은 요청이 아니다")
+        void 타임딜_불일치() {
+            TimeDealPurchase purchase = purchase();
+
+            assertThat(purchase.isSameReservationRequest(
+                    UUID.randomUUID(), purchase.getUserId(), purchase.getQuantity())).isFalse();
+        }
+
+        @Test
+        @DisplayName("null이 넘어와도 NPE 없이 불일치로 판정한다")
+        void null_불일치() {
+            TimeDealPurchase purchase = purchase();
+
+            assertThat(purchase.isSameReservationRequest(null, null, null)).isFalse();
+        }
+
+        @Test
+        @DisplayName("선점 상태 여부는 별도로 판정한다 — 확정되면 선점 상태가 아니다")
+        void 선점_상태_판정() {
+            assertThat(purchase().isReserved()).isTrue();
+            assertThat(confirmedPurchase().isReserved()).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("삭제")
     class SoftDelete {
 

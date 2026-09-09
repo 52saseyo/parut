@@ -34,8 +34,7 @@ public class TimeDealStock extends DeletableEntity {
     private TimeDealStock(UUID timeDealId, Integer availableQuantity, Integer lowStockThreshold) {
         validateRequiredFields(timeDealId, availableQuantity, lowStockThreshold);
         validateInitialAvailableQuantity(availableQuantity);
-        // availableQuantity == 생성 시점의 초기 재고 (reservedQuantity/soldQuantity가 항상 0으로 시작하므로).
-        // 재고 소진에 따라 줄어든 이후의 availableQuantity와 비교하는 용도로 재사용하면 안 됨.
+        // NOTE: 이때의 availableQuantity가 초기 재고다(reserved/sold가 0으로 시작하므로).
         validateInitialLowStockThreshold(lowStockThreshold, availableQuantity);
 
         this.timeDealId = timeDealId;
@@ -45,17 +44,13 @@ public class TimeDealStock extends DeletableEntity {
         this.lowStockThreshold = lowStockThreshold;
     }
 
-    // NOTE: 애그리거트 간 참조는 ID로만 한다 — TimeDeal 객체를 받지 않는다.
-    // 검증에 TimeDeal의 상태를 쓸 일이 없고(생성 시점엔 항상 SCHEDULED), getId()만 필요하기 때문.
-    // 따라서 Application Service가 TimeDeal을 먼저 저장해 ID를 확보한 뒤 그 ID를 넘겨야 한다
-    // (저장 전 TimeDeal의 id는 null이라 여기서 INVALID_INPUT_VALUE로 걸러진다).
+    // NOTE: 애그리거트 간 참조는 ID로만 한다. 저장 전 TimeDeal의 id는 null이라 여기서 걸러진다.
     public static TimeDealStock create(UUID timeDealId, Integer availableQuantity, Integer lowStockThreshold) {
         return new TimeDealStock(timeDealId, availableQuantity, lowStockThreshold);
     }
 
-    // NOTE: TimeDealPurchase.create()는 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 별도 호출해야 함
-    // NOTE: 삭제된 재고에서 선점이 일어나면 삭제된 타임딜이 다시 유통되므로 여기서 막는다.
-    // 나머지 재고 메서드(confirmSale/cancelReservation/cancelSale)는 이미 선점된 건의 후속 처리라 가드를 두지 않는다.
+    // NOTE: 삭제된 재고에서 선점이 일어나면 삭제된 타임딜이 다시 유통되므로 여기서만 삭제 가드를 둔다
+    // (나머지 재고 메서드는 이미 선점된 건의 후속 처리라 가드가 없다).
     public void reserve(Integer quantity) {
         if (isDeleted()) {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_DELETED);
@@ -65,54 +60,56 @@ public class TimeDealStock extends DeletableEntity {
         this.reservedQuantity += quantity;
     }
 
-    // NOTE: TimeDealPurchase.confirm()은 여기서 하지 않음 — Application Service가 같은 트랜잭션에서 같이 호출해야 함
     public void confirmSale(Integer quantity) {
         validateConfirmSaleQuantity(quantity);
         this.reservedQuantity -= quantity;
         this.soldQuantity += quantity;
     }
 
-    // NOTE: 재고 복구 (reserve의 반대). TimeDealPurchase.cancel()/expire() 호출 시 같은 트랜잭션에서 같이 호출해야 함
+    // NOTE: 재고 복구 — reserve의 반대.
     public void cancelReservation(Integer quantity) {
         validateCancelReservationQuantity(quantity);
         this.reservedQuantity -= quantity;
         this.availableQuantity += quantity;
     }
 
-    // NOTE: 판매 확정 취소 (confirmSale의 반대). 배송 시작 전 주문 취소 정책상 CONFIRMED 구매도 취소 가능하므로,
-    // reservedQuantity가 아닌 availableQuantity로 직접 복구해 재판매 가능 상태로 되돌린다.
-    // TimeDealPurchase.cancel() 호출 시 같은 트랜잭션에서 같이 호출해야 함
+    // NOTE: 판매 확정 취소. reservedQuantity를 거치지 않고 availableQuantity로 바로 복구해 재판매 가능하게 한다.
     public void cancelSale(Integer quantity) {
         validateCancelSaleQuantity(quantity);
         this.soldQuantity -= quantity;
         this.availableQuantity += quantity;
     }
 
-    // 판매자/운영자의 수동 재고 조정. 구매 흐름의 자동 차감(reserve/confirmSale)과는 별개의 행위다 —
-    // reserve 계열은 available/reserved/sold 사이를 이동시켜 총합을 보존하지만, 이 메서드는 총 재고 자체를 바꾼다.
-    // delta는 부호로 방향을 표현한다(+10 = 물량 추가, -10 = 물량 회수). 절대값 지정을 받지 않는 이유는
-    // 판매 중 조회~수정 사이에 선점이 발생하면 절대값이 그 차감분을 덮어써 재고가 공짜로 생기기 때문이다.
-    // 조정 대상은 availableQuantity뿐이다 — 이미 선점된 reservedQuantity와 판매 확정된 soldQuantity는
-    // 수동 조정으로 절대 변경하지 않으며, 감소분이 잔여 availableQuantity를 넘으면 예외로 막는다.
-    // NOTE: ENDED/STOPPED 타임딜의 재고 조정 차단은 Application Service 책임 (여기선 TimeDeal 상태를 알 수 없음)
+    // NOTE: 판매자·운영자의 수동 조정. delta의 부호가 방향(+ 추가, − 회수)이며 총 재고 자체가 바뀐다.
+    // 절대값을 받지 않는 이유는 조회~수정 사이에 선점이 끼면 그 차감분을 덮어써 재고가 공짜로 생기기 때문이다.
     public void adjustAvailableQuantity(Integer delta) {
         validateAdjustDelta(delta);
         this.availableQuantity += delta;
     }
 
-    // NOTE: 선점되거나 판매된 수량이 있으면 삭제할 수 없다 — 진행 중인 구매나 판매 이력의 근거가 사라지기 때문.
-    // TimeDeal이 SCHEDULED에서만 삭제 가능한 것과 정합적이다(SCHEDULED면 판매가 없었으므로 둘 다 0).
-    // 반대로 이 조건만 통과하면 삭제 가능하므로, "TimeDeal과 함께만 삭제한다"는 순서는
-    // Application Service가 보장해야 한다(여기서 TimeDeal 상태를 알 수 없음).
-    @Override
-    public void softDelete(String deletedBy) {
+    // NOTE: 선점·판매된 수량이 있으면 삭제 불가 — 진행 중인 구매나 판매 이력의 근거가 사라진다.
+    // "TimeDeal과 함께만 삭제한다"는 순서는 TimeDealPolicy가 보장한다.
+    public void validateDeletable() {
         if (reservedQuantity > 0 || soldQuantity > 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_DELETE_NOT_ALLOWED);
         }
+    }
+
+    @Override
+    public void softDelete(String deletedBy) {
+        validateDeletable();
         super.softDelete(deletedBy);
     }
 
-    // NOTE: true면 Application Service가 같은 트랜잭션에서 TimeDeal.end()를 호출해야 함 (여기서 직접 호출하지 않음)
+    // NOTE: 짝이 안 맞는 애그리거트(타임딜 A + 타임딜 B의 재고)를 거른다.
+    // UUID만 받으므로 TimeDeal에 대한 의존이 생기지 않는다.
+    public void validateBelongsToTimeDeal(UUID timeDealId) {
+        if (timeDealId == null || !this.timeDealId.equals(timeDealId)) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_MISMATCH);
+        }
+    }
+
+    // NOTE: true면 TimeDealPolicy가 TimeDeal.end()를 호출한다(여기서 직접 부르지 않는다).
     public boolean isDepleted() {
         return availableQuantity == 0;
     }
@@ -188,8 +185,7 @@ public class TimeDealStock extends DeletableEntity {
         if (delta == 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
-        // 감소 방향만 상한이 있다. 부호를 뒤집어 비교하지 않고 조정 후 값으로 판단하므로
-        // reservedQuantity/soldQuantity를 침범하는 조정이 그대로 걸러진다.
+        // NOTE: 조정 후 값으로 판단하므로 reserved/sold를 침범하는 조정이 그대로 걸러진다.
         if (availableQuantity + delta < 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
         }
