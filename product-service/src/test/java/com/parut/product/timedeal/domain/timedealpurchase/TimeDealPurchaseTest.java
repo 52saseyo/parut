@@ -3,6 +3,7 @@ package com.parut.product.timedeal.domain.timedealpurchase;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
+import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TimeDealPurchaseTest {
 
     private static final Instant CREATED_AT = Instant.parse("2026-09-04T10:00:00Z");
+    private static final Instant HARVESTED_AT = Instant.parse("2026-09-01T00:00:00Z");
     private static final Instant START_AT = Instant.parse("2026-09-04T11:00:00Z");
     private static final Instant END_AT = Instant.parse("2026-09-04T13:00:00Z");
 
@@ -31,7 +33,9 @@ class TimeDealPurchaseTest {
 
     private static TimeDeal timeDeal() {
         return TimeDeal.create(
-                UUID.randomUUID(), 10_000L, BigDecimal.valueOf(30),
+                UUID.randomUUID(), UUID.randomUUID(), null,
+                "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_AT,
+                10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);
     }
 

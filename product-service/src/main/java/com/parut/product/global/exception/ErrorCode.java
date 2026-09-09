@@ -35,6 +35,11 @@ public enum ErrorCode {
     PRODUCT_STOCK_SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
 
     // time deal
+    TIME_DEAL_INVALID_SELLER_ID(HttpStatus.BAD_REQUEST, "판매자 정보는 필수입니다."),
+    TIME_DEAL_INVALID_NAME(HttpStatus.BAD_REQUEST, "타임딜 상품명은 비어 있을 수 없으며 150자를 넘을 수 없습니다."),
+    TIME_DEAL_INVALID_PRODUCT_GRADE(HttpStatus.BAD_REQUEST, "타임딜 상품 품질은 필수입니다."),
+    TIME_DEAL_INVALID_ORIGIN(HttpStatus.BAD_REQUEST, "생산지는 비어 있을 수 없으며 100자를 넘을 수 없습니다."),
+    TIME_DEAL_INVALID_HARVESTED_AT(HttpStatus.BAD_REQUEST, "수확일은 필수입니다."),
     TIME_DEAL_INVALID_PERIOD(HttpStatus.BAD_REQUEST, "타임딜 종료일시는 시작일시보다 이후여야 합니다."),
     TIME_DEAL_INVALID_MAX_PURCHASE_QUANTITY(HttpStatus.BAD_REQUEST, "최대 구매 수량은 1개 이상이어야 합니다."),
     TIME_DEAL_NEGATIVE_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량은 0개 이상이어야 합니다."),
