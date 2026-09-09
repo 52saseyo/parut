@@ -36,6 +36,26 @@ public class ProductStockTest {
             assertThat(stock.getAvailableQuantity()).isEqualTo(100);
             assertThat(stock.getStatus()).isEqualTo(StockStatus.AVAILABLE);
         }
+
+        @Test
+        @DisplayName("totalQuantity가 음수면 예외가 발생한다")
+        void create_negativeTotalQuantity_throwsException() {
+            log.info("[ProductStock.create] totalQuantity=-1 -> 예외 기대");
+
+            assertThatThrownBy(() -> ProductStock.create(UUID.randomUUID(), -1, 10))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+        @Test
+        @DisplayName("lowStockThreshold가 음수면 예외가 발생한다")
+        void create_negativeLowStockThreshold_throwsException() {
+            log.info("[ProductStock.create] lowStockThreshold=-1 -> 예외 기대");
+
+            assertThatThrownBy(() -> ProductStock.create(UUID.randomUUID(), 100, -1))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
     }
 
 
@@ -93,6 +113,31 @@ public class ProductStockTest {
 
             assertThat(stock.getStatus()).isEqualTo(StockStatus.LOW_STOCK);
         }
+
+        @Test
+        @DisplayName("quantity가 0 이하면 예외가 발생한다")
+        void reserve_nonPositiveQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.reserve] quantity=0 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.reserve(0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("quantity가 음수면 예외가 발생한다")
+        void reserve_negativeQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.reserve] quantity=-5 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.reserve(-5))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
     }
 
     @Nested
@@ -127,6 +172,32 @@ public class ProductStockTest {
 
             assertThat(stock.getStatus()).isEqualTo(StockStatus.SOLD_OUT);
         }
+
+        @Test
+        @DisplayName("quantity가 0 이하면 예외가 발생한다")
+        void confirm_nonPositiveQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+            stock.reserve(30);
+
+            log.info("[ProductStock.confirm] quantity=0 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.confirm(0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("확정 수량이 totalQuantity보다 많으면 예외가 발생한다")
+        void confirm_exceedsTotalQuantity_throwsException() {
+            ProductStock stock = createStock(10, 2);
+            stock.reserve(10);
+
+            log.info("[ProductStock.confirm] total=10인데 20개 확정 시도 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.confirm(20))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
     }
     @Nested
     @DisplayName("restore()")
@@ -159,7 +230,34 @@ public class ProductStockTest {
 
             assertThat(stock.getStatus()).isEqualTo(StockStatus.AVAILABLE);
         }
+
+        @Test
+        @DisplayName("quantity가 0 이하면 예외가 발생한다")
+        void restore_nonPositiveQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+            stock.reserve(40);
+
+            log.info("[ProductStock.restore] quantity=0 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.restore(0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("quantity가 음수면 예외가 발생한다")
+        void restore_negativeQuantity_throwsException() {
+            ProductStock stock = createStock(100, 10);
+            stock.reserve(40);
+
+            log.info("[ProductStock.restore] quantity=-5 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.restore(-5))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
     }
+
     @Nested
     @DisplayName("adjustQuantity()")
     class AdjustQuantity {
@@ -176,6 +274,42 @@ public class ProductStockTest {
 
             assertThat(stock.getTotalQuantity()).isEqualTo(50);
             assertThat(stock.getAvailableQuantity()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("totalQuantity가 음수면 예외가 발생한다")
+        void adjustQuantity_negativeTotal_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.adjustQuantity] total=-1 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.adjustQuantity(-1, 0))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("availableQuantity가 음수면 예외가 발생한다")
+        void adjustQuantity_negativeAvailable_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.adjustQuantity] available=-1 -> 예외 기대");
+
+            assertThatThrownBy(() -> stock.adjustQuantity(50, -1))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("availableQuantity가 totalQuantity보다 크면 예외가 발생한다")
+        void adjustQuantity_availableExceedsTotal_throwsException() {
+            ProductStock stock = createStock(100, 10);
+
+            log.info("[ProductStock.adjustQuantity] available(60) > total(50) -> 역전 예외 기대");
+
+            assertThatThrownBy(() -> stock.adjustQuantity(50, 60))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
         }
     }
 

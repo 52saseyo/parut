@@ -58,7 +58,6 @@ public class ProductStockReservation extends DeletableEntity {
         this.status = ReservationStatus.CONFIRMED;
     }
 
-    // 취소는 만료된 것도 취소 가능해야 함.
     public void cancel() {
         validateReserved();
         this.status = ReservationStatus.CANCELLED;

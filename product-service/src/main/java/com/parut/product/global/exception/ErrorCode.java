@@ -25,10 +25,12 @@ public enum ErrorCode {
     PRODUCT_STOCK_INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "재고 수량이 유효하지 않습니다."),
     PRODUCT_STOCK_FORBIDDEN(HttpStatus.FORBIDDEN, "해당 상품에 대한 권한이 없습니다."),
     PRODUCT_STOCK_CONFLICT(HttpStatus.CONFLICT, "다른 요청과 충돌하여 처리하지 못했습니다. 다시 시도해주세요."),
+    PRODUCT_STOCK_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 재고입니다."),
     PRODUCT_STOCK_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "예약 중인 재고가 있어 삭제할 수 없습니다."),
     PRODUCT_STOCK_RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 예약 건이 없습니다."),
     PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED(HttpStatus.CONFLICT, "이미 처리된 예약입니다."),
     PRODUCT_STOCK_RESERVATION_EXPIRED(HttpStatus.CONFLICT, "예약이 만료되어 처리할 수 없습니다."),
+    PRODUCT_STOCK_RESERVATION_ISOLATED(HttpStatus.CONFLICT, "재고 복구 여부가 확인되지 않아 격리된 예약입니다. 관리자 확인이 필요합니다."),
     PRODUCT_STOCK_PAGE_INVALID_SIZE(HttpStatus.BAD_REQUEST, "허용되지 않은 페이지 크기입니다."),
     PRODUCT_STOCK_SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
 

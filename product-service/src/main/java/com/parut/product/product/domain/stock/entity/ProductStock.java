@@ -38,6 +38,9 @@ public class ProductStock extends DeletableEntity {
     private Long version;
 
     public static ProductStock create(UUID productId, int totalQuantity, int lowStockThreshold) {
+        if (totalQuantity < 0 || lowStockThreshold < 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
         ProductStock stock = new ProductStock();
         stock.productId = productId;
         stock.totalQuantity = totalQuantity;
@@ -48,6 +51,9 @@ public class ProductStock extends DeletableEntity {
     }
 
     public void reserve(int quantity) {
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
         validateOnSale();
         if (this.availableQuantity < quantity) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_SHORTAGE);
@@ -58,16 +64,31 @@ public class ProductStock extends DeletableEntity {
 
     // 확정 시 available은 예약 단계에서 이미 차감되어 total만 차감
     public void confirm(int quantity) {
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+        if (this.totalQuantity - quantity < 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
         this.totalQuantity -= quantity;
         refreshStatus();
     }
 
     public void restore(int quantity) {
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
         this.availableQuantity += quantity;
         refreshStatus();
     }
 
     public void adjustQuantity(int totalQuantity, int availableQuantity) {
+        if (totalQuantity < 0 || availableQuantity < 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+        if (availableQuantity > totalQuantity) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
         this.totalQuantity = totalQuantity;
         this.availableQuantity = availableQuantity;
         refreshStatus();

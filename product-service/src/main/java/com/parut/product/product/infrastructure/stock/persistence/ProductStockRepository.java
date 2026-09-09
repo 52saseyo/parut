@@ -13,5 +13,5 @@ public interface ProductStockRepository extends JpaRepository<ProductStock, UUID
     Optional<ProductStock> findByProductIdAndDeletedAtIsNull(UUID productId);
     List<ProductStock> findByProductIdInAndDeletedAtIsNull(List<UUID> productIds);
     Page<ProductStock> findByDeletedAtIsNull(Pageable pageable);
-
+    Page<ProductStock> findByProductIdInAndDeletedAtIsNull(List<UUID> productIds, Pageable pageable);
 }
