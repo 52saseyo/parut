@@ -37,23 +37,23 @@ x-app-healthcheck: &app-healthcheck
   retries: 5
 
 services:
-#  user-service:
-#    build:
-#      context: ./user-service
-#      dockerfile: Dockerfile
-#    container_name: user-service
-#    env_file:
-#      - .env
-#    environment:
-#      <<: *app-env
-#      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
-#      USER_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
-#    ports:
-#      - "${USER_PORT:-8081}:8080"
-#    healthcheck: *app-healthcheck
-#    depends_on: *infra-deps
-#    networks:
-#      - parut-net
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
+      USER_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=user_schema
+    ports:
+      - "${USER_PORT:-8081}:8080"
+    healthcheck: *app-healthcheck
+    depends_on: *infra-deps
+    networks:
+      - parut-net
 
   product-service:
     build:
@@ -109,26 +109,26 @@ services:
 #    networks:
 #      - parut-net
 
-#  gateway-service:
-#    build:
-#      context: ./gateway-service
-#      dockerfile: Dockerfile
-#    container_name: gateway-service
-#    env_file:
-#      - .env
-#    environment:
-#      <<: *app-env
-#    ports:
-#      - "${GATEWAY_PORT:-8080}:8080"
-#    healthcheck: *app-healthcheck
-#    depends_on:
-#      user-service:
-#        condition: service_healthy
-#      product-service:
-#        condition: service_healthy
-#      order-service:
-#        condition: service_healthy
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    healthcheck: *app-healthcheck
+    depends_on:
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
 #      notification-service:
 #        condition: service_healthy
-#    networks:
-#      - parut-net
+    networks:
+      - parut-net

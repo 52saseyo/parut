@@ -7,7 +7,6 @@ import com.parut.product.product.application.product.query.condition.SellerProdu
 import com.parut.product.product.application.product.query.result.ProductCursorResult;
 import com.parut.product.product.application.product.query.result.PublicProductQueryResult;
 import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
-import com.parut.product.product.domain.product.ProductImageType;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -21,7 +20,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.parut.product.product.domain.product.QProduct.product;
-import static com.parut.product.product.domain.product.QProductImage.productImage;
 import static com.parut.product.product.infrastructure.product.persistence.ProductQueryExpressions.*;
 
 @Repository
@@ -52,16 +50,9 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
                         product.price,
                         product.appearanceType,
                         product.origin,
-                        productImage.imageKey,
                         product.createdAt
                 )
                 .from(product)
-                .leftJoin(productImage)
-                .on(
-                        productImage.product.id.eq(product.id),
-                        productImage.imageType.eq(ProductImageType.MAIN),
-                        productImage.deletedAt.isNull()
-                )
                 .where(
                         product.deletedAt.isNull(),
                         publicStatusEq(condition.status()),
@@ -121,8 +112,7 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
                 row.get(product.category),
                 row.get(product.price),
                 row.get(product.appearanceType),
-                row.get(product.origin),
-                row.get(productImage.imageKey)
+                row.get(product.origin)
         );
     }
 
@@ -167,17 +157,10 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
                                 product.name,
                                 product.category,
                                 product.price,
-                                product.status,
-                                productImage.imageKey
+                                product.status
                         )
                 )
                 .from(product)
-                .leftJoin(productImage)
-                .on(
-                        productImage.product.id.eq(product.id),
-                        productImage.imageType.eq(ProductImageType.MAIN),
-                        productImage.deletedAt.isNull()
-                )
                 .where(
                         product.deletedAt.isNull(),
                         product.sellerId.eq(sellerId),

@@ -1,8 +1,12 @@
 package com.parut.product.timedeal.presentation;
 
+import com.parut.product.global.common.ApiResponse;
 import com.parut.product.global.constant.HeaderConstants;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
+import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
+import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealDetailResponse;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseCancelRequest;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseReserveRequest;
 import jakarta.validation.Valid;
@@ -20,6 +24,18 @@ import java.util.UUID;
 public class InternalTimeDealController {
 
     private final TimeDealPurchaseCommandUseCase timeDealPurchaseCommandUseCase;
+    private final TimeDealQueryUseCase timeDealQueryUseCase;
+
+
+    // NOTE: 표시 정보가 전부 타임딜 자기 컬럼(스냅샷)이라 상품 조회 없이 한 번에 내려간다.
+    @GetMapping("/time-deals/{timeDealId}")
+    public ResponseEntity<ApiResponse<TimeDealDetailResponse>> getDetail(
+            @PathVariable UUID timeDealId
+    ) {
+        TimeDealDetailView timeDealDetailView = timeDealQueryUseCase.getDetail(timeDealId);
+        return ResponseEntity.ok(
+                ApiResponse.success(TimeDealDetailResponse.from(timeDealDetailView), null));
+    }
 
 
     @PostMapping("/time-deals/{timeDealId}/purchases")
