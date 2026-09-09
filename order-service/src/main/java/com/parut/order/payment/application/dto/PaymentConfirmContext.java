@@ -8,6 +8,7 @@ public record PaymentConfirmContext(
         UUID orderId,
         UUID userId,
         UUID orderItemId,
-        UUID productId
+        UUID productId,
+        UUID timeDealId
 ) {
 }
