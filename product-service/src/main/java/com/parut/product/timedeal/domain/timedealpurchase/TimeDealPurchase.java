@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -130,6 +131,18 @@ public class TimeDealPurchase extends DeletableEntity {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
         return status == TimeDealPurchaseStatus.RESERVED && now.isAfter(expiresAt);
+    }
+
+    public boolean isReserved() {
+        return status == TimeDealPurchaseStatus.RESERVED;
+    }
+
+    // NOTE: 같은 orderId로 다시 들어온 예약 요청이 원본과 같은 내용인지 확인한다 —
+    // 하나라도 다르면 재시도가 아니라 orderId 충돌이다.
+    public boolean isSameReservationRequest(UUID timeDealId, UUID userId, Integer quantity) {
+        return Objects.equals(this.timeDealId, timeDealId)
+                && Objects.equals(this.userId, userId)
+                && Objects.equals(this.quantity, quantity);
     }
 
     private static void validateRequiredFields(

@@ -15,8 +15,6 @@ public interface JpaTimeDealPurchaseRepository extends JpaRepository<TimeDealPur
 
     Optional<TimeDealPurchase> findByOrderId(UUID orderId);
 
-    boolean existsByOrderId(UUID orderId);
-
     // NOTE: 합산 대상 상태는 어댑터가 넘긴다. 이력이 없으면 sum이 null이라 coalesce로 0을 돌려준다
     // — 없으면 첫 구매 사용자에게서 NPE가 난다.
     @Query("""

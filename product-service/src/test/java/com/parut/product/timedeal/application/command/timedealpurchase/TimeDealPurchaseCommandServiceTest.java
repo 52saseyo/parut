@@ -103,7 +103,7 @@ class TimeDealPurchaseCommandServiceTest {
         @DisplayName("구매 이력을 저장하고 재고를 선점한다")
         void 예약_성공() {
             givenTimeDealAndStockFound();
-            when(timeDealPurchaseRepository.existsByOrderId(any())).thenReturn(false);
+            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
             when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
 
             timeDealPurchaseCommandService.reserve(reserveCommand(5));
@@ -114,11 +114,32 @@ class TimeDealPurchaseCommandServiceTest {
         }
 
         @Test
-        @DisplayName("같은 주문으로 이미 선점했으면 예외이고 조회조차 하지 않는다")
-        void orderId_중복() {
-            when(timeDealPurchaseRepository.existsByOrderId(any())).thenReturn(true);
+        @DisplayName("같은 주문의 동일 예약 요청이 다시 오면 재고를 다시 선점하지 않고 그대로 성공한다")
+        void 예약_멱등() {
+            TimeDealPurchaseReserveCommand command = reserveCommand(5);
+            TimeDealPurchase reserved = TimeDealPurchase.create(
+                    timeDeal, command.orderId(), command.userId(), command.quantity(), START_AT);
+            when(timeDealPurchaseRepository.findByOrderId(command.orderId()))
+                    .thenReturn(Optional.of(reserved));
 
-            assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(reserveCommand(5)))
+            timeDealPurchaseCommandService.reserve(command);
+
+            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealRepository, never()).findById(any());
+            assertThat(timeDealStock.getReservedQuantity()).isZero();
+            assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("같은 주문인데 수량이 다르면 재시도가 아니라 충돌이므로 409")
+        void 예약_내용불일치() {
+            TimeDealPurchaseReserveCommand command = reserveCommand(5);
+            TimeDealPurchase reserved = TimeDealPurchase.create(
+                    timeDeal, command.orderId(), command.userId(), 3, START_AT);
+            when(timeDealPurchaseRepository.findByOrderId(command.orderId()))
+                    .thenReturn(Optional.of(reserved));
+
+            assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(command))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
@@ -128,9 +149,27 @@ class TimeDealPurchaseCommandServiceTest {
         }
 
         @Test
+        @DisplayName("같은 주문이 이미 확정·취소됐으면 재시도로 인정하지 않고 409")
+        void 예약_이미_후속처리됨() {
+            TimeDealPurchaseReserveCommand command = reserveCommand(5);
+            TimeDealPurchase reserved = TimeDealPurchase.create(
+                    timeDeal, command.orderId(), command.userId(), command.quantity(), START_AT);
+            reserved.cancel(TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
+            when(timeDealPurchaseRepository.findByOrderId(command.orderId()))
+                    .thenReturn(Optional.of(reserved));
+
+            assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(command))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+
+            verify(timeDealPurchaseRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("타임딜이 없으면 404")
         void 타임딜_없음() {
-            when(timeDealPurchaseRepository.existsByOrderId(any())).thenReturn(false);
+            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
             when(timeDealRepository.findById(any())).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(reserveCommand(5)))
@@ -142,7 +181,7 @@ class TimeDealPurchaseCommandServiceTest {
         @Test
         @DisplayName("재고 정보가 없으면 404")
         void 재고_없음() {
-            when(timeDealPurchaseRepository.existsByOrderId(any())).thenReturn(false);
+            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
             when(timeDealRepository.findById(any())).thenReturn(Optional.of(timeDeal));
             when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.empty());
 
@@ -156,7 +195,7 @@ class TimeDealPurchaseCommandServiceTest {
         @DisplayName("집계된 누적 수량이 실제로 1인당 제한에 반영된다")
         void 누적수량_전달() {
             givenTimeDealAndStockFound();
-            when(timeDealPurchaseRepository.existsByOrderId(any())).thenReturn(false);
+            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
             // 이미 6개를 확보한 사용자가 5개를 더 요청하면 한도 10개를 넘는다.
             when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(6);
 

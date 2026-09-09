@@ -43,6 +43,7 @@ public class InternalTimeDealController {
     }
 
 
+    // NOTE: 배송 시작 전 주문 취소에서만 호출한다 — 환불 흐름은 재고를 복구하지 않으므로 대상이 아니다. 또한 그러한 요청을 검증할수있는게 타임딜쪽에서 알수없다.
     @PostMapping("/time-deal-purchases/{orderId}/cancel")
     public ResponseEntity<Void> cancel(
             @PathVariable UUID orderId,

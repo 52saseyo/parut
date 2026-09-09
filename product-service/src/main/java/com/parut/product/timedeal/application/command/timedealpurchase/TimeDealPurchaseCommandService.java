@@ -43,9 +43,26 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
-        // NOTE: order_id unique 제약이 최종 방어선이고, 이 검사는 제약 위반(500)을 409로 바꿔준다.
-        if (timeDealPurchaseRepository.existsByOrderId(timeDealPurchaseReserveCommand.orderId())) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+        // NOTE: 같은 orderId가 이미 있으면, 내용이 원본과 같고 아직 RESERVED일 때만 재시도로 보고
+        // 재고를 다시 선점하지 않고 성공시킨다(멱등). 하나라도 다르면 orderId 충돌이라 409.
+        // order_id unique 제약이 최종 방어선이고, 이 검사는 제약 위반(500)을 409로 바꿔준다.
+        TimeDealPurchase existingTimeDealPurchase = timeDealPurchaseRepository
+                .findByOrderId(timeDealPurchaseReserveCommand.orderId())
+                .orElse(null);
+        if (existingTimeDealPurchase != null) {
+            boolean sameRequest = existingTimeDealPurchase.isReserved()
+                    && existingTimeDealPurchase.isSameReservationRequest(
+                    timeDealPurchaseReserveCommand.timeDealId(),
+                    timeDealPurchaseReserveCommand.userId(),
+                    timeDealPurchaseReserveCommand.quantity());
+            if (!sameRequest) {
+                throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+            }
+            log.warn(
+                    "[TimeDealPurchase] 이미 선점된 주문에 동일 예약 요청이 재도착. orderId={}",
+                    timeDealPurchaseReserveCommand.orderId()
+            );
+            return;
         }
 
         TimeDeal timeDeal = timeDealRepository.findById(timeDealPurchaseReserveCommand.timeDealId())

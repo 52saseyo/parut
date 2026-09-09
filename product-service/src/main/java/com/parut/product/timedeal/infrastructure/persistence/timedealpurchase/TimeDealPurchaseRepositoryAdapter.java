@@ -29,11 +29,6 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     }
 
     @Override
-    public boolean existsByOrderId(UUID orderId) {
-        return jpaTimeDealPurchaseRepository.existsByOrderId(orderId);
-    }
-
-    @Override
     public int sumActiveQuantity(UUID timeDealId, UUID userId) {
         long sum = jpaTimeDealPurchaseRepository.sumQuantityByStatusIn(timeDealId, userId, ACTIVE_STATUSES);
         // NOTE: int를 넘는 합은 데이터 이상이므로 잘라내지 않고 예외로 드러낸다.
