@@ -44,7 +44,7 @@ public class DeliveryService implements DeliveryCreateUseCase {
      */
     @Override
     @Transactional
-    public List<Delivery> initializeDeliveriesForOrder(UUID orderId) {
+    public void createDeliveries(UUID orderId) {
         if (orderId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
