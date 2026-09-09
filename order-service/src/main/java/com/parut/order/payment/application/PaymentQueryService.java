@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.parut.order.payment.application.port.in.PaymentQueryUseCase;
 import com.parut.order.payment.application.port.in.dto.PaymentView;
-import com.parut.order.payment.domain.Payment;
 import com.parut.order.payment.infrastructure.persistence.PaymentRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -22,19 +21,6 @@ public class PaymentQueryService implements PaymentQueryUseCase {
 
     @Override
     public Optional<PaymentView> getPayment(UUID orderId) {
-        return paymentRepository.findByOrderId(orderId).map(this::toView);
-    }
-
-    private PaymentView toView(Payment payment) {
-        return new PaymentView(
-                payment.getId(),
-                payment.getPaymentStatus(),
-                payment.getPaymentMethod(),
-                payment.getTotalAmount(),
-                payment.getBalanceAmount(),
-                payment.getCanceledAmount(),
-                payment.getApprovedAt(),
-                payment.getReceiptUrl()
-        );
+        return paymentRepository.findByOrderId(orderId).map(PaymentView::from);
     }
 }

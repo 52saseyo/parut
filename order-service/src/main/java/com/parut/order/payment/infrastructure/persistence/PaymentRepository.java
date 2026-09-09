@@ -10,4 +10,6 @@ import com.parut.order.payment.domain.Payment;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
 
     Optional<Payment> findByOrderId(UUID orderId);
+
+    Optional<Payment> findByOrderNo(String orderNo);
 }
