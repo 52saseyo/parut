@@ -1,32 +1,37 @@
-package com.parut.order.payment.application.port.in.dto;
+package com.parut.order.payment.application.dto;
 
 import java.time.Instant;
 import java.util.UUID;
 
+import com.parut.order.order.domain.OrderStatus;
 import com.parut.order.payment.domain.Payment;
 import com.parut.order.payment.domain.PaymentMethod;
 import com.parut.order.payment.domain.PaymentStatus;
 
-public record PaymentView(
+public record PaymentConfirmResult(
         UUID paymentId,
+        UUID orderId,
+        String orderNo,
         PaymentStatus paymentStatus,
         PaymentMethod paymentMethod,
-        Long totalAmount,
-        Long balanceAmount,
-        Long canceledAmount,
+        long totalAmount,
+        long balanceAmount,
         Instant approvedAt,
-        String receiptUrl
+        String receiptUrl,
+        OrderStatus orderStatus
 ) {
-    public static PaymentView from(Payment payment) {
-        return new PaymentView(
+    public static PaymentConfirmResult from(Payment payment, UUID orderId, String orderNo, OrderStatus orderStatus) {
+        return new PaymentConfirmResult(
                 payment.getId(),
+                orderId,
+                orderNo,
                 payment.getPaymentStatus(),
                 payment.getPaymentMethod(),
                 payment.getTotalAmount(),
                 payment.getBalanceAmount(),
-                payment.getCanceledAmount(),
                 payment.getApprovedAt(),
-                payment.getReceiptUrl()
+                payment.getReceiptUrl(),
+                orderStatus
         );
     }
 }
