@@ -13,7 +13,7 @@ spring:
 
 # Product의 internal.service-key와 동일 네이밍, 팀 공식 컨벤션은 아직 아님
 internal:
-  service-key: ${INTERNAL_SERVICE_KEY:temp-secret-key}
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
 
 # 유저 테이블에 SYSTEM 계정이 생성되면 실제 UUID로 교체 필요
 app:

@@ -1,6 +1,8 @@
 package com.parut.product.product.domain.product;
 
 import com.parut.product.global.common.entity.DeletableEntity;
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -69,13 +71,43 @@ public class ProductImage extends DeletableEntity {
         this.sortOrder = sortOrder;
     }
 
+    /**
+     * 이미지를 소프트 삭제한다.
+     *
+     * <p>이미 삭제된 이미지에 대해서는 아무 작업도 수행하지 않는다.</p>
+     */
+    void delete(String deletedBy){
+        if(isDeleted()){
+            return;
+        }
+        softDelete(deletedBy);
+    }
+
+    /**
+     * 상세 이미지의 노출 순서만 변경한다.
+     *
+     * <p>이미지 유형은 변경하지 않으며 대표 이미지에는 사용할 수 없다.</p>
+     */
+    void changeDetailSortOrder(Integer sortOrder) {
+        if (imageType != ProductImageType.DETAIL) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_TYPE);
+        }
+
+        if (sortOrder == null || sortOrder < 1) {
+            throw new BusinessException(ErrorCode.PRODUCT_DETAIL_IMAGE_SORT_ORDER_INVALID);
+        }
+
+        this.sortOrder = sortOrder;
+    }
+
+
 
     /**
      * 이미지가 속할 상품이 입력되었는지 검증한다.
      */
     private static void validateProduct(Product product) {
         if (product == null) {
-            throw new IllegalArgumentException("상품은 필수입니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_PRODUCT_REQUIRED);
         }
     }
 
@@ -84,20 +116,21 @@ public class ProductImage extends DeletableEntity {
      */
     private static void validateImageKey(String imageKey) {
         if (imageKey == null || imageKey.isBlank()) {
-            throw new IllegalArgumentException("이미지 키는 필수입니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_KEY);
         }
 
         if (imageKey.length() > 500) {
-            throw new IllegalArgumentException("이미지 키는 500자를 초과할 수 없습니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_KEY);
         }
     }
+
 
     /**
      * 이미지 유형이 입력되었는지 검증한다.
      */
     private static void validateImageType(ProductImageType imageType) {
         if (imageType == null) {
-            throw new IllegalArgumentException("이미지 타입은 필수입니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_TYPE);
         }
     }
 
@@ -106,8 +139,10 @@ public class ProductImage extends DeletableEntity {
      */
     private static void validateSortOrder(Integer sortOrder) {
         if (sortOrder == null || sortOrder < 0){
-            throw new IllegalArgumentException("이미지 노출 순서는 0 이상이어야 합니다.");
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_SORT_ORDER);
         }
     }
+
+
 
 }

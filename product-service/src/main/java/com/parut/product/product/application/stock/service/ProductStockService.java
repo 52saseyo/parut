@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ProductStockService {
-    void createStock(UUID productId, int totalQauntity, int lowStockThreshold);
+    void createStock(UUID productId, int totalQuantity, int lowStockThreshold);
     ProductStock getStock(UUID productId);
     List<ProductStock> getStocks(List<UUID> productIds);
     void updateStock(UUID productId, int totalQuantity);
