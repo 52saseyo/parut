@@ -1,5 +1,7 @@
 package com.parut.user.seller.presentation;
 
+import com.parut.user.global.exception.BusinessException;
+import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.seller.application.dto.response.SellerDeleteResponse;
 import com.parut.user.seller.application.service.SellerService;
 import com.parut.user.seller.application.dto.request.SellerApplicationProcessRequest;
@@ -46,8 +48,14 @@ public class SellerController {
     @GetMapping("/applications")
     public ResponseEntity<ApiResponse<OffsetResponse<SellerResponse>>> getApplicationList(
             @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 10, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(size = 10, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable,
+            @RequestHeader("X-User-Role") String role
     ) {
+        // ADMIN 권한 체크 로직
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
         OffsetResponse<SellerResponse> response = sellerService.getApplicationList(keyword, pageable);
         return ResponseEntity.ok(ApiResponse.success(response, ""));
     }
@@ -57,8 +65,14 @@ public class SellerController {
     public ResponseEntity<ApiResponse<SellerResponse>> processApplication(
             @PathVariable UUID applicationId,
             @RequestHeader("X-User-Id") UUID adminId,
+            @RequestHeader("X-User-Role") String role,
             @RequestBody SellerApplicationProcessRequest request
     ) {
+        // ADMIN 권한 체크 로직
+        if (!"ADMIN".equalsIgnoreCase(role)) {
+            // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
         SellerResponse response = sellerService.processApplication(applicationId, request, "admin");
         return ResponseEntity.ok(ApiResponse.success(response, ""));
     }
@@ -77,8 +91,19 @@ public class SellerController {
     public ResponseEntity<ApiResponse<SellerResponse>> updateMyInfo(
             @PathVariable UUID id,
             @RequestHeader("X-User-Id") UUID sellerId,
+            @RequestHeader("X-User-Role") String role,
             @RequestBody SellerUpdateRequest request
     ) {
+        // 1. ADMIN 또는 SELLER 권한 체크
+        if (!"ADMIN".equalsIgnoreCase(role) && !"SELLER".equalsIgnoreCase(role) && !"PENDING_SELLER".equalsIgnoreCase(role)) {
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
+
+        // 2. SELLER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
+        if (("SELLER".equalsIgnoreCase(role) || "PENDING_SELLER".equalsIgnoreCase(role)) && !id.equals(sellerId)) {
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
+
         SellerResponse response = sellerService.updateSeller(id, sellerId, request);
         return ResponseEntity.ok(ApiResponse.success(response, ""));
     }
@@ -87,8 +112,18 @@ public class SellerController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<SellerDeleteResponse>> deleteMyInfo(
             @PathVariable UUID id,
-            @RequestHeader("X-User-Id") UUID sellerId
+            @RequestHeader("X-User-Id") UUID sellerId,
+            @RequestHeader("X-User-Role") String role
     ) {
+        // 1. ADMIN 또는 SELLER 권한 체크
+        if (!"ADMIN".equalsIgnoreCase(role) && !"SELLER".equalsIgnoreCase(role) && !"PENDING_SELLER".equalsIgnoreCase(role)) {
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
+
+        // 2. SELLER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
+        if (("SELLER".equalsIgnoreCase(role) || "PENDING_SELLER".equalsIgnoreCase(role)) && !id.equals(sellerId)) {
+            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
+        }
         SellerDeleteResponse response = sellerService.deleteSeller(id, sellerId);
         return ResponseEntity.ok(ApiResponse.success(response, ""));
     }

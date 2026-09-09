@@ -105,7 +105,7 @@ public class SellerService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
 
         if (request.status() == SellerStatus.APPROVED) {
-            seller.approve(adminName);
+            seller.approve(adminName, request.rejectReason());
         } else if (request.status() == SellerStatus.REJECTED) {
             seller.reject(adminName, request.rejectReason());
         }
