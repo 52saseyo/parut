@@ -100,6 +100,24 @@ class DeliveryServiceTest {
     }
 
     @Test
+    @DisplayName("판매자는 자신의 배송 그룹에 생성된 배송만 조회한다")
+    void 판매자_배송_조회() {
+        UUID otherSellerId = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bc");
+        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        when(orderDeliveryGroupQueryUseCase.getDeliveryGroups(ORDER_ID)).thenReturn(List.of(
+                new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1),
+                new OrderDeliveryGroupView(SECOND_DELIVERY_GROUP_ID, otherSellerId, 1)
+        ));
+        when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
+                .thenReturn(Optional.of(delivery));
+
+        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID);
+
+        assertThat(result).containsExactly(delivery);
+        verify(deliveryRepository, never()).findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID);
+    }
+
+    @Test
     @DisplayName("배송 시작 60초가 지난 배송을 완료 대상으로 조회한다")
     void 배송_완료_기준_시각_계산() {
         when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
