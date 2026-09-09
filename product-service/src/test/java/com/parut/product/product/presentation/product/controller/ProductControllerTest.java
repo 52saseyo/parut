@@ -58,8 +58,7 @@ class ProductControllerTest {
                 ProductCategory.FRUIT,
                 3_000L,
                 AppearanceType.UGLY,
-                "충주",
-                "products/main.jpg"
+                "충주"
         );
 
         given(productService.searchPublicProducts(

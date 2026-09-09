@@ -2,6 +2,8 @@ package com.parut.product.product.application.product.reader;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.domain.product.Product;
+import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.infrastructure.product.persistence.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -41,5 +43,27 @@ public class ProductReaderImpl implements ProductReader {
     @Override
     public boolean isOwnedBy(UUID productId, UUID sellerId) {
         return productRepository.existsByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId);
+    }
+
+
+    @Override
+    public Long getOriginalPrice(UUID productId) {
+        return findProduct(productId).getPrice();
+    }
+
+    @Override
+    public ProductStatus getStatus(UUID productId) {
+        return findProduct(productId).getStatus();
+    }
+
+    @Override
+    public Product getProduct(UUID productId) {
+        return findProduct(productId);
+    }
+
+    private Product findProduct(UUID productId) {
+        return productRepository
+                .findByIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
     }
 }
