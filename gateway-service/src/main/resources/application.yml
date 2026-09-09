@@ -14,23 +14,34 @@ spring:
         webflux:
           routes:
             - id: user-service
-              uri: ${USER_URL:http://user-service:8080}
+              #uri: ${USER_URL:http://localhost:8081}
+              uri: http://user-service:8081
               predicates:
                 - Path=/api/v1/users/**, /api/v1/sellers/**, /api/v1/auth/**
               filters:
                 - name: JwtAuthFilter
 
             - id: product-service
-              uri: ${USER_URL:http://product-service:8080}
+              #uri: ${PRODUCT_URL:http://localhost:8082}
+              uri: http://product-service:8082
               predicates:
-                - Path=/api/v1/products/**, /api/v1/stocks/**, /api/v1/internal/stocks/**, /api/v1/time-deals/**, /api/v1/internal/time-deals/**
+                - Path=/api/v1/products/**, /api/v1/stocks/**, /api/v1/time-deals/**
               filters:
                 - name: JwtAuthFilter
 
             - id: order-service
-              uri: ${USER_URL:http://order-service:8080}
+              #uri: ${ORDER_URL:http://localhost:8083}
+              uri: http://order-service:8083
               predicates:
-                - Path=/api/v1/carts/**, /api/v1/orders/**, /api/v1/payments/**, /api/v1/internal/payments/**, /api/v1/deliveries/**, /api/v1/order-items/**, /api/v1/refunds/**, /api/v1/settlements/**, /api/v1/notification-subscriptions/**, /api/v1/notifications/**
+                - Path=/api/v1/carts/**, /api/v1/orders/**, /api/v1/payments/**, /api/v1/deliveries/**, /api/v1/order-items/**, /api/v1/refunds/**, /api/v1/settlements/**
+              filters:
+                - name: JwtAuthFilter
+
+            - id: notification-service
+              #uri: ${NOTIFICATION_URL:http://localhost:8084}
+              uri: http://notification-service:8084
+              predicates:
+                - Path=/api/v1/notifications/**, /api/v1/notification-subscriptions/**
               filters:
                 - name: JwtAuthFilter
 
