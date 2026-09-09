@@ -20,6 +20,6 @@ public class ProductStockAllocationAdapter implements ProductStockAllocationPort
     // 원인이 가려지므로, 연결 전까지는 미구현임을 그대로 드러낸다.
     @Override
     public ProductStockAllocateResult allocate(ProductStockAllocateCommand productStockAllocateCommand) {
-        throw new UnsupportedOperationException("ProductStockService.allocate() 연결 필요");
+        return productStockService.allocate(productStockAllocateCommand);
     }
 }
