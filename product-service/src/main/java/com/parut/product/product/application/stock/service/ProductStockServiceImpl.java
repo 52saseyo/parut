@@ -97,7 +97,16 @@ public class ProductStockServiceImpl implements ProductStockService{
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.reserve(quantity);
-        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+        try {
+            productStockRepository.saveAndFlush(stock);
+
+        } catch (OptimisticLockingFailureException e) {
+            if(isAlreadyProcessed(orderItemId, StockEventType.RESERVE)) {
+                return; // 동시 재시도 - 이미 성공, 멱등 처리
+            }
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation

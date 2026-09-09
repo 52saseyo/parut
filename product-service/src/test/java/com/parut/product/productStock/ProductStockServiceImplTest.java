@@ -367,6 +367,43 @@ public class ProductStockServiceImplTest {
 
             verify(productStockReservationRepository, never()).save(any());
         }
+        @Test
+        @DisplayName("낙관적 락 충돌 + 동시 재시도로 이미 처리됨 -> 멱등 처리(예외 없음)")
+        void reserve_optimisticLockFailure_butAlreadyProcessed_doesNothingSilently() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.empty())  // 첫 번째 체크: 아직 처리 안 됨
+                    .willReturn(Optional.of(mock(ProductStockEventLog.class)));  // 두 번째 체크(catch 안): 이미 처리됨
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 동시 재시도(이미 처리됨) -> 예외 없이 반환 기대");
+
+            productStockService.reserve(productId, orderId, orderItemId, 20);
+
+            verify(productStockReservationRepository, never()).save(any());
+            verify(productStockEventLogRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 + 실제로 처리 안 됨 -> CONFLICT 예외")
+        void reserve_optimisticLockFailure_notProcessed_throwsConflict() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
+                    .willReturn(Optional.empty());  // 첫 번째, 두 번째 체크 모두 없음
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
+                    .willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 실제 미처리 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.reserve(productId, orderId, orderItemId, 20))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
     }
 
     @Nested
