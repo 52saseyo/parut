@@ -1,7 +1,14 @@
 package com.parut.product.product.application.product.service;
 
+import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.query.ProductQueryRepository;
+import com.parut.product.product.application.product.query.condition.PublicProductSearchCondition;
+import com.parut.product.product.application.product.query.condition.SellerProductSearchCondition;
+import com.parut.product.product.application.product.query.result.ProductCursorResult;
+import com.parut.product.product.application.product.query.result.PublicProductQueryResult;
+import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
@@ -12,6 +19,8 @@ import com.parut.product.product.presentation.product.dto.request.CreateProductR
 import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
 import com.parut.product.product.presentation.product.dto.response.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +38,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductStockService productStockService;
+    private final ProductQueryRepository productQueryRepository;
 
     /**
      * 상품을 생성하고 같은 트랜잭션 안에서 초기 재고를 생성한다.
@@ -147,8 +157,7 @@ public class ProductService {
         switch (targetStatus) {
             case ON_SALE -> changeToOnSale(product);
             case SUSPENDED -> product.suspend();
-            // TODO: SOLD_OUT 상태처리
-
+            // stock에서 상품의 SOLD_OUT을 처리
             case DRAFT, SOLD_OUT, DELETED -> throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
     }
@@ -204,6 +213,52 @@ public class ProductService {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
         }
     }
+
+    @Transactional(readOnly = true)
+    public ProductCursorResult<PublicProductQueryResult> searchPublicProducts(
+            PublicProductSearchCondition condition,
+            String cursor,
+            UUID cursorId,
+            int size,
+            String sort,
+            SortDirection direction
+    ){
+        validatePublicStatus(condition.status());
+
+        return productQueryRepository.searchPublicProducts(
+                condition,
+                cursor,
+                cursorId,
+                size,
+                sort,
+                direction
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public Page<SellerProductQueryResult> searchSellerProducts(
+            UUID sellerId,
+            SellerProductSearchCondition condition,
+            Pageable pageable
+    ){
+        return productQueryRepository.searchSellerProducts(
+                sellerId,
+                condition,
+                pageable
+        );
+    }
+
+    private void validatePublicStatus(ProductStatus status) {
+        if (status == null) {
+            return;
+        }
+
+        if (status != ProductStatus.ON_SALE && status != ProductStatus.SOLD_OUT) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+
 
 
 

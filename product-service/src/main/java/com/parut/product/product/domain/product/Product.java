@@ -231,6 +231,18 @@ public class Product extends DeletableEntity {
     }
 
     /**
+     * 재입고된 품절 상품을 판매 중 상태로 전환한다.
+     */
+    public void resumeSaleAfterRestock() {
+        validateNotDeleted();
+        if (status != ProductStatus.SOLD_OUT) {
+            throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
+        }
+        validateMainImageExists();
+        this.status = ProductStatus.ON_SALE;
+    }
+
+    /**
      * 판매 중인 상품을 판매 중지 상태로 전환한다.
      */
     public void suspend() {
