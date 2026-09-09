@@ -530,6 +530,31 @@ class ProductTest {
             assertThatCode(product::startSale).doesNotThrowAnyException();
             assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
         }
+
+        @Test
+        @DisplayName("품절 상품은 재입고 후 판매 중 상태로 전환할 수 있다")
+        void 품절_상품_재입고_후_판매_재개_성공() {
+            Product product = newProduct();
+            product.addMainImage("products/1/main.jpg");
+            product.startSale();
+            product.soldOut();
+
+            assertThatCode(product::resumeSaleAfterRestock).doesNotThrowAnyException();
+            assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+        }
+
+        @Test
+        @DisplayName("품절 상태가 아니면 재입고에 따른 판매 재개를 할 수 없다")
+        void 품절_상태가_아닌_상품_재입고_후_판매_재개_실패() {
+            Product product = newProduct();
+            product.addMainImage("products/1/main.jpg");
+
+            assertBusinessException(
+                    product::resumeSaleAfterRestock,
+                    ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED
+            );
+            assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
+        }
     }
 
     @FunctionalInterface

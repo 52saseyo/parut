@@ -1,25 +1,39 @@
 package com.parut.product.product.presentation.product.controller;
 
 import com.parut.product.global.common.ApiResponse;
+import com.parut.product.global.common.OffsetPageInfo;
+import com.parut.product.global.common.OffsetResponse;
+import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.constant.HeaderConstants;
+import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.product.service.ProductService;
 import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
+import com.parut.product.product.presentation.product.dto.request.SellerProductSearchRequest;
 import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
 import com.parut.product.product.presentation.product.dto.request.UpdateProductStatusRequest;
 import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.ProductResponse;
+import com.parut.product.product.presentation.product.dto.response.SellerProductListResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+import static com.parut.product.product.presentation.product.support.ProductSearchRequestValidator.resolveDirection;
+import static com.parut.product.product.presentation.product.support.ProductSearchRequestValidator.validateSellerOffsetRequest;
+
 @RequestMapping("/api/v1/seller/products")
 @RequiredArgsConstructor
 @RestController
 public class SellerProductController {
+    private static final String SELLER_PRODUCT_SORT = "createdAt";
     private final ProductService productService;
 
     /**
@@ -93,4 +107,43 @@ public class SellerProductController {
         ProductDetailResponse response = productService.getMyProduct(sellerId, productId);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<OffsetResponse<SellerProductListResponse>>> search(
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @ModelAttribute SellerProductSearchRequest request,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "desc") String direction
+    ){
+        validateSellerOffsetRequest(page, size);
+
+        SortDirection resolvedDirection = resolveDirection(direction);
+
+        Pageable pageable = PageRequest.of(
+                page - 1,
+                size,
+                Sort.by(resolvedDirection.toSpringDirection(), SELLER_PRODUCT_SORT)
+        );
+
+        Page<SellerProductQueryResult> result = productService.searchSellerProducts(sellerId, request.toCondition(), pageable);
+
+
+        OffsetResponse<SellerProductListResponse> response = new OffsetResponse<>(
+                result.getContent().stream()
+                        .map(SellerProductListResponse::from)
+                        .toList(),
+                OffsetPageInfo.of(
+                        page,
+                        size,
+                        SELLER_PRODUCT_SORT,
+                        resolvedDirection,
+                        result.getTotalElements(),
+                        result.getTotalPages(),
+                        result.isLast()
+                )
+        );
+        return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
 }
