@@ -30,9 +30,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**",
-                                         "/actuator/**"
-                                        ).permitAll() // 인증/인가 API는 모두 허용
+                        // 1. 인증/인가 없이 누구나 접근 가능한 API
+                        .requestMatchers("/api/v1/auth/**", "/actuator/**", "/api/v1/sellers/apply").permitAll()
+
+                        // 2. 미승인 판매자(PENDING_SELLER)도 접근 가능한 입점 신청 조회 API
+                        .requestMatchers("/api/v1/sellers/me/application").hasAnyAuthority("SELLER", "PENDING_SELLER")
+
+                        // 3. 그 외 나머지 API는 오직 정상 승인된 SELLER만 접근 가능
+                        .requestMatchers("/api/v1/products/**").hasRole("SELLER") // 예시: 상품 관련 API
                         .anyRequest().authenticated()
                 )
                 // 커스텀 JWT 필터를 UsernamePasswordAuthenticationFilter 이전에 동작하도록 설정

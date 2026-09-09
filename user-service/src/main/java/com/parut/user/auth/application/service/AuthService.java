@@ -7,6 +7,7 @@ import com.parut.user.auth.infrastructure.JwtProvider;
 import com.parut.user.global.exception.BusinessException;
 import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.seller.domain.Seller;
+import com.parut.user.seller.domain.SellerStatus;
 import com.parut.user.seller.infrastructure.SellerRepository;
 import com.parut.user.user.domain.User;
 import com.parut.user.user.infrastructure.UserRepository;
@@ -84,18 +85,31 @@ public class AuthService {
             throw new BusinessException(ErrorCode.PWD_NOT_MATCH); // 비밀번호 불일치
         }
 
-        // 3. 승인 상태 검증 (PENDING, REJECTED 상태면 로그인 차단)
-        if (seller.getStatus() != com.parut.user.seller.domain.SellerStatus.APPROVED) {
-            throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED); // 필요 시 "승인 대기 중입니다" 전용 에러 추가
+        // 3. 승인 상태에 따른 분기 처리
+        SellerStatus status = seller.getStatus();
+
+        // 3-1. 승인된 판매자 (정상 로그인)
+        if (status == SellerStatus.APPROVED) {
+            String accessToken = jwtProvider.createAccessToken(seller.getId(), "SELLER");
+            String refreshToken = jwtProvider.createRefreshToken(seller.getId());
+
+            redisTemplate.opsForValue().set("REFRESH:" + seller.getId(), refreshToken, Duration.ofHours(8));
+
+            return new TokenResponse(accessToken, refreshToken);
         }
 
-        // 4. 판매자 전용 토큰 생성
-        String accessToken = jwtProvider.createAccessToken(seller.getId(), "SELLER");
-        String refreshToken = jwtProvider.createRefreshToken(seller.getId());
+        // 3-2. 대기 중 또는 거절된 판매자 (제한된 토큰 발급)
+        // PENDING 이나 REJECTED 상태인 경우
+        if (status == SellerStatus.PENDING || status == SellerStatus.REJECTED) {
+            // 권한을 "PENDING_SELLER" (또는 시스템에 맞는 임시 역할)로 부여
+            String limitedAccessToken = jwtProvider.createAccessToken(seller.getId(), "PENDING_SELLER");
 
-        redisTemplate.opsForValue().set("REFRESH:" + seller.getId(), refreshToken, Duration.ofHours(8));
+            // 상태 조 페이지만 허용할 것이므로 Refresh Token은 발급하지 않거나 null 처리
+            return new TokenResponse(limitedAccessToken, null);
+        }
 
-        return new TokenResponse(accessToken, refreshToken);
+        // 3-3. 그 외 예상치 못한 상태 (예: 탈퇴 등)
+        throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
     }
 
     @Transactional
