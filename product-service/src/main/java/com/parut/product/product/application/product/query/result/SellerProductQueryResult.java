@@ -10,7 +10,6 @@ public record SellerProductQueryResult(
         String name,
         ProductCategory category,
         Long price,
-        ProductStatus status,
-        String mainImageKey
+        ProductStatus status
 ) {
 }

@@ -57,8 +57,7 @@ class SellerProductControllerTest {
                 "청송 사과",
                 ProductCategory.FRUIT,
                 5_000L,
-                ProductStatus.ON_SALE,
-                "products/main.jpg"
+                ProductStatus.ON_SALE
         );
 
         given(productService.searchSellerProducts(

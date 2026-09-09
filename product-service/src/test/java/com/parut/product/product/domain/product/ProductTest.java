@@ -6,7 +6,6 @@ import com.parut.product.product.domain.product.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -35,11 +34,6 @@ class ProductTest {
         );
     }
 
-    private static UUID assignId(ProductImage image) {
-        UUID id = UUID.randomUUID();
-        ReflectionTestUtils.setField(image, "id", id);
-        return id;
-    }
 
     private static void assertBusinessException(
             ThrowingCallable callable,
@@ -85,7 +79,6 @@ class ProductTest {
             assertThat(product.getSaleUnit()).isEqualTo(SaleUnit.BOX);
             assertThat(product.getUnitQuantity()).isEqualByComparingTo("2");
             assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
-            assertThat(product.getActiveProductImages()).isEmpty();
         }
 
         @Test
@@ -238,7 +231,7 @@ class ProductTest {
         @DisplayName("ON_SALE 상태에서는 상품 정보를 수정할 수 없다")
         void 판매_중_상품_수정_실패() {
             Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
+            product.addImage(UUID.randomUUID());
             product.startSale();
 
             assertBusinessException(
@@ -255,7 +248,7 @@ class ProductTest {
         @DisplayName("SUSPENDED 상태에서는 상품 정보를 수정할 수 있다")
         void 판매_중지_상품_수정_성공() {
             Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
+            product.addImage(UUID.randomUUID());
             product.startSale();
             product.suspend();
 
@@ -315,247 +308,139 @@ class ProductTest {
     }
 
     @Nested
-    @DisplayName("대표 이미지 등록")
-    class AddMainImage {
+    @DisplayName("상품 이미지")
+    class ProductImage {
 
         @Test
-        @DisplayName("대표 이미지는 MAIN 타입과 노출 순서 0으로 등록된다")
-        void 대표_이미지_등록_성공() {
+        @DisplayName("이미지가 없는 상품에 최초 이미지를 등록한다")
+        void 최초_이미지_등록_성공() {
             Product product = newProduct();
+            UUID imageId = UUID.randomUUID();
 
-            ProductImage mainImage = product.addMainImage("products/1/main.jpg");
+            product.addImage(imageId);
 
-            assertThat(mainImage.getProduct()).isSameAs(product);
-            assertThat(mainImage.getImageKey()).isEqualTo("products/1/main.jpg");
-            assertThat(mainImage.getImageType()).isEqualTo(ProductImageType.MAIN);
-            assertThat(mainImage.getSortOrder()).isZero();
-            assertThat(product.getActiveProductImages()).containsExactly(mainImage);
+            assertThat(product.getImageId()).isEqualTo(imageId);
         }
 
         @Test
-        @DisplayName("활성 대표 이미지가 이미 있으면 추가할 수 없다")
-        void 대표_이미지_중복_등록_실패() {
+        @DisplayName("이미지 ID가 없으면 최초 이미지를 등록할 수 없다")
+        void 이미지_ID가_없는_최초_등록_실패() {
             Product product = newProduct();
-            product.addMainImage("products/1/main-a.jpg");
 
             assertBusinessException(
-                    () -> product.addMainImage("products/1/main-b.jpg"),
-                    ErrorCode.PRODUCT_MAIN_IMAGE_ALREADY_EXISTS
+                    () -> product.addImage(null),
+                    ErrorCode.PRODUCT_IMAGE_ID_REQUIRED
             );
+            assertThat(product.getImageId()).isNull();
         }
 
         @Test
-        @DisplayName("상세 이미지가 5장 있어도 대표 이미지 한 장을 추가할 수 있다")
-        void 대표_이미지는_상세_이미지_제한에_포함되지_않는다() {
+        @DisplayName("이미지가 이미 등록된 상품에는 최초 등록을 다시 할 수 없다")
+        void 이미지_중복_등록_실패() {
             Product product = newProduct();
-            for (int index = 1; index <= 5; index++) {
-                product.addDetailImage("products/1/detail-" + index + ".jpg");
-            }
-
-            ProductImage mainImage = product.addMainImage("products/1/main.jpg");
-
-            assertThat(mainImage.getImageType()).isEqualTo(ProductImageType.MAIN);
-            assertThat(product.getActiveProductImages()).hasSize(6);
-        }
-    }
-
-    @Nested
-    @DisplayName("상세 이미지 등록")
-    class AddDetailImage {
-
-        @Test
-        @DisplayName("상세 이미지 순서는 1부터 서버가 순차적으로 부여한다")
-        void 상세_이미지_순서_자동_부여() {
-            Product product = newProduct();
-
-            ProductImage first = product.addDetailImage("products/1/detail-a.jpg");
-            ProductImage second = product.addDetailImage("products/1/detail-b.jpg");
-            ProductImage third = product.addDetailImage("products/1/detail-c.jpg");
-
-            assertThat(first.getImageType()).isEqualTo(ProductImageType.DETAIL);
-            assertThat(first.getSortOrder()).isEqualTo(1);
-            assertThat(second.getSortOrder()).isEqualTo(2);
-            assertThat(third.getSortOrder()).isEqualTo(3);
-        }
-
-        @Test
-        @DisplayName("상세 이미지는 최대 5장까지 등록할 수 있다")
-        void 상세_이미지_개수_제한() {
-            Product product = newProduct();
-            for (int index = 1; index <= 5; index++) {
-                product.addDetailImage("products/1/detail-" + index + ".jpg");
-            }
+            UUID firstImageId = UUID.randomUUID();
+            product.addImage(firstImageId);
 
             assertBusinessException(
-                    () -> product.addDetailImage("products/1/detail-6.jpg"),
-                    ErrorCode.PRODUCT_DETAIL_IMAGE_LIMIT_EXCEEDED
-            );
-        }
-
-        @Test
-        @DisplayName("대표 이미지와 상세 이미지는 같은 활성 이미지 키를 사용할 수 없다")
-        void 활성_이미지_키_중복_실패() {
-            Product product = newProduct();
-            product.addMainImage("products/1/same.jpg");
-
-            assertBusinessException(
-                    () -> product.addDetailImage("products/1/same.jpg"),
+                    () -> product.addImage(UUID.randomUUID()),
                     ErrorCode.PRODUCT_IMAGE_ALREADY_EXISTS
             );
+            assertThat(product.getImageId()).isEqualTo(firstImageId);
         }
 
         @Test
-        @DisplayName("빈 이미지 키는 등록할 수 없다")
-        void 빈_이미지_키_등록_실패() {
+        @DisplayName("기존 이미지를 변경하면 이전 이미지 ID를 반환한다")
+        void 이미지_변경_성공() {
+            Product product = newProduct();
+            UUID previousImageId = UUID.randomUUID();
+            UUID newImageId = UUID.randomUUID();
+            product.addImage(previousImageId);
+
+            UUID result = product.changeImage(newImageId);
+
+            assertThat(result).isEqualTo(previousImageId);
+            assertThat(product.getImageId()).isEqualTo(newImageId);
+        }
+
+        @Test
+        @DisplayName("기존 이미지가 없으면 이미지를 변경할 수 없다")
+        void 기존_이미지가_없는_변경_실패() {
             Product product = newProduct();
 
             assertBusinessException(
-                    () -> product.addDetailImage(" "),
-                    ErrorCode.PRODUCT_IMAGE_INVALID_KEY
+                    () -> product.changeImage(UUID.randomUUID()),
+                    ErrorCode.PRODUCT_IMAGE_NOT_FOUND
             );
+            assertThat(product.getImageId()).isNull();
         }
-    }
-
-    @Nested
-    @DisplayName("이미지 변경 가능 상태")
-    class ImageModifiableStatus {
 
         @Test
-        @DisplayName("ON_SALE 상태에서는 이미지를 추가할 수 없다")
-        void 판매_중_이미지_추가_실패() {
+        @DisplayName("이미지를 제거하면 기존 이미지 ID를 반환하고 연결을 해제한다")
+        void 이미지_제거_성공() {
             Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
-            product.startSale();
+            UUID imageId = UUID.randomUUID();
+            product.addImage(imageId);
 
-            assertBusinessException(
-                    () -> product.addDetailImage("products/1/detail.jpg"),
-                    ErrorCode.PRODUCT_IMAGE_NOT_MODIFIABLE
-            );
+            UUID result = product.removeImage();
+
+            assertThat(result).isEqualTo(imageId);
+            assertThat(product.getImageId()).isNull();
         }
 
         @Test
-        @DisplayName("SUSPENDED 상태에서는 이미지를 추가할 수 있다")
-        void 판매_중지_이미지_추가_성공() {
-            Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
-            product.startSale();
-            product.suspend();
-
-            ProductImage detailImage =
-                    product.addDetailImage("products/1/detail.jpg");
-
-            assertThat(detailImage.getImageType()).isEqualTo(ProductImageType.DETAIL);
-            assertThat(detailImage.getSortOrder()).isEqualTo(1);
-        }
-    }
-
-    @Nested
-    @DisplayName("이미지 삭제")
-    class RemoveImage {
-
-        @Test
-        @DisplayName("상세 이미지를 삭제하면 뒤 이미지의 순서를 한 칸씩 당긴다")
-        void 상세_이미지_삭제_후_순서_압축() {
-            Product product = newProduct();
-            ProductImage first = product.addDetailImage("products/1/detail-a.jpg");
-            ProductImage second = product.addDetailImage("products/1/detail-b.jpg");
-            ProductImage third = product.addDetailImage("products/1/detail-c.jpg");
-            assignId(first);
-            UUID secondId = assignId(second);
-            assignId(third);
-
-            String deletedImageKey =
-                    product.removeProductImage(secondId, DELETED_BY);
-
-            assertThat(deletedImageKey).isEqualTo("products/1/detail-b.jpg");
-            assertThat(second.isDeleted()).isTrue();
-            assertThat(second.getDeletedBy()).isEqualTo(DELETED_BY);
-            assertThat(first.getSortOrder()).isEqualTo(1);
-            assertThat(third.getSortOrder()).isEqualTo(2);
-            assertThat(product.getActiveProductImages()).containsExactly(first, third);
-        }
-
-
-        @Test
-        @DisplayName("상품에 없는 이미지 ID는 삭제할 수 없다")
-        void 존재하지_않는_이미지_삭제_실패() {
+        @DisplayName("기존 이미지가 없으면 이미지를 제거할 수 없다")
+        void 기존_이미지가_없는_제거_실패() {
             Product product = newProduct();
 
             assertBusinessException(
-                    () -> product.removeProductImage(UUID.randomUUID(), DELETED_BY),
+                    product::removeImage,
                     ErrorCode.PRODUCT_IMAGE_NOT_FOUND
             );
         }
 
         @Test
-        @DisplayName("상품을 삭제하면 모든 활성 이미지도 소프트 삭제된다")
-        void 상품_삭제_시_이미지_함께_삭제() {
+        @DisplayName("판매 중인 상품의 이미지는 변경할 수 없다")
+        void 판매_중_이미지_변경_실패() {
             Product product = newProduct();
-            ProductImage mainImage = product.addMainImage("products/1/main.jpg");
-            ProductImage detailImage = product.addDetailImage("products/1/detail.jpg");
+            UUID imageId = UUID.randomUUID();
+            product.addImage(imageId);
+            product.startSale();
 
-            product.delete(DELETED_BY);
-
-            assertThat(product.getStatus()).isEqualTo(ProductStatus.DELETED);
-            assertThat(product.isDeleted()).isTrue();
-            assertThat(mainImage.isDeleted()).isTrue();
-            assertThat(detailImage.isDeleted()).isTrue();
-            assertThat(product.getActiveProductImages()).isEmpty();
+            assertBusinessException(
+                    () -> product.changeImage(UUID.randomUUID()),
+                    ErrorCode.PRODUCT_NOT_MODIFIABLE
+            );
+            assertThat(product.getImageId()).isEqualTo(imageId);
         }
     }
 
     @Nested
-    @DisplayName("판매 상태 전환")
+    @DisplayName("상품 판매 상태 전환")
     class SaleStatusTransition {
 
         @Test
-        @DisplayName("대표 이미지가 없으면 판매를 시작할 수 없다")
-        void 대표_이미지_없는_판매_시작_실패() {
+        @DisplayName("이미지가 없으면 판매를 시작할 수 없다")
+        void 이미지가_없는_판매_시작_실패() {
             Product product = newProduct();
-            product.addDetailImage("products/1/detail.jpg");
 
             assertBusinessException(
                     product::startSale,
-                    ErrorCode.PRODUCT_MAIN_IMAGE_REQUIRED
+                    ErrorCode.PRODUCT_IMAGE_REQUIRED
             );
             assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
         }
 
         @Test
-        @DisplayName("대표 이미지가 있으면 판매를 시작할 수 있다")
-        void 대표_이미지_있는_판매_시작_성공() {
+        @DisplayName("이미지가 있으면 판매를 시작할 수 있다")
+        void 이미지가_있는_판매_시작_성공() {
             Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
+            product.addImage(UUID.randomUUID());
 
             assertThatCode(product::startSale).doesNotThrowAnyException();
             assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
         }
-
-        @Test
-        @DisplayName("품절 상품은 재입고 후 판매 중 상태로 전환할 수 있다")
-        void 품절_상품_재입고_후_판매_재개_성공() {
-            Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
-            product.startSale();
-            product.soldOut();
-
-            assertThatCode(product::resumeSaleAfterRestock).doesNotThrowAnyException();
-            assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
-        }
-
-        @Test
-        @DisplayName("품절 상태가 아니면 재입고에 따른 판매 재개를 할 수 없다")
-        void 품절_상태가_아닌_상품_재입고_후_판매_재개_실패() {
-            Product product = newProduct();
-            product.addMainImage("products/1/main.jpg");
-
-            assertBusinessException(
-                    product::resumeSaleAfterRestock,
-                    ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED
-            );
-            assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
-        }
     }
+
 
     @FunctionalInterface
     private interface ThrowingCallable {

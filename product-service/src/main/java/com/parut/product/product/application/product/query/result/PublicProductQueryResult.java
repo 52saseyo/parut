@@ -11,7 +11,6 @@ public record PublicProductQueryResult(
         ProductCategory category,
         Long price,
         AppearanceType appearanceType,
-        String origin,
-        String mainImageKey
+        String origin
 ) {
 }
