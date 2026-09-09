@@ -69,7 +69,12 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
             if (isOpenApi(path)) {
                 log.info("[Gateway 통과] 인증 생략 경로: {}", path);
                 ServerHttpRequest mutatedRequest = request.mutate()
-                        .header("X-Trace-Id", finalTraceId)
+                        .headers(headers -> {
+                            headers.remove("X-User-Id");
+                            headers.remove("X-User-Role");
+                            // headers.remove("X-Service-Key"); // 서비스 키도 사용한다면 제거
+                            headers.set("X-Trace-Id", finalTraceId);
+                        })
                         .build();
                 return chain.filter(exchange.mutate().request(mutatedRequest).build());
             }
