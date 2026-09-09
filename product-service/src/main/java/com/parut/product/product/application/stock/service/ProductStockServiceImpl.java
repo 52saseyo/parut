@@ -269,23 +269,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         );
     }
 
-    // 타임딜 취소 시 복구 메서드 (타임딜 종료 시 재고 복구하지 않지만 타임딜 취소시에는 재고 복구 (임시))
-    @Override
-    public void deallocate(ProductStockAllocateCommand command) {
-        UUID sellerId = productReader.getSellerId(command.productId());
-        validateRequester(command,sellerId);
 
-        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
-
-        StockStatus previousStatus = stock.getStatus();
-
-        stock.deallocate(command.quantity());
-        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
-        if (previousStatus == StockStatus.SOLD_OUT && stock.getStatus() != StockStatus.SOLD_OUT) {
-            notifyRestocked(command.productId());
-        }
-    }
 
     // 낙관적 락 검증 (재고)
     private void saveStockSafely(ProductStock stock, ErrorCode conflictErrorCode) {
