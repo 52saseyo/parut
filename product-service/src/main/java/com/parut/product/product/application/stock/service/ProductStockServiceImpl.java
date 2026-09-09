@@ -1,6 +1,8 @@
 package com.parut.product.product.application.stock.service;
 
 
+import com.parut.product.global.dto.ProductStockAllocateCommand;
+import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.product.reader.ProductReader;
@@ -39,6 +41,10 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
     private final ProductReader productReader;
+
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String SELLER_ROLE = "SELLER";
+
     // 상품 등록 시 재고 등록
     @Override
     public void createStock(UUID productId, int totalQuantity, int lowStockThreshold) {
@@ -216,6 +222,38 @@ public class ProductStockServiceImpl implements ProductStockService{
         return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
     }
 
+    // 타임딜 전환 메서드
+    @Override
+    public ProductStockAllocateResult allocate(ProductStockAllocateCommand command) {
+        UUID sellerId = productReader.getSellerId(command.productId());
+        validateRequester(command, sellerId);
+
+        // TODO : 상품에서 메서드 완료 시 반영
+        // if (!productReader.isOnSale(command.productId())) {
+        // throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
+        // }
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        stock.allocate(command.quantity());
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+        Long price = null; // TODO: getPrice 생기면 채우기
+
+        return new ProductStockAllocateResult(command.productId(), command.quantity(), sellerId, price);
+    }
+
+    // 타임딜 취소 시 복구 메서드
+    @Override
+    public void deallocate(ProductStockAllocateCommand command) {
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+        UUID sellerId = productReader.getSellerId(command.productId());
+        validateRequester(command, sellerId);
+        stock.deallocate(command.quantity());
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+    }
+
     // 낙관적 락 검증 (재고)
     private void saveStockSafely(ProductStock stock, ErrorCode conflictErrorCode) {
         try {
@@ -238,6 +276,17 @@ public class ProductStockServiceImpl implements ProductStockService{
     private void validateStockOwnership(ProductStock stock, UUID productId) {
         if (!stock.getProductId().equals(productId)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+        }
+    }
+
+    // 소유권 검증
+    private void validateRequester(ProductStockAllocateCommand command, UUID sellerId) {
+        boolean isAdmin = ADMIN_ROLE.equals(command.requesterRole());
+        boolean isOwner = SELLER_ROLE.equals(command.requesterRole())
+                && sellerId.equals(command.requesterId());
+
+        if (!isAdmin && !isOwner) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
         }
     }
 }

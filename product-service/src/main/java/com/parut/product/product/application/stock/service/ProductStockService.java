@@ -1,5 +1,7 @@
 package com.parut.product.product.application.stock.service;
 
+import com.parut.product.global.dto.ProductStockAllocateCommand;
+import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,4 +19,6 @@ public interface ProductStockService {
     void confirm(UUID productId, UUID orderId, UUID orderItemId);
     void restore(UUID productId, UUID orderId, UUID orderItemId);
     Page<ProductStock> getStockList(UUID sellerId, Pageable pageable);
+    ProductStockAllocateResult allocate(ProductStockAllocateCommand command);
+    void deallocate(ProductStockAllocateCommand command);
 }

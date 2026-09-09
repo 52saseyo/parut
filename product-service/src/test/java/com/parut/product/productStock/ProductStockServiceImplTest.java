@@ -1,5 +1,7 @@
 package com.parut.product.productStock;
 
+import com.parut.product.global.dto.ProductStockAllocateCommand;
+import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.product.reader.ProductReader;
@@ -715,5 +717,171 @@ public class ProductStockServiceImplTest {
         }
     }
 
+    @Nested
+    @DisplayName("allocate()")
+    class Allocate {
+
+        @Test
+        @DisplayName("판매자 본인이 요청하면 정상 할당된다")
+        void allocate_bySeller_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+            ProductStockAllocateResult result = productStockService.allocate(command);
+
+            assertThat(result.quantity()).isEqualTo(30);
+            assertThat(result.sellerId()).isEqualTo(sellerId);
+            assertThat(stock.getTotalQuantity()).isEqualTo(70);
+        }
+
+        @Test
+        @DisplayName("관리자가 요청하면 소유자가 아니어도 할당된다")
+        void allocate_byAdmin_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            UUID adminId = UUID.randomUUID(); // sellerId와 다른 임의의 관리자 ID
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, adminId, "ADMIN");
+
+            assertThat(productStockService.allocate(command)).isNotNull();
+        }
+        @Test
+        @DisplayName("소유자가 아닌 판매자가 요청하면 예외가 발생")
+        void allocate_notOwner_throwsForbidden() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            UUID otherSellerId = UUID.randomUUID();
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, otherSellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.allocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("재고가 부족하면 예외가 발생")
+        void allocate_shortage_throwsException() {
+            ProductStock stock = ProductStock.create(productId, 10, 2);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 20, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.allocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_SHORTAGE);
+        }
+        @Test
+        @DisplayName("재고가 없으면 예외가 발생")
+        void allocate_stockNotFound_throwsException() {
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.empty());
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.allocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 에러로 변환")
+        void allocate_optimisticLockFailure_throwsConflict() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+            given(productStockRepository.saveAndFlush(any(ProductStock.class))).willThrow(OptimisticLockingFailureException.class);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.allocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
+    }
+
+    @Nested
+    @DisplayName("deallocate()")
+    class Deallocate {
+
+        @Test
+        @DisplayName("판매자 본인이 요청하면 정상 반환된다")
+        void deallocate_bySeller_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.allocate(30); // total=70, available=70로 미리 차감해둠
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+            productStockService.deallocate(command);
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(100);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("관리자가 요청하면 소유자가 아니어도 반환된다")
+        void deallocate_byAdmin_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.allocate(30);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            UUID adminId = UUID.randomUUID();
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, adminId, "ADMIN");
+
+            productStockService.deallocate(command);
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(100);
+        }
+
+        @Test
+        @DisplayName("소유자가 아닌 판매자가 요청하면 예외가 발생")
+        void deallocate_notOwner_throwsForbidden() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.allocate(30);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            UUID otherSellerId = UUID.randomUUID();
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, otherSellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.deallocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("재고가 없으면 예외가 발생")
+        void deallocate_stockNotFound_throwsException() {
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.empty());
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.deallocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+        }
+        @Test
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 에러로 변환된다")
+        void deallocate_optimisticLockFailure_throwsConflict() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.allocate(30);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+            given(productStockRepository.saveAndFlush(any(ProductStock.class))).willThrow(OptimisticLockingFailureException.class);
+
+            ProductStockAllocateCommand command = new ProductStockAllocateCommand(productId, 30, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.deallocate(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
+    }
 
 }

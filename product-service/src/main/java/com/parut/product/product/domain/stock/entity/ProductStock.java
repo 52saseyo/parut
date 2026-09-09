@@ -111,6 +111,28 @@ public class ProductStock extends DeletableEntity {
         }
     }
 
+    public void allocate(int quantity) {
+
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+        if (this.availableQuantity < quantity) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_SHORTAGE);
+        }
+        this.totalQuantity -= quantity;
+        this.availableQuantity -= quantity;
+        refreshStatus();
+    }
+
+    public void deallocate(int quantity) {
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+        this.totalQuantity += quantity;
+        this.availableQuantity += quantity;
+        refreshStatus();
+    }
+
     @Override
     public void softDelete(String deletedBy) {
         int reservedQuantity = this.totalQuantity - this.availableQuantity;
