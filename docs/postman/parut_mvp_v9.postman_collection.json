@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "PARUT MVP 기능 단위 시연 V8",
-    "description": "MVP 시연 순서에 맞춘 Collection입니다. PR #87과 PR #90의 수정 및 병합 후 실행하며 주문 취소 시나리오는 제외합니다.",
+    "name": "PARUT MVP 기능 단위 시연 V9",
+    "description": "PR #90까지 병합된 코드를 기준으로 구성한 MVP 시연용 Collection입니다. 주문 취소 시나리오는 제외하며, PR #87의 타임딜 전환은 Adapter 연결 수정 전까지 실행할 수 없습니다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -1495,7 +1495,7 @@
     },
     {
       "name": "06 일반 상품에서 타임딜 전환, 주문과 결제",
-      "description": "PR #87의 일반 재고 할당과 PR #81, #84를 연결합니다. PR #87의 ProductStockAllocationAdapter 연결 수정과 병합 후 실행합니다.",
+      "description": "PR #87의 일반 재고 할당과 PR #81, #84를 연결합니다. PR #87은 병합됐지만 ProductStockAllocationAdapter가 아직 미연결이라 수정 전에는 06-01이 실패합니다.",
       "item": [
         {
           "name": "06-01 일반 상품에서 타임딜 전환",
@@ -1521,7 +1521,7 @@
               }
             },
             "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
-            "description": "일반 상품 재고 20개를 타임딜 전용 재고로 할당합니다. 현재 PR #87의 Adapter가 미연결이므로 productStockService.allocate(command) 연결 수정과 병합 후 성공합니다."
+            "description": "일반 상품 재고 20개를 타임딜 전용 재고로 할당합니다. PR #87은 병합됐지만 Adapter가 아직 UnsupportedOperationException을 발생시키므로 productStockService.allocate(command) 연결 수정 후 성공합니다."
           },
           "event": [
             {
