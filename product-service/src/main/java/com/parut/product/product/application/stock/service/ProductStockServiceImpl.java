@@ -19,6 +19,7 @@ import com.parut.product.product.infrastructure.stock.persistence.ProductStockEv
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -36,10 +37,10 @@ import java.util.UUID;
 @Transactional
 public class ProductStockServiceImpl implements ProductStockService{
 
-    // 정상 운영 시 예약 만료 시간(30분)
-    private static final Duration RESERVATION_TTL_PROD = Duration.ofMinutes(30);
-    // 시연을 위해 예약 만료 시간을 5분으로 단축
-    private static final Duration RESERVATION_TTL_DEMO = Duration.ofMinutes(5);
+
+    @Value("${parut.product-stock.reservation-ttl}")
+    private Duration reservationTtl;
+
 
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
@@ -135,7 +136,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         // 현재 시각 + 30분으로 만료 예약 시간 생성
         ProductStockReservation reservation = ProductStockReservation
-                .create(stock.getId(), orderId, quantity, Instant.now().plus(RESERVATION_TTL_DEMO));
+                .create(stock.getId(), orderId, quantity, Instant.now().plus(reservationTtl));
         productStockReservationRepository.save(reservation);
 
         saveEventLog(reservation.getId(), orderItemId, StockEventType.RESERVE);

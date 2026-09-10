@@ -38,6 +38,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -67,6 +68,9 @@ public class ProductStockServiceImplTest {
     @InjectMocks
     private ProductStockServiceImpl productStockService;
 
+    // NOTE: @Value 필드는 Mockito가 주입하지 않으므로 테스트에서 직접 넣어준다.
+    private static final Duration RESERVATION_TTL = Duration.ofMinutes(5);
+
     private UUID productId;
     private UUID orderId;
     private UUID orderItemId;
@@ -78,6 +82,7 @@ public class ProductStockServiceImplTest {
         orderId = UUID.randomUUID();
         orderItemId = UUID.randomUUID();
         sellerId = UUID.randomUUID();
+        ReflectionTestUtils.setField(productStockService, "reservationTtl", RESERVATION_TTL);
     }
 
     @Nested

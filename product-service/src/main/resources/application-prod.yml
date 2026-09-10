@@ -45,3 +45,8 @@ logging:
     root: info
     com.parut.product: info
     org.hibernate.SQL: info
+
+parut:
+  product-stock:
+    scheduler-rate: ${PRODUCT_STOCK_RATE:10m}
+    reservation-ttl: ${PRODUCT_STOCK_RESERVATION_TTL:30m}

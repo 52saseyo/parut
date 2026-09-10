@@ -22,15 +22,10 @@ public class ProductStockReservationExpirationScheduler {
 
     private static final int BATCH_SIZE = 100;
 
-    // 10분마다 만료된 예약을 찾아 자동 복구
-    private static final long SCHEDULE_RATE_PROD = 10 * 60 * 1000L;
-    // 시연을 위해 스케줄러 실행 주기를 5분으로 단축
-    private static final long SCHEDULE_RATE_DEMO = 5 * 60 * 1000L;
-
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockReservationExpirationProcessor productStockReservationExpirationProcessor;
 
-    @Scheduled(fixedRate = SCHEDULE_RATE_DEMO)
+    @Scheduled(fixedRateString = "${parut.product-stock.scheduler-rate}")
     public void expireReservations() {
 
         Instant cursorExpiresAt = null;

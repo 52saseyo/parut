@@ -19,12 +19,6 @@ CREATE TABLE product_schema.p_images
         CHECK (file_size > 0 AND file_size <= 10485760)
 );
 
-ALTER TABLE product_schema.p_products
-    ADD COLUMN image_id UUID;
-
-ALTER TABLE product_schema.p_products
-    ADD CONSTRAINT fk_p_products_image
-        FOREIGN KEY (image_id) REFERENCES product_schema.p_images (id);
 
 CREATE INDEX idx_p_products_image_id
     ON product_schema.p_products (image_id)
