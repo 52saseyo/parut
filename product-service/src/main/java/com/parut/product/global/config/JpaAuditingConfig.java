@@ -1,5 +1,6 @@
 package com.parut.product.global.config;
 
+import com.parut.product.global.common.AuditorContext;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
@@ -18,12 +19,19 @@ import java.util.Optional;
 @EnableJpaAuditing
 public class JpaAuditingConfig {
 
-    private static final String SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000001";
+    private static final String SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    private static final String BATCH_SYSTEM_USR_ID = "00000000-0000-0000-0000-000000000001";
 
     @Bean
     public AuditorAware<String> auditorProvider() {
 
         return () -> {
+
+            Optional<String> batchAuditor = AuditorContext.get();
+            if (batchAuditor.isPresent()) {
+                return batchAuditor;
+            }
+
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes == null) {
@@ -43,7 +51,8 @@ public class JpaAuditingConfig {
             String userIdHeader = request.getHeader(HeaderConstants.USER_ID);
 
             if (userIdHeader == null || userIdHeader.isBlank()) {
-                throw new BusinessException(ErrorCode.USER_ID_REQUIRED);
+                return Optional.of(BATCH_SYSTEM_USR_ID);
+//                throw new BusinessException(ErrorCode.USER_ID_REQUIRED);
             }
 
             try {
