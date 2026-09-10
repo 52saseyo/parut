@@ -26,7 +26,7 @@ public class JpaAuditingConfig {
     public AuditorAware<String> auditorProvider() {
 
         return () -> {
-
+            // Batch/Scheduler 등 http아닌 요청에 대한 컨텍스트 사용
             Optional<String> batchAuditor = AuditorContext.get();
             if (batchAuditor.isPresent()) {
                 return batchAuditor;
