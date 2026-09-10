@@ -15,6 +15,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class ServiceKeyInterceptor implements HandlerInterceptor {
 
+    public static final String INTERNAL_REQUEST_ATTRIBUTE = "INTERNAL_REQUEST";
+
     private final String internalServiceKey;
 
     public ServiceKeyInterceptor(
@@ -36,6 +38,8 @@ public class ServiceKeyInterceptor implements HandlerInterceptor {
             log.warn("[Internal-Auth] 내부 서비스 키 검증 실패 uri={}", request.getRequestURI());
             throw new BusinessException(ErrorCode.INTERNAL_AUTH_FAILED);
         }
+
+        request.setAttribute(INTERNAL_REQUEST_ATTRIBUTE, true);
 
         return true;
     }
