@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "PARUT MVP 기능 단위 시연 V9",
+    "name": "PARUT MVP 기능 단위 시연",
     "description": "PR #90까지 병합된 코드를 기준으로 구성한 MVP 시연용 Collection입니다. 주문 취소 시나리오는 제외하며, PR #87의 타임딜 전환은 Adapter 연결 수정 전까지 실행할 수 없습니다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
