@@ -12,6 +12,7 @@ public enum ErrorCode {
     INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 미디어 타입입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
+    USER_ID_REQUIRED(HttpStatus.BAD_REQUEST, "사용자 ID가 필요합니다."),
 
     // internal auth
     // 호출자 서비스 자체의 인증 실패이므로 401이다. X-User-Id 헤더 누락(400)과 구분할 것 —

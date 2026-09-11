@@ -41,3 +41,8 @@ logging:
     com.parut.product: debug
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
+
+parut:
+  product-stock:
+    scheduler-rate: ${PRODUCT_STOCK_RATE:5m}
+    reservation-ttl: ${PRODUCT_STOCK_RESERVATION_TTL:5m}

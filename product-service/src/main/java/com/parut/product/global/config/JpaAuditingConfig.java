@@ -1,6 +1,10 @@
 package com.parut.product.global.config;
 
+import com.parut.product.global.common.AuditorContext;
 import com.parut.product.global.constant.HeaderConstants;
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.global.interceptor.ServiceKeyInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,9 +18,20 @@ import java.util.Optional;
 @Configuration
 @EnableJpaAuditing
 public class JpaAuditingConfig {
+
+    private static final String SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    private static final String BATCH_SYSTEM_USR_ID = "00000000-0000-0000-0000-000000000001";
+
     @Bean
     public AuditorAware<String> auditorProvider() {
+
         return () -> {
+            // Batch/Scheduler 등 http아닌 요청에 대한 컨텍스트 사용
+            Optional<String> batchAuditor = AuditorContext.get();
+            if (batchAuditor.isPresent()) {
+                return batchAuditor;
+            }
+
             ServletRequestAttributes attributes =
                     (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes == null) {
@@ -24,10 +39,19 @@ public class JpaAuditingConfig {
             }
 
             HttpServletRequest request = attributes.getRequest();
+
+            // ServiceKeyInterceptor를 통과한 내부 서비스 요청
+            Object internalRequest = request.getAttribute(ServiceKeyInterceptor.INTERNAL_REQUEST_ATTRIBUTE);
+
+            if (Boolean.TRUE.equals(internalRequest)) {
+                return Optional.of(SYSTEM_USER_ID);
+            }
+
+            // 일반 사용자 요청USER_ID
             String userIdHeader = request.getHeader(HeaderConstants.USER_ID);
 
             if (userIdHeader == null || userIdHeader.isBlank()) {
-                return Optional.empty();
+                throw new BusinessException(ErrorCode.USER_ID_REQUIRED);
             }
 
             try {

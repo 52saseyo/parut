@@ -2,6 +2,7 @@
 (
     id              UUID           NOT NULL,
     seller_id       UUID           NOT NULL,
+    image_id        UUID,
     category        VARCHAR(30)    NOT NULL,
     name            VARCHAR(150)   NOT NULL,
     description     TEXT,
