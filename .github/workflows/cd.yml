@@ -1,6 +1,6 @@
 name: CD
 
-# main 브랜치 머지 시 배포, 수동 실행으로 롤백
+# main 브랜치 머지 시 배포, 수동 실행으로 롤백/배포
 on:
   push:
     branches:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: '롤백할 서비스'
+        description: '배포/롤백할 서비스'
         required: true
         type: choice
         options:
@@ -18,8 +18,8 @@ on:
           - product-service
           - gateway-service
       image_tag:
-        description: '되돌릴 커밋 SHA'
-        required: true
+        description: '되돌릴 커밋 SHA (비워두면 현재 브랜치를 새로 빌드해서 배포)'
+        required: false
 
 # OIDC 토큰 발급과 저장소 읽기 권한
 permissions:
@@ -51,6 +51,7 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v4
         with:
+          base: ${{ github.event.before }}
           filters: |
             user-service:
               - 'user-service/**'
@@ -67,12 +68,17 @@ jobs:
   build-and-push:
     name: Build & Push - ${{ matrix.service }}
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.services != '[]' }}
+    # push 시: 변경된 서비스가 있을 때
+    # 수동 실행 시: image_tag를 비워 "신규 빌드"를 택했을 때만 실행
+    if: |
+      always() &&
+      ((github.event_name == 'push' && needs.detect-changes.outputs.services != '[]') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag == ''))
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJSON(needs.detect-changes.outputs.services) }}
+        service: ${{ github.event_name == 'push' && fromJSON(needs.detect-changes.outputs.services) || fromJSON(format('["{0}"]', github.event.inputs.service)) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -100,20 +106,29 @@ jobs:
   deploy:
     name: Deploy to EC2
     needs: [detect-changes, build-and-push]
-    # push 시에는 빌드 성공 후, 수동 실행(롤백) 시에는 빌드 없이 바로 배포
+    # push 시: 빌드 성공 후 배포
+    # 수동 실행(롤백, image_tag 지정): 빌드 없이 바로 배포
+    # 수동 실행(신규 배포, image_tag 미지정): 빌드 성공 후 배포
     if: |
       always() &&
-      (github.event_name == 'workflow_dispatch' ||
-      (needs.detect-changes.outputs.services != '[]' && needs.build-and-push.result == 'success'))
+      ((github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag != '') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag == '' && needs.build-and-push.result == 'success') ||
+      (github.event_name == 'push' && needs.detect-changes.outputs.services != '[]' && needs.build-and-push.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       # 배포 대상 서비스와 이미지 태그를 결정하고 .env 수정 명령 생성
       - name: Resolve deploy target
         id: target
+        env:
+          INPUT_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             SERVICES='["${{ github.event.inputs.service }}"]'
-            TAG="${{ github.event.inputs.image_tag }}"
+            if [ -n "$INPUT_IMAGE_TAG" ]; then
+              TAG="$INPUT_IMAGE_TAG"
+            else
+              TAG="${{ github.sha }}"
+            fi
           else
             SERVICES='${{ needs.detect-changes.outputs.services }}'
             TAG="${{ github.sha }}"
