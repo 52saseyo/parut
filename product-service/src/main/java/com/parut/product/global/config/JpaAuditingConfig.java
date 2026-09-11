@@ -51,8 +51,7 @@ public class JpaAuditingConfig {
             String userIdHeader = request.getHeader(HeaderConstants.USER_ID);
 
             if (userIdHeader == null || userIdHeader.isBlank()) {
-                return Optional.of(BATCH_SYSTEM_USR_ID);
-//                throw new BusinessException(ErrorCode.USER_ID_REQUIRED);
+                throw new BusinessException(ErrorCode.USER_ID_REQUIRED);
             }
 
             try {
