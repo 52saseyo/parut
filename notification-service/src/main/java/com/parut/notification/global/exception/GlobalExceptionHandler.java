@@ -89,7 +89,7 @@ public class GlobalExceptionHandler {
                 e.getValue()
         );
 
-        return createResponse(ErrorCode.INVALID_REQUEST);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

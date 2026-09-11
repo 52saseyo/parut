@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/${POSTGRES_DB:parut}
+    username: ${POSTGRES_USER:parut}
+    password: ${POSTGRES_PASSWORD:parut123}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: order_schema
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    schemas: order_schema
+    default-schema: order_schema
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  endpoint:
+    health:
+      show-details: always
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  info:
+    env:
+      enabled: true
+
+logging:
+  level:
+    com.parut.order: debug
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace

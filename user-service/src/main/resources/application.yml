@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: user-service
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 50
+    open-in-view: false
+
+
+jwt:
+  secret: ${JWT_SECRET:v3ry-s3cr3t-k3y-f0r-p4rut-ms4-jwt-t0k3n-s3cur1ty!@#must-be-long-enough}
+  access-token-expire: ${JWT_ACCESS_TOKEN_EXPIRE:30m}
+  refresh-token-expire: ${JWT_REFRESH_TOKEN_EXPIRE:8h}
+
+internal:
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
+
+logging:
+  level:
+    root: info

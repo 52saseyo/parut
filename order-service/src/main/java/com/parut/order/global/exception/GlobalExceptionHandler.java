@@ -1,11 +1,14 @@
 package com.parut.order.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -50,6 +53,18 @@ public class GlobalExceptionHandler {
         log.warn(
                 "[BindException] message={}",
                 e.getMessage()
+        );
+
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
+            MissingRequestHeaderException e
+    ) {
+        log.warn(
+                "[MissingRequestHeaderException] header={}",
+                e.getHeaderName()
         );
 
         return createResponse(ErrorCode.INVALID_INPUT_VALUE);
@@ -116,6 +131,30 @@ public class GlobalExceptionHandler {
         return createResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(
+            DataIntegrityViolationException e
+    ) {
+        log.warn(
+                "[DataIntegrityViolationException] message={}",
+                e.getMessage()
+        );
+
+        return createResponse(ErrorCode.CONCURRENT_MODIFICATION);
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailureException(
+            OptimisticLockingFailureException e
+    ) {
+        log.warn(
+                "[OptimisticLockingFailureException] message={}",
+                e.getMessage()
+        );
+
+        return createResponse(ErrorCode.CONCURRENT_MODIFICATION);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
             IllegalArgumentException e
@@ -126,6 +165,18 @@ public class GlobalExceptionHandler {
         );
 
         return createResponse(ErrorCode.INVALID_REQUEST);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalStateException(
+            IllegalStateException e
+    ) {
+        log.warn(
+                "[IllegalStateException] message={}",
+                e.getMessage()
+        );
+
+        return createResponse(ErrorCode.INVALID_STATE_TRANSITION);
     }
 
     @ExceptionHandler(Exception.class)

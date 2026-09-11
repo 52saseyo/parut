@@ -1,0 +1,2036 @@
+{
+  "info": {
+    "name": "PARUT MVP 기능 단위 시연",
+    "description": "PR #90까지 병합된 코드를 기준으로 구성한 MVP 시연용 Collection입니다. 주문 취소 시나리오는 제외하며, PR #87의 타임딜 전환은 Adapter 연결 수정 전까지 실행할 수 없습니다.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "gatewayBaseUrl",
+      "value": "http://localhost:8080",
+      "type": "string",
+      "description": "외부 API가 경유하는 Gateway 주소."
+    },
+    {
+      "key": "productBaseUrl",
+      "value": "http://localhost:8082",
+      "type": "string",
+      "description": "product-service. Environment 를 선택하지 않았을 때 쓰이는 기본값."
+    },
+    {
+      "key": "orderBaseUrl",
+      "value": "http://localhost:8083",
+      "type": "string",
+      "description": "order-service. 담당자가 포트 확정 후 채운다."
+    },
+    {
+      "key": "userBaseUrl",
+      "value": "http://localhost:8081",
+      "type": "string",
+      "description": "user-service. 담당자가 포트 확정 후 채운다."
+    },
+    {
+      "key": "notificationBaseUrl",
+      "value": "http://localhost:8084",
+      "type": "string",
+      "description": "notification-service. 담당자가 포트 확정 후 채운다."
+    }
+  ],
+  "item": [
+    {
+      "name": "01 공통 시작, 회원과 판매자",
+      "description": "완료 조건: customerId, sellerId, 고객/판매자/관리자 토큰 확보",
+      "item": [
+        {
+          "name": "01-01 고객 회원가입",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.unset('customerAccessToken');",
+                  "pm.environment.unset('sellerAccessToken');",
+                  "pm.environment.unset('sellerPendingAccessToken');",
+                  "pm.environment.unset('adminAccessToken');",
+                  "pm.environment.unset('adminId');",
+                  "pm.environment.unset('sellerApplicationId');",
+                  "pm.environment.unset('sellerId');",
+                  "pm.environment.unset('productId');",
+                  "pm.environment.unset('idempotencyKey');",
+                  "pm.environment.unset('orderId');",
+                  "pm.environment.unset('orderItemId');",
+                  "pm.environment.unset('paymentId');",
+                  "pm.environment.unset('paymentAmount');",
+                  "pm.environment.unset('tossOrderId');",
+                  "pm.environment.unset('paymentKey');",
+                  "pm.environment.unset('deliveryGroupId');",
+                  "pm.environment.unset('deliveryId');",
+                  "pm.environment.unset('trackingNumber');",
+                  "const suffix = String(Date.now()).slice(-10);",
+                  "pm.environment.set('customerUsername', `mvp_c_${suffix}`);",
+                  "pm.environment.set('sellerUsername', `mvp_s_${suffix}`);",
+                  "pm.environment.set('bizRegNo', suffix);",
+                  "if (!pm.environment.get('customerPassword')) pm.environment.set('customerPassword', 'MvpTest1234!');",
+                  "if (!pm.environment.get('sellerPassword')) pm.environment.set('sellerPassword', 'MvpTest1234!');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{customerUsername}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"name\": \"MVP 고객\",\n  \"slackId\": \"mvp-customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/signup",
+            "description": "빈 DB에서 시연용 고객을 생성합니다. 새 실행을 시작하면서 이전 실행 결과 변수를 초기화합니다."
+          }
+        },
+        {
+          "name": "01-02 고객 로그인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerUsername')) throw new Error('customerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('customerPassword')) throw new Error('customerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('고객 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                  "const token = body.data?.access_token ?? body.data?.accessToken;",
+                  "if (token) {",
+                  "  pm.environment.set('customerAccessToken', token);",
+                  "  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                  "  if (payload.sub) pm.environment.set('customerId', payload.sub);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{customerUsername}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/login/user",
+            "description": "고객 Access Token과 JWT subject인 customerId를 자동 저장합니다."
+          }
+        },
+        {
+          "name": "01-03 판매자 입점 신청",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerUsername')) throw new Error('sellerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('bizRegNo')) throw new Error('bizRegNo 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('판매자 상태가 PENDING이다', () => pm.expect(body.data?.status).to.eql('PENDING'));",
+                  "pm.test('sellerId가 있다', () => pm.expect(body.data?.id).to.exist);",
+                  "if (body.data?.id) { pm.environment.set('sellerId', body.data.id); pm.environment.set('sellerApplicationId', body.data.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loginId\": \"{{sellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\",\n  \"companyName\": \"MVP 농장\",\n  \"bizRegNo\": \"{{bizRegNo}}\",\n  \"repName\": \"판매자\",\n  \"bizAddress\": \"서울시 송파구\",\n  \"managerName\": \"담당자\",\n  \"managerPhone\": \"010-1234-5678\",\n  \"managerEmail\": \"mvp-seller@example.com\",\n  \"slackId\": \"mvp-seller\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/apply",
+            "description": "PR #90에서 공개 경로로 추가된 판매자 입점 신청입니다. 판매자는 PENDING 상태로 생성됩니다.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "01-04 PENDING 판매자 로그인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerUsername')) throw new Error('sellerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const token = body.data?.access_token ?? body.data?.accessToken;",
+                  "pm.test('PENDING 판매자 Access Token이 있다', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                  "if (token) {",
+                  "  pm.environment.set('sellerPendingAccessToken', token);",
+                  "  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                  "  pm.test('역할이 PENDING_SELLER이다', () => pm.expect(payload.role).to.eql('PENDING_SELLER'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{sellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/login/seller",
+            "description": "PR #90에서 PENDING 또는 REJECTED 판매자에게 입점 상태 확인용 PENDING_SELLER 토큰을 발급합니다. 승인 전 기능 허용 범위는 정책 확인이 필요합니다."
+          }
+        },
+        {
+          "name": "01-05 PENDING 입점 상태 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerPendingAccessToken')) throw new Error('sellerPendingAccessToken 환경변수가 없습니다. 01-04를 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('입점 상태가 PENDING이다', () => pm.expect(body.data?.status).to.eql('PENDING'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerPendingAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/me/application",
+            "description": "승인 전 판매자가 자신의 입점 신청 상태를 조회합니다."
+          }
+        },
+        {
+          "name": "01-06 관리자 로그인",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('관리자 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                  "const token = body.data?.access_token ?? body.data?.accessToken;",
+                  "if (token) {",
+                  "  pm.environment.set('adminAccessToken', token);",
+                  "  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                  "  if (payload.sub) pm.environment.set('adminId', payload.sub);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/login/admin",
+            "description": "임시 관리자 토큰과 JWT subject인 adminId를 자동 저장합니다."
+          }
+        },
+        {
+          "name": "01-07 판매자 입점 승인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('adminAccessToken')) throw new Error('adminAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerApplicationId')) throw new Error('sellerApplicationId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('판매자 상태가 APPROVED이다', () => pm.expect(body.data?.status).to.eql('APPROVED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"rejectReason\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/applications/{{sellerApplicationId}}",
+            "description": "관리자가 PENDING 판매자를 APPROVED로 변경합니다."
+          }
+        },
+        {
+          "name": "01-08 승인 판매자 재로그인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerUsername')) throw new Error('sellerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('판매자 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                  "const token = body.data?.access_token ?? body.data?.accessToken; if (token) pm.environment.set('sellerAccessToken', token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{sellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/login/seller",
+            "description": "승인 후 다시 로그인해 일반 SELLER Access Token을 자동 저장합니다."
+          }
+        },
+        {
+          "name": "01-09 APPROVED 입점 상태 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01-08을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('입점 상태가 APPROVED이다', () => pm.expect(body.data?.status).to.eql('APPROVED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/me/application",
+            "description": "승인 후 판매자가 자신의 APPROVED 상태와 승인 시각을 조회합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01R 선택 시연, 판매자 입점 거절",
+      "description": "메인 승인 흐름과 별도로 실행합니다. 두 번째 판매자를 거절하고 REJECTED 상태와 거절 사유 조회를 확인합니다.",
+      "item": [
+        {
+          "name": "01R-01 거절 확인용 판매자 입점 신청",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const suffix = String(Date.now()).slice(-10);",
+                  "pm.environment.set('rejectedSellerUsername', `mvp_r_${suffix}`);",
+                  "pm.environment.set('rejectedSellerBizRegNo', `9${suffix.slice(1)}`);",
+                  "pm.environment.unset('rejectedSellerId');",
+                  "pm.environment.unset('rejectedSellerAccessToken');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('판매자 상태가 PENDING이다', () => pm.expect(body.data?.status).to.eql('PENDING'));",
+                  "if (body.data?.id) pm.environment.set('rejectedSellerId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loginId\": \"{{rejectedSellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\",\n  \"companyName\": \"MVP 거절 확인 농장\",\n  \"bizRegNo\": \"{{rejectedSellerBizRegNo}}\",\n  \"repName\": \"판매자\",\n  \"bizAddress\": \"서울시 송파구\",\n  \"managerName\": \"담당자\",\n  \"managerPhone\": \"010-1234-5678\",\n  \"managerEmail\": \"mvp-rejected@example.com\",\n  \"slackId\": \"mvp-rejected\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/apply",
+            "description": "거절 상태와 사유 조회를 확인할 별도 판매자를 PENDING으로 생성합니다."
+          }
+        },
+        {
+          "name": "01R-02 관리자 입점 거절",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('adminAccessToken')) throw new Error('adminAccessToken 환경변수가 없습니다. 01-06을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('rejectedSellerId')) throw new Error('rejectedSellerId 환경변수가 없습니다. 01R-01을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('판매자 상태가 REJECTED이다', () => pm.expect(body.data?.status).to.eql('REJECTED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\",\n  \"rejectReason\": \"사업자 서류 확인이 필요합니다.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/applications/{{rejectedSellerId}}",
+            "description": "관리자가 별도 판매자를 거절하고 거절 사유를 저장합니다."
+          }
+        },
+        {
+          "name": "01R-03 REJECTED 판매자 로그인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('rejectedSellerUsername')) throw new Error('rejectedSellerUsername 환경변수가 없습니다. 01R-01을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const token = body.data?.access_token ?? body.data?.accessToken;",
+                  "pm.test('상태 조회용 토큰이 있다', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                  "if (token) pm.environment.set('rejectedSellerAccessToken', token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{rejectedSellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/auth/login/seller",
+            "description": "거절된 판매자도 자신의 상태와 거절 사유를 확인할 수 있도록 PENDING_SELLER 토큰을 발급받습니다."
+          }
+        },
+        {
+          "name": "01R-04 REJECTED 상태와 사유 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('rejectedSellerAccessToken')) throw new Error('rejectedSellerAccessToken 환경변수가 없습니다. 01R-03을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('REJECTED 상태와 거절 사유가 있다', () => { pm.expect(body.data?.status).to.eql('REJECTED'); pm.expect(body.data?.rejectReason).to.eql('사업자 서류 확인이 필요합니다.'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{rejectedSellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/sellers/me/application",
+            "description": "거절된 판매자가 REJECTED 상태와 관리자가 입력한 거절 사유를 조회합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 일반 상품 판매 준비",
+      "description": "완료 조건: productId 확보, 대표 이미지 준비, 상품 ON_SALE",
+      "item": [
+        {
+          "name": "02-01 일반 상품과 초기 재고 등록",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "pm.test('productId가 있다', () => pm.expect(body.data?.productId).to.exist);",
+                  "if (body.data?.productId) pm.environment.set('productId', body.data.productId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"MVP 사과\",\n  \"description\": \"MVP 시연용 일반 상품\",\n  \"price\": 10000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1,\n  \"totalQuantity\": 100,\n  \"lowStockThreshold\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
+            "description": "PR #90에서 추가된 Gateway 판매자 상품 경로로 상품과 초기 재고를 등록합니다."
+          }
+        },
+        {
+          "name": "02-02 대표 이미지 메타데이터 등록",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01-08을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.unset('productImageId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "pm.test('imageId가 있다', () => pm.expect(body.data?.imageId).to.exist);",
+                  "if (body.data?.imageId) pm.environment.set('productImageId', body.data.imageId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageKey\": \"mvp/products/{{productId}}/main.jpg\",\n  \"originalName\": \"main.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 1024\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{productId}}/image",
+            "description": "PR #83의 이미지 메타데이터 등록 API를 PR #90의 Gateway 판매자 상품 경로로 호출합니다. 실제 이미지 파일 업로드가 아니라 메타데이터 저장과 상품 imageId 연결을 확인합니다."
+          }
+        },
+        {
+          "name": "02-03 상품 판매 시작",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('상품 상태가 ON_SALE이다', () => pm.expect(body.data?.status).to.eql('ON_SALE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ON_SALE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{productId}}/status",
+            "description": "대표 이미지 등록 후 PR #90의 Gateway 판매자 상품 경로로 상품을 ON_SALE 상태로 변경합니다."
+          }
+        },
+        {
+          "name": "02-04 고객 상품 상세 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('요청한 상품이다', () => pm.expect(body.data?.productId).to.eql(pm.environment.get('productId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/products/{{productId}}",
+            "description": "판매 중 상품이 고객 공개 조회에서 노출되는지 확인합니다.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 일반 상품 주문과 결제",
+      "description": "완료 조건: Order PAID, Payment DONE, 배송 그룹 PREPARING",
+      "item": [
+        {
+          "name": "03-01 일반 상품 주문 생성",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200 또는 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "pm.test('orderId가 있다', () => pm.expect(body.data?.orderId).to.exist);",
+                  "if (body.data?.orderId) pm.environment.set('orderId', body.data.orderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  },\n  \"removeFromCart\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/orders",
+            "description": "주문과 일반 재고 예약을 생성합니다. 현재 Order 내부 호출에 X-User-Id가 없어 Product의 p_product_stock_reservations.created_by NOT NULL 제약 위반이 발생하면 Product 500이 Order의 SERVICE_UNAVAILABLE 503으로 변환됩니다. 실패한 주문은 보상 삭제됩니다."
+          }
+        },
+        {
+          "name": "03-02 결제 준비",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('결제 준비 값이 모두 있다', () => { pm.expect(body.data?.paymentId).to.exist; pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                  "if (body.data?.paymentId) pm.environment.set('paymentId', body.data.paymentId);",
+                  "if (body.data?.tossOrderId) pm.environment.set('tossOrderId', body.data.tossOrderId);",
+                  "if (body.data?.amount !== undefined) pm.environment.set('paymentAmount', body.data.amount);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
+            "description": "결제 승인에 필요한 paymentId, tossOrderId와 amount를 저장합니다."
+          }
+        },
+        {
+          "name": "03-03 Mock 결제 승인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('tossOrderId')) throw new Error('tossOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('paymentAmount')) throw new Error('paymentAmount 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('paymentKey', `MOCK-PAYMENT-${Date.now()}`);",
+                  "pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('결제와 주문 상태가 완료다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });",
+                  "if (body.data?.paymentId) pm.environment.set('paymentId', body.data.paymentId);",
+                  "if (body.data?.orderId) pm.environment.set('orderId', body.data.orderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentKey\": \"{{paymentKey}}\",\n  \"tossOrderId\": \"{{tossOrderId}}\",\n  \"amount\": {{paymentAmount}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
+            "description": "Mock 결제를 승인하고 Payment DONE, Order PAID를 확인합니다."
+          }
+        },
+        {
+          "name": "03-04 결제 완료 주문 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('주문과 결제가 완료 상태다', () => { pm.expect(body.data?.orderStatus).to.eql('PAID'); pm.expect(body.data?.payment?.paymentStatus).to.eql('DONE'); });",
+                  "pm.test('배송 그룹이 있다', () => pm.expect(body.data?.deliveryGroups?.[0]?.deliveryGroupId).to.exist);",
+                  "const group = body.data?.deliveryGroups?.[0]; const item = group?.items?.[0];",
+                  "if (group?.deliveryGroupId) pm.environment.set('deliveryGroupId', group.deliveryGroupId);",
+                  "if (item?.orderItemId) pm.environment.set('orderItemId', item.orderItemId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}",
+            "description": "Order PAID, Payment DONE, 배송 그룹 PREPARING을 확인하고 orderItemId와 deliveryGroupId를 저장합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 배송과 주문상품 구매확정",
+      "description": "완료 조건: Delivery DELIVERED, OrderItem CONFIRMED, Order PAID 유지",
+      "item": [
+        {
+          "name": "04-01 판매자 배송 조회와 deliveryId 저장",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
+                  "if (body.data?.[0]?.deliveryId) pm.environment.set('deliveryId', body.data[0].deliveryId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/deliveries?orderId={{orderId}}",
+            "description": "판매자 소유 배송을 조회하고 camelCase deliveryId를 저장합니다.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04-02 판매자 운송장 등록",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('deliveryId')) throw new Error('deliveryId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('trackingNumber', `MVP-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('배송 상태가 SHIPPED이다', () => pm.expect(body.data?.status).to.eql('SHIPPED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackingNumber\": \"{{trackingNumber}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/deliveries/{{deliveryId}}/ship",
+            "description": "저장된 deliveryId로 배송을 SHIPPED로 변경합니다."
+          }
+        },
+        {
+          "name": "04-03 배송 완료 확인, 운송장 등록 60초 후",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('배송 그룹이 DELIVERED이다', () => pm.expect(body.data?.deliveryGroups?.[0]?.groupStatus).to.eql('DELIVERED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}",
+            "description": "운송장 등록 후 60초 이상 기다리고 실행합니다. 스케줄러 주기에 따라 아직 SHIPPED이면 잠시 후 다시 실행합니다."
+          }
+        },
+        {
+          "name": "04-04 주문상품 구매확정",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderItemId')) throw new Error('orderItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('구매확정 결과가 저장됐다', () => { pm.expect(body.data?.confirmed).to.eql(true); pm.expect(body.data?.confirmedAt).to.exist; });",
+                  "if (body.data?.confirmedAt) pm.environment.set('confirmedAt', body.data.confirmedAt);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
+            "description": "배송 완료된 주문상품을 CONFIRMED로 변경하고 confirmedAt을 확인합니다."
+          }
+        },
+        {
+          "name": "04-05 중복 구매확정 확인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderItemId')) throw new Error('orderItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('최초 확정 시각이 유지된다', () => { pm.expect(body.data?.confirmed).to.eql(true); pm.expect(body.data?.confirmedAt).to.eql(pm.environment.get('confirmedAt')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
+            "description": "같은 요청을 다시 실행해 최초 confirmedAt이 유지되는지 확인합니다."
+          }
+        },
+        {
+          "name": "04-06 최종 주문 상태 확인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('주문상품만 구매확정됐다', () => { pm.expect(body.data?.orderStatus).to.eql('PAID'); pm.expect(body.data?.deliveryGroups?.[0]?.items?.[0]?.itemStatus).to.eql('CONFIRMED'); pm.expect(body.data?.deliveryGroups?.[0]?.items?.[0]?.confirmedAt).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}",
+            "description": "주문상품 CONFIRMED와 주문 전체 PAID 유지 여부를 확인합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 일반 상품에서 타임딜 전환, 주문과 결제",
+      "description": "PR #87의 일반 재고 할당과 PR #81, #84를 연결합니다. PR #87은 병합됐지만 ProductStockAllocationAdapter가 아직 미연결이라 수정 전에는 06-01이 실패합니다.",
+      "item": [
+        {
+          "name": "06-01 일반 상품에서 타임딜 전환",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sellerAccessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 20,\n  \"discountRate\": 20,\n  \"startAt\": \"{{timeDealStartAt}}\",\n  \"endAt\": \"{{timeDealEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"lowStockThreshold\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
+            "description": "일반 상품 재고 20개를 타임딜 전용 재고로 할당합니다. PR #87은 병합됐지만 Adapter가 아직 UnsupportedOperationException을 발생시키므로 productStockService.allocate(command) 연결 수정 후 성공합니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 02 일반 상품 흐름을 먼저 실행하세요.');",
+                  "const now = Date.now();",
+                  "pm.environment.set('timeDealStartAt', new Date(now + 5000).toISOString());",
+                  "pm.environment.set('timeDealEndAt', new Date(now + 3600000).toISOString());",
+                  "pm.environment.unset('timeDealId');",
+                  "pm.environment.unset('timeDealOrderId');",
+                  "pm.environment.unset('timeDealPaymentId');",
+                  "pm.environment.unset('timeDealTossOrderId');",
+                  "pm.environment.unset('timeDealPaymentAmount');",
+                  "pm.environment.unset('timeDealConfirmOrderId');",
+                  "pm.environment.unset('timeDealCancelOrderId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "pm.test('전환된 타임딜이 SCHEDULED로 생성된다', () => { pm.expect(body.data?.status).to.eql('SCHEDULED'); pm.expect(body.data?.productId).to.eql(pm.environment.get('productId')); });",
+                  "pm.test('timeDealId가 있다', () => pm.expect(body.data?.timeDealId).to.exist);",
+                  "if (body.data?.timeDealId) pm.environment.set('timeDealId', body.data.timeDealId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-02 내부 타임딜 상세 조회",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              }
+            ],
+            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}",
+            "description": "PR #81의 내부 조회 API로 주문 스냅샷에 사용할 상품명, 판매자, 정가와 할인가를 확인합니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('생성한 타임딜 상세가 반환된다', () => pm.expect(body.data?.timeDealId).to.eql(pm.environment.get('timeDealId')));",
+                  "pm.test('정가와 할인가가 있다', () => { pm.expect(body.data?.originalPrice).to.be.a('number'); pm.expect(body.data?.dealPrice).to.be.a('number'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-03 타임딜 주문 생성",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productId')) throw new Error('PR #84 요청 계약상 productId가 필요합니다. 02 일반 상품 흐름을 먼저 실행하세요.');",
+                  "pm.environment.set('timeDealIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.unset('timeDealOrderId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200 또는 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.test('타임딜 주문이 생성됐다', () => { pm.expect(body.data?.orderId).to.exist; pm.expect(body.data?.orderType).to.eql('TIME_DEAL'); });",
+                  "if (body.data?.orderId) pm.environment.set('timeDealOrderId', body.data.orderId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{timeDealIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timeDealId\": \"{{timeDealId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/time-deals",
+            "description": "PR #84의 타임딜 주문과 전용 재고 선점을 검증합니다. timeDealId와 PR #87에서 전환한 원본 productId를 함께 전달합니다."
+          }
+        },
+        {
+          "name": "06-04 타임딜 결제 준비",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealOrderId')) throw new Error('timeDealOrderId 환경변수가 없습니다. 06-03을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('결제 준비 값이 모두 있다', () => { pm.expect(body.data?.paymentId).to.exist; pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                  "if (body.data?.paymentId) pm.environment.set('timeDealPaymentId', body.data.paymentId);",
+                  "if (body.data?.tossOrderId) pm.environment.set('timeDealTossOrderId', body.data.tossOrderId);",
+                  "if (body.data?.amount !== undefined) pm.environment.set('timeDealPaymentAmount', body.data.amount);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{timeDealOrderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
+            "description": "타임딜 주문의 결제 준비 값을 일반 주문과 분리해 저장합니다."
+          }
+        },
+        {
+          "name": "06-05 타임딜 Mock 결제 승인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealTossOrderId')) throw new Error('timeDealTossOrderId 환경변수가 없습니다. 06-04를 먼저 실행하세요.');",
+                  "if (!pm.environment.get('timeDealPaymentAmount')) throw new Error('timeDealPaymentAmount 환경변수가 없습니다. 06-04를 먼저 실행하세요.');",
+                  "pm.environment.set('timeDealPaymentKey', `MOCK-TIME-DEAL-${Date.now()}`);",
+                  "pm.environment.set('timeDealPaymentIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('타임딜 결제와 주문이 완료됐다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{timeDealPaymentIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentKey\": \"{{timeDealPaymentKey}}\",\n  \"tossOrderId\": \"{{timeDealTossOrderId}}\",\n  \"amount\": {{timeDealPaymentAmount}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
+            "description": "Mock 결제를 승인하고 Product의 타임딜 선점 재고를 확정한 뒤 주문을 PAID로 변경합니다."
+          }
+        },
+        {
+          "name": "06-06 타임딜 결제 완료 주문 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealOrderId')) throw new Error('timeDealOrderId 환경변수가 없습니다. 06-03을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('타임딜 주문과 결제가 완료 상태다', () => { pm.expect(body.data?.orderType).to.eql('TIME_DEAL'); pm.expect(body.data?.orderStatus).to.eql('PAID'); pm.expect(body.data?.payment?.paymentStatus).to.eql('DONE'); });",
+                  "pm.test('주문상품에 timeDealId가 저장됐다', () => pm.expect(body.data?.deliveryGroups?.[0]?.items?.[0]?.timeDealId).to.eql(pm.environment.get('timeDealId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{timeDealOrderId}}",
+            "description": "타임딜 주문 스냅샷, Payment DONE과 Order PAID를 확인합니다."
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 시연 제외, 타임딜 Product 개별 기능",
+      "description": "메인 시연에서는 실행하지 않습니다. Order 주문 취소가 아니라 Product 내부 선점, 확정과 재고 복원 기능을 개별 확인하는 요청입니다.",
+      "item": [
+        {
+          "name": "07-01 타임딜 구매 선점, 내부 기능",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{customerId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+            "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. 타임딜 가용 수량이 감소하고 구매 이력이 RESERVED로 생성됩니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('timeDealConfirmOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-02 타임딜 구매 확정, 내부 기능",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              }
+            ],
+            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
+            "description": "선점된 구매를 확정해 구매 상태 CONFIRMED와 판매 수량 증가를 검증합니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealConfirmOrderId')) throw new Error('timeDealConfirmOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-03 취소 확인용 타임딜 구매 선점, 내부 기능",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "{{customerId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{timeDealCancelOrderId}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+            "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('timeDealCancelOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-04 타임딜 구매 취소, 내부 기능",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Service-Key",
+                "value": "{{serviceKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"MVP_CANCEL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
+            "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 예약 재고 복원을 확인합니다."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealCancelOrderId')) throw new Error('timeDealCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
