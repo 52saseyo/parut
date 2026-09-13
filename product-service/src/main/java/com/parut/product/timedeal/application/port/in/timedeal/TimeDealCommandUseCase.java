@@ -5,8 +5,11 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 
 public interface TimeDealCommandUseCase {
+
+    void delete(TimeDealDeleteCommand command);
 
     TimeDealUpdateResult update(TimeDealUpdateCommand command);
 

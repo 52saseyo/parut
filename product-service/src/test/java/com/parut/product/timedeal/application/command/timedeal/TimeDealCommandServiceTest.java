@@ -8,6 +8,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
@@ -74,6 +75,118 @@ class TimeDealCommandServiceTest {
                 productStockAllocationPort,
                 new TimeDealAuthorizationChecker()
         );
+    }
+
+    @Nested
+    @DisplayName("타임딜 삭제")
+    class Delete {
+        private final UUID id = UUID.randomUUID();
+
+        private TimeDeal existingTimeDeal() {
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), null, "사과", "설명",
+                    TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
+                    BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
+
+            ReflectionTestUtils.setField(timeDeal, "id", id);
+
+            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            return timeDeal;
+        }
+
+        private TimeDealStock existingStock() {
+            TimeDealStock stock = TimeDealStock.create(id, 100, 10);
+            when(timeDealStockRepository.findByTimeDealId(id)).thenReturn(Optional.of(stock));
+            return stock;
+        }
+
+        @Test
+        void 판매자_본인은_타임딜과_재고를_함께_삭제한다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            TimeDealStock stock = existingStock();
+            timeDealCommandService.delete(new TimeDealDeleteCommand(id, SELLER_ID, "SELLER"));
+            assertThat(timeDeal.isDeleted()).isTrue();
+            assertThat(stock.isDeleted()).isTrue();
+            assertThat(timeDeal.getDeletedBy()).isEqualTo(SELLER_ID.toString());
+            assertThat(stock.getDeletedBy()).isEqualTo(SELLER_ID.toString());
+            verify(timeDealRepository).save(timeDeal);
+            verify(timeDealStockRepository).save(stock);
+            verifyNoInteractions(productStockAllocationPort);
+        }
+
+        @Test
+        void 관리자는_타인의_타임딜을_삭제하고_관리자_ID를_기록한다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            TimeDealStock stock = existingStock();
+            UUID adminId = UUID.randomUUID();
+            timeDealCommandService.delete(new TimeDealDeleteCommand(id, adminId, "ADMIN"));
+            assertThat(timeDeal.getDeletedBy()).isEqualTo(adminId.toString());
+            assertThat(stock.getDeletedBy()).isEqualTo(adminId.toString());
+        }
+
+        @Test
+        void 다른_판매자는_삭제할_수_없다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, UUID.randomUUID(), "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            assertThat(timeDeal.isDeleted()).isFalse();
+            verifyNoInteractions(timeDealStockRepository);
+        }
+
+        @Test
+        void 구매자는_소유자_ID가_같아도_삭제할_수_없다() {
+            existingTimeDeal();
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, SELLER_ID, "CUSTOMER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            verifyNoInteractions(timeDealStockRepository);
+        }
+
+        @Test
+        void 타임딜이_없으면_404다() {
+            when(timeDealRepository.findById(id)).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_FOUND);
+            verifyNoInteractions(timeDealStockRepository);
+        }
+
+        @Test
+        void 재고_정보가_없으면_타임딜을_삭제하지_못하고_예외가_발생한다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            when(timeDealStockRepository.findByTimeDealId(id)).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND);
+            assertThat(timeDeal.isDeleted()).isFalse();
+            verify(timeDealRepository, never()).save(any());
+        }
+
+        @Test
+        void 판매중이면_둘다_삭제하지_않는다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            TimeDealStock stock = existingStock();
+            timeDeal.activate(START_AT);
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED);
+            assertThat(timeDeal.isDeleted()).isFalse();
+            assertThat(stock.isDeleted()).isFalse();
+        }
+
+        @Test
+        void 선점된_재고가_있으면_둘다_삭제하지_않는다() {
+            TimeDeal timeDeal = existingTimeDeal();
+            TimeDealStock stock = existingStock();
+            stock.reserve(1);
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_STOCK_DELETE_NOT_ALLOWED);
+            assertThat(timeDeal.isDeleted()).isFalse();
+            assertThat(stock.isDeleted()).isFalse();
+            verify(timeDealRepository, never()).save(any());
+            verify(timeDealStockRepository, never()).save(any());
+        }
     }
 
     @Nested
@@ -230,14 +343,14 @@ class TimeDealCommandServiceTest {
     class Update {
 
         private TimeDeal existingTimeDeal(UUID id) {
-            TimeDeal deal = TimeDeal.create(SELLER_ID, null, null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, null, null, "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
 
-            ReflectionTestUtils.setField(deal, "id", id);
+            ReflectionTestUtils.setField(timeDeal, "id", id);
 
-            when(timeDealRepository.findById(id)).thenReturn(Optional.of(deal));
-            return deal;
+            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            return timeDeal;
         }
 
         private TimeDealUpdateCommand updateCommand(UUID id, UUID requesterId, String role) {
@@ -249,55 +362,55 @@ class TimeDealCommandServiceTest {
         @Test
         void 판매자_본인의_부분수정은_기존값을_유지하고_가격을_재계산한다() {
             UUID id = UUID.randomUUID();
-            TimeDeal deal = existingTimeDeal(id);
+            TimeDeal timeDeal = existingTimeDeal(id);
             Instant updatedAt = Instant.parse("2026-09-13T13:00:00Z");
-            when(timeDealRepository.saveAndFlush(deal)).thenAnswer(invocation -> {
-                ReflectionTestUtils.setField(deal, "updatedAt", updatedAt);
-                return deal;
+            when(timeDealRepository.saveAndFlush(timeDeal)).thenAnswer(invocation -> {
+                ReflectionTestUtils.setField(timeDeal, "updatedAt", updatedAt);
+                return timeDeal;
             });
             TimeDealUpdateResult result = timeDealCommandService.update(updateCommand(id, SELLER_ID, "SELLER"));
             assertThat(result.timeDealId()).isEqualTo(id);
             assertThat(result.status()).isEqualTo(TimeDealStatus.SCHEDULED);
             assertThat(result.updatedAt()).isEqualTo(updatedAt);
-            assertThat(deal.getName()).isEqualTo("수정 사과");
-            assertThat(deal.getDealPrice()).isEqualTo(8_000L);
-            assertThat(deal.getOriginalPrice()).isEqualTo(10_000L);
-            assertThat(deal.getStartAt()).isEqualTo(START_AT);
-            assertThat(deal.getSellerId()).isEqualTo(SELLER_ID);
-            verify(timeDealRepository).saveAndFlush(deal);
+            assertThat(timeDeal.getName()).isEqualTo("수정 사과");
+            assertThat(timeDeal.getDealPrice()).isEqualTo(8_000L);
+            assertThat(timeDeal.getOriginalPrice()).isEqualTo(10_000L);
+            assertThat(timeDeal.getStartAt()).isEqualTo(START_AT);
+            assertThat(timeDeal.getSellerId()).isEqualTo(SELLER_ID);
+            verify(timeDealRepository).saveAndFlush(timeDeal);
             verifyNoInteractions(timeDealStockRepository, productStockAllocationPort);
         }
 
         @Test
         void 관리자는_다른_판매자의_타임딜을_수정한다() {
             UUID id = UUID.randomUUID();
-            TimeDeal deal = existingTimeDeal(id);
-            when(timeDealRepository.saveAndFlush(deal)).thenReturn(deal);
+            TimeDeal timeDeal = existingTimeDeal(id);
+            when(timeDealRepository.saveAndFlush(timeDeal)).thenReturn(timeDeal);
             timeDealCommandService.update(updateCommand(id, UUID.randomUUID(), "ADMIN"));
-            assertThat(deal.getName()).isEqualTo("수정 사과");
-            assertThat(deal.getSellerId()).isEqualTo(SELLER_ID);
-            verify(timeDealRepository).saveAndFlush(deal);
+            assertThat(timeDeal.getName()).isEqualTo("수정 사과");
+            assertThat(timeDeal.getSellerId()).isEqualTo(SELLER_ID);
+            verify(timeDealRepository).saveAndFlush(timeDeal);
         }
 
         @Test
         void 다른_판매자는_수정할_수_없고_객체도_변경되지_않는다() {
             UUID id = UUID.randomUUID();
-            TimeDeal deal = existingTimeDeal(id);
+            TimeDeal timeDeal = existingTimeDeal(id);
             assertThatThrownBy(() -> timeDealCommandService.update(
                     updateCommand(id, UUID.randomUUID(), "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
-            assertThat(deal.getName()).isEqualTo("사과");
+            assertThat(timeDeal.getName()).isEqualTo("사과");
             verify(timeDealRepository, never()).saveAndFlush(any());
         }
 
         @Test
         void 구매자는_소유자_ID가_같아도_수정하지_못한다() {
             UUID id = UUID.randomUUID();
-            TimeDeal deal = existingTimeDeal(id);
+            TimeDeal timeDeal = existingTimeDeal(id);
             assertThatThrownBy(() -> timeDealCommandService.update(
                     updateCommand(id, SELLER_ID, "CUSTOMER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
-            assertThat(deal.getName()).isEqualTo("사과");
+            assertThat(timeDeal.getName()).isEqualTo("사과");
             verify(timeDealRepository, never()).saveAndFlush(any());
         }
 
@@ -313,11 +426,11 @@ class TimeDealCommandServiceTest {
         @Test
         void 판매중인_타임딜은_수정할_수_없다() {
             UUID id = UUID.randomUUID();
-            TimeDeal deal = existingTimeDeal(id);
-            deal.activate(START_AT);
+            TimeDeal timeDeal = existingTimeDeal(id);
+            timeDeal.activate(START_AT);
             assertThatThrownBy(() -> timeDealCommandService.update(updateCommand(id, SELLER_ID, "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
-            assertThat(deal.getName()).isEqualTo("사과");
+            assertThat(timeDeal.getName()).isEqualTo("사과");
             verify(timeDealRepository, never()).saveAndFlush(any());
         }
     }

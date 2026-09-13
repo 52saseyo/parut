@@ -10,6 +10,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -38,6 +39,22 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockAllocationPort productStockAllocationPort;
     private final TimeDealAuthorizationChecker authorizationChecker;
+
+    @Override
+    @Transactional
+    public void delete(TimeDealDeleteCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findById(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+        TimeDealStock stock = timeDealStockRepository.findByTimeDealId(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
+
+        // NOTE: 타임딜과 재고를 함께 soft delete한다. 일반 상품 재고 반환은 별도 유스케이스다.
+        timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
+        timeDealRepository.save(timeDeal);
+        timeDealStockRepository.save(stock);
+    }
 
     @Override
     @Transactional
