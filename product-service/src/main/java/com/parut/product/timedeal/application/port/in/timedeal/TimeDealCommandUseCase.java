@@ -3,8 +3,12 @@ package com.parut.product.timedeal.application.port.in.timedeal;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 
 public interface TimeDealCommandUseCase {
+
+    TimeDealUpdateResult update(TimeDealUpdateCommand command);
 
     // NOTE: 판매자 직접 등록. 타임딜과 재고를 함께 만들고 생성된 타임딜의 식별자·상태·기간을 돌려준다.
     TimeDealCreateResult create(TimeDealCreateCommand timeDealCreateCommand);
