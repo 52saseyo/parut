@@ -32,10 +32,11 @@ public class TimeDealController {
     @PostMapping
     public ResponseEntity<ApiResponse<TimeDealCreateResponse>> create(
             @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody TimeDealCreateRequest timeDealCreateRequest
     ) {
         TimeDealCreateResult timeDealCreateResult =
-                timeDealCommandUseCase.create(timeDealCreateRequest.toCommand(sellerId));
+                timeDealCommandUseCase.create(timeDealCreateRequest.toCommand(sellerId, requesterRole));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(TimeDealCreateResponse.from(timeDealCreateResult), null));
     }

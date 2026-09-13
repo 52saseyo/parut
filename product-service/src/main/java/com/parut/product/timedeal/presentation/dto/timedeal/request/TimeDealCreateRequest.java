@@ -52,9 +52,10 @@ public record TimeDealCreateRequest(
 ) {
 
     // NOTE: 변환을 Request에 두는 이유는 의존 방향이다 — Command가 Request를 알면 역전이다.
-    public TimeDealCreateCommand toCommand(UUID sellerId) {
+    public TimeDealCreateCommand toCommand(UUID sellerId, String requesterRole) {
         return new TimeDealCreateCommand(
                 sellerId,
+                requesterRole,
                 imageId,
                 name,
                 description,
