@@ -2,13 +2,25 @@ package com.parut.product.timedeal.presentation.dto.timedeal.response;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
+import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 public record TimeDealPublicDetailResponse(
         UUID timeDealId,
         UUID productId,
+        UUID sellerId,
+        UUID imageId,
+        String name,
+        String description,
+        TimeDealProductGrade productGrade,
+        String origin,
+        LocalDate harvestedDate,
+        Long originalPrice,
+        BigDecimal discountRate,
         Long dealPrice,
         Instant startAt,
         Instant endAt,
@@ -28,6 +40,15 @@ public record TimeDealPublicDetailResponse(
         return new TimeDealPublicDetailResponse(
                 timeDealPublicDetailView.timeDealId(),
                 timeDealPublicDetailView.productId(),
+                timeDealPublicDetailView.sellerId(),
+                timeDealPublicDetailView.imageId(),
+                timeDealPublicDetailView.name(),
+                timeDealPublicDetailView.description(),
+                timeDealPublicDetailView.productGrade(),
+                timeDealPublicDetailView.origin(),
+                timeDealPublicDetailView.harvestedDate(),
+                timeDealPublicDetailView.originalPrice(),
+                timeDealPublicDetailView.discountRate(),
                 timeDealPublicDetailView.dealPrice(),
                 timeDealPublicDetailView.startAt(),
                 timeDealPublicDetailView.endAt(),

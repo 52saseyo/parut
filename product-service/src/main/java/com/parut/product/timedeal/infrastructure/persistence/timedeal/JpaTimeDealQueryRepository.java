@@ -16,7 +16,9 @@ public interface JpaTimeDealQueryRepository extends JpaRepository<TimeDeal, UUID
     // NOTE: 판매 조건과 재고를 한 번에 조회하고, 삭제된 타임딜·재고는 제외한다.
     @Query("""
             select new com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView(
-                       t.id, t.productId, t.dealPrice, t.startAt, t.endAt,
+                       t.id, t.productId, t.sellerId, t.imageId, t.name, t.description,
+                       t.productGrade, t.origin, t.harvestedDate, t.originalPrice, t.discountRate,
+                       t.dealPrice, t.startAt, t.endAt,
                        t.maxPurchaseQuantity, t.status,
                        s.availableQuantity, s.reservedQuantity, s.soldQuantity, s.lowStockThreshold)
               from TimeDeal t
