@@ -7,6 +7,9 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealUpdateResponse;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
+import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
+import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealPublicDetailResponse;
+import org.springframework.web.bind.annotation.GetMapping;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealConvertRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealCreateRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealUpdateRequest;
@@ -33,6 +36,17 @@ import java.util.UUID;
 public class TimeDealController {
 
     private final TimeDealCommandUseCase timeDealCommandUseCase;
+    private final TimeDealQueryUseCase timeDealQueryUseCase;
+
+    @GetMapping("/{timeDealId}")
+    public ResponseEntity<ApiResponse<TimeDealPublicDetailResponse>> getDetail(
+            @PathVariable UUID timeDealId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+    ) {
+        TimeDealPublicDetailResponse response =
+                TimeDealPublicDetailResponse.from(timeDealQueryUseCase.getPublicDetail(timeDealId));
+        return ResponseEntity.ok(ApiResponse.success(response, traceId));
+    }
 
     @DeleteMapping("/{timeDealId}")
     public ResponseEntity<ApiResponse<Void>> delete(
