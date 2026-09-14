@@ -20,4 +20,5 @@ public interface ProductStockService {
     void restore(UUID productId, UUID orderId, UUID orderItemId);
     Page<ProductStock> getStockList(UUID sellerId, Pageable pageable);
     ProductStockAllocateResult allocate(ProductStockAllocateCommand command);
+    void deallocate(ProductStockAllocateCommand command);
 }
