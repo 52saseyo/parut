@@ -28,13 +28,18 @@ public class ProductStockReservationExpirationScheduler {
     @Scheduled(fixedRateString = "${parut.product-stock.scheduler-rate}")
     public void expireReservations() {
 
+        Instant expirationCutoff = Instant.now();
         Instant cursorExpiresAt = null;
         UUID cursorId = null;
 
         Pageable pageable = PageRequest.of(0, BATCH_SIZE);
         while(true) {
-            List<ProductStockReservation> reservations  = productStockReservationRepository
-                    .findNextExpiredBatch(ReservationStatus.RESERVED, Instant.now(), cursorExpiresAt, cursorId, pageable);
+            List<ProductStockReservation> reservations = (cursorExpiresAt == null)
+                    ? productStockReservationRepository.findFirstExpiredBatch(
+                    ReservationStatus.RESERVED,expirationCutoff, pageable)
+                    : productStockReservationRepository.findNextExpiredBatchByCursor(
+                    ReservationStatus.RESERVED, expirationCutoff, cursorExpiresAt, cursorId, pageable);
+
             if (reservations.isEmpty()) {
                 break;
             }
@@ -47,7 +52,11 @@ public class ProductStockReservationExpirationScheduler {
                 } catch (BusinessException e) {
                     log.warn("[ExpirationScheduler] 예약 만료 처리 실패: reservationId={}, errorCode={}, message={}",
                             reservation.getId(), e.getErrorCode(), e.getMessage());
-                    productStockReservationExpirationProcessor.expirationFailed(reservation.getId());
+                    try {
+                        productStockReservationExpirationProcessor.expirationFailed(reservation.getId());
+                    } catch (Exception ex) {
+                        log.error("[ExpirationScheduler] 격리 처리 자체도 실패: reservationId={}", reservation.getId(), ex);
+                    }
                 } catch (Exception e) {
                     log.error("[ExpirationScheduler] 예상하지 못한 예약 만료 처리 실패: reservationId={}",
                             reservation.getId(), e);
