@@ -36,6 +36,7 @@ public enum ErrorCode {
     PRODUCT_STOCK_SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
 
     // time deal
+    TIME_DEAL_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 타임딜 작업에 대한 권한이 없습니다."),
     TIME_DEAL_INVALID_SELLER_ID(HttpStatus.BAD_REQUEST, "판매자 정보는 필수입니다."),
     TIME_DEAL_INVALID_NAME(HttpStatus.BAD_REQUEST, "타임딜 상품명은 비어 있을 수 없으며 150자를 넘을 수 없습니다."),
     TIME_DEAL_INVALID_PRODUCT_GRADE(HttpStatus.BAD_REQUEST, "타임딜 상품 품질은 필수입니다."),

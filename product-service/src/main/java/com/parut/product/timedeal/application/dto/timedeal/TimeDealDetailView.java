@@ -2,6 +2,7 @@ package com.parut.product.timedeal.application.dto.timedeal;
 
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -14,7 +15,9 @@ public record TimeDealDetailView(
         UUID sellerId,
         UUID imageId,
         String productName,
+        String description,
         Long originalPrice,
+        BigDecimal discountRate,
         Long dealPrice,
         TimeDealProductGrade productGrade,
         String origin,

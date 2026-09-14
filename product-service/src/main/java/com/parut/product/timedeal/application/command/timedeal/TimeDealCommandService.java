@@ -4,9 +4,13 @@ import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -34,12 +38,50 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockAllocationPort productStockAllocationPort;
+    private final TimeDealAuthorizationChecker authorizationChecker;
+
+    @Override
+    @Transactional
+    public void delete(TimeDealDeleteCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findById(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+        TimeDealStock stock = timeDealStockRepository.findByTimeDealId(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
+
+        // NOTE: 타임딜과 재고를 함께 soft delete한다. 일반 상품 재고 반환은 별도 유스케이스다.
+        timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
+        timeDealRepository.save(timeDeal);
+        timeDealStockRepository.save(stock);
+    }
+
+    @Override
+    @Transactional
+    public TimeDealUpdateResult update(TimeDealUpdateCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findById(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+
+        Instant now = Instant.now();
+        // NOTE: 단일 애그리거트 수정이므로 TimeDealPolicy의 조율 없이 도메인에 위임한다.
+        timeDeal.update(
+                command.imageId(), command.name(), command.description(), command.productGrade(),
+                command.origin(), command.harvestedDate(), command.originalPrice(), command.discountRate(),
+                command.startAt(), command.endAt(), command.maxPurchaseQuantity(), now
+        );
+        // NOTE: flush 시 갱신되는 감사 필드 updatedAt을 응답에 반영한다.
+        TimeDeal savedTimeDeal = timeDealRepository.saveAndFlush(timeDeal);
+        return TimeDealUpdateResult.from(savedTimeDeal);
+    }
 
 
     // NOTE: 직접 등록이라 productId는 null이다 — 표시 정보는 판매자가 입력한 값이 그대로 스냅샷이 된다.
     @Override
     @Transactional
     public TimeDealCreateResult create(TimeDealCreateCommand timeDealCreateCommand) {
+        authorizationChecker.requireSellerOrAdmin(timeDealCreateCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
@@ -83,6 +125,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     @Transactional
     public TimeDealCreateResult convert(TimeDealConvertCommand timeDealConvertCommand) {
+        authorizationChecker.requireSellerOrAdmin(timeDealConvertCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
@@ -141,4 +184,3 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         }
     }
 }
-
