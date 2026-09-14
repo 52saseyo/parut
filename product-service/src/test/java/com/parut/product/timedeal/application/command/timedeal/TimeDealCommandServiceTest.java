@@ -2,8 +2,10 @@ package com.parut.product.timedeal.application.command.timedeal;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
@@ -31,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 // NOTE: Repository만 mock하고 TimeDealPolicy는 실물을 쓴다 — Policy를 mock하면 애그리거트 상태 결과가 가려진다.
@@ -64,13 +67,19 @@ class TimeDealCommandServiceTest {
                 timeDealRepository,
                 timeDealStockRepository,
                 new TimeDealPolicy(),
-                productStockAllocationPort
+                productStockAllocationPort,
+                new TimeDealAuthorizationChecker()
         );
     }
 
     private static TimeDealCreateCommand command(Integer maxPurchaseQuantity, Integer initialQuantity) {
+        return command(maxPurchaseQuantity, initialQuantity, "SELLER");
+    }
+
+    private static TimeDealCreateCommand command(Integer maxPurchaseQuantity, Integer initialQuantity, String role) {
         return new TimeDealCreateCommand(
                 SELLER_ID,
+                role,
                 null,
                 "산지직송 사과 5kg",
                 "당일 수확한 사과입니다.",
@@ -85,6 +94,36 @@ class TimeDealCommandServiceTest {
                 initialQuantity,
                 LOW_STOCK_THRESHOLD
         );
+    }
+
+    @Test
+    void 권한이_없으면_등록과_재고_저장을_시도하지_않는다() {
+        assertThatThrownBy(() -> timeDealCommandService.create(command(10, 100, "CUSTOMER")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+        verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
+    }
+
+    @Test
+    void 역할이_없으면_등록_권한_검사를_통과하지_못한다() {
+        assertThatThrownBy(() -> timeDealCommandService.create(command(10, 100, null)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+        verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
+    }
+
+    @Test
+    void 권한이_없으면_일반_상품_재고를_할당하지_않는다() {
+        TimeDealConvertCommand command = new TimeDealConvertCommand(
+                UUID.randomUUID(), 100, SELLER_ID, "CUSTOMER", BigDecimal.TEN,
+                START_AT, END_AT, 10, 10);
+        assertThatThrownBy(() -> timeDealCommandService.convert(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+        verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
     }
 
     // NOTE: save()가 id와 createdAt(@CreatedDate)을 채워 돌려주는 JPA 동작을 흉내낸다 —
