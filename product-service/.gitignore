@@ -40,5 +40,8 @@ out/
 CLAUDE.md
 .claude/
 
+### Codex ###
+AGENTS.md
+
 ### Environment ###
 .env

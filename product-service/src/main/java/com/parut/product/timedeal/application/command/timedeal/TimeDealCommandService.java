@@ -4,6 +4,7 @@ import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
@@ -34,12 +35,14 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockAllocationPort productStockAllocationPort;
+    private final TimeDealAuthorizationChecker authorizationChecker;
 
 
     // NOTE: 직접 등록이라 productId는 null이다 — 표시 정보는 판매자가 입력한 값이 그대로 스냅샷이 된다.
     @Override
     @Transactional
     public TimeDealCreateResult create(TimeDealCreateCommand timeDealCreateCommand) {
+        authorizationChecker.requireSellerOrAdmin(timeDealCreateCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
@@ -83,6 +86,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     @Transactional
     public TimeDealCreateResult convert(TimeDealConvertCommand timeDealConvertCommand) {
+        authorizationChecker.requireSellerOrAdmin(timeDealConvertCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
@@ -141,4 +145,3 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         }
     }
 }
-
