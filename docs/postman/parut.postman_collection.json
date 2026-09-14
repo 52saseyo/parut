@@ -391,8 +391,196 @@
             },
             {
               "name": "external",
-              "description": "/api/v1/** — 클라이언트 공개 경로. 타임딜 조회/생성 API 구현 시 여기에 추가한다.",
-              "item": []
+              "description": "/api/v1/time-deals/** — 공개 단건 조회 및 판매자·관리자의 수정·삭제. productBaseUrl, timeDealId, userId는 기존 환경변수를 사용한다. 서비스 직접 호출 기준이며 Gateway 경유 시 해당 Gateway의 인증 계약을 별도로 적용한다. 요청 스크립트는 traceId를 자동 생성하고 userRole이 없으면 SELLER를 사용한다. 대상 ID나 사용자 ID는 임의 생성하지 않는다.",
+              "item": [
+                {
+                  "name": "타임딜 상품 단건 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals",
+                        "{{timeDealId}}"
+                      ]
+                    },
+                    "description": "누구나 조회할 수 있는 외부 API. 사용자 ID·역할 헤더 없이 호출한다. 성공 200 OK: data에 판매 조건과 stock, 최상위에 timestamp·traceId. 삭제되었거나 존재하지 않는 대상은 404. 성공 시 timeDealStatus·timeDealStartAt·timeDealEndAt을 현재 Postman 환경에 저장한다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); "
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 응답과 traceId가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.traceId).to.eql(pm.variables.get('timeDealTraceId')); pm.expect(body.timestamp).to.be.a('string'); });",
+                          "pm.test('타임딜 ID와 재고 정보가 반환된다', () => { pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); ['availableQuantity', 'reservedQuantity', 'soldQuantity', 'lowStockThreshold'].forEach(key => pm.expect(body.data.stock[key]).to.be.a('number')); });",
+                          "if (pm.response.code === 200 && body.code === 'OK' && body.data) {",
+                          "  pm.environment.set('timeDealStatus', body.data.status);",
+                          "  pm.environment.set('timeDealStartAt', body.data.startAt);",
+                          "  pm.environment.set('timeDealEndAt', body.data.endAt);",
+                          "}"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "타임딜 상품 수정",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals",
+                        "{{timeDealId}}"
+                      ]
+                    },
+                    "description": "판매자 본인 또는 ADMIN만 수정 가능. userId는 실제 요청자 UUID. userRole 환경변수가 없으면 SELLER를 사용하며 ADMIN 테스트는 userRole을 ADMIN으로 설정한다. SCHEDULED만 수정 가능하며 null·생략 필드는 유지한다. 예시 Body는 상품명·할인율만 수정한다. 성공 200 OK: timeDealId·status·updatedAt. 주요 실패: 인가 403, 대상 없음 404, 상태·입력 오류. 재고는 변경하지 않는다.",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"수정한 타임딜 상품명\",\n  \"discountRate\": 20\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    }
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); ",
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 응답과 traceId가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.traceId).to.eql(pm.variables.get('timeDealTraceId')); pm.expect(body.timestamp).to.be.a('string'); });",
+                          "pm.test('수정 결과가 반환된다', () => { pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); pm.expect(body.data.status).to.eql('SCHEDULED'); pm.expect(body.data.updatedAt).to.be.a('string'); });",
+                          "if (pm.response.code === 200 && body.code === 'OK' && body.data) {",
+                          "  pm.environment.set('timeDealStatus', body.data.status);",
+                          "  pm.environment.set('timeDealUpdatedAt', body.data.updatedAt);",
+                          "}"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "타임딜 상품 삭제",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals",
+                        "{{timeDealId}}"
+                      ]
+                    },
+                    "description": "판매자 본인 또는 ADMIN만 삭제 가능. userRole 미설정 시 SELLER. SCHEDULED 상태이며 선점·판매 수량이 없어야 한다. 타임딜과 재고를 함께 soft delete하며 일반 상품 재고는 반환하지 않는다. 성공 200 OK: code=OK, data=null, timestamp·traceId. 주요 실패: 인가 403, 대상·재고 정보 없음 404, 삭제 불가 상태. 삭제 확인을 위해 성공 후에도 timeDealId는 유지한다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); ",
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 응답과 traceId가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.traceId).to.eql(pm.variables.get('timeDealTraceId')); pm.expect(body.timestamp).to.be.a('string'); });",
+                          "pm.test('삭제 응답 data는 null이다', () => pm.expect(body.data).to.eql(null));"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }
