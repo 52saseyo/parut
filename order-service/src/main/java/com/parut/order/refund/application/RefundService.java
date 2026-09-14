@@ -1,16 +1,21 @@
 package com.parut.order.refund.application;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.refund.application.dto.RefundOrderItemSnapshot;
-import com.parut.order.refund.application.port.RefundOrderItemQueryPort;
+import com.parut.order.order.application.port.in.OrderItemQueryUseCase;
+import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
+import com.parut.order.order.application.port.in.dto.OrderItemDetailView;
+import com.parut.order.order.domain.DeliveryGroupStatus;
+import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.refund.domain.Refund;
 import com.parut.order.refund.domain.RefundStatus;
 import com.parut.order.refund.infrastructure.persistence.RefundRepository;
@@ -20,7 +25,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 환불 요청과 고객의 요청 취소를 처리한다.
  *
- * <p>환불 승인과 결제 취소는 Payment 계약이 확정된 뒤 연결한다.
+ * <p>주문상품 조회와 상태 변경은 Order 포트를 통해 처리한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,9 +33,9 @@ import lombok.RequiredArgsConstructor;
 public class RefundService {
 
     private final RefundRepository refundRepository;
-
-    // NOTE: Order 구현이 들어오기 전까지는 조회 Port 없이도 애플리케이션이 기동되어야 한다.
-    private final ObjectProvider<RefundOrderItemQueryPort> orderItemQueryPortProvider;
+    private final DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
+    private final OrderItemQueryUseCase orderItemQueryUseCase;
+    private final OrderItemRefundUseCase orderItemRefundUseCase;
 
     @Transactional
     public Refund requestRefund(
@@ -43,22 +48,31 @@ public class RefundService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        RefundOrderItemSnapshot orderItem = requireOrderItemQueryPort()
-                .findById(orderItemId)
+        OrderItemDetailView orderItem = getOrderItem(orderItemId);
+        if (!customerId.equals(orderItem.buyerId())
+                || orderItem.itemStatus() != OrderItemStatus.ORDERED
+                || orderItem.groupStatus() != DeliveryGroupStatus.DELIVERED) {
+            throw new BusinessException(ErrorCode.REFUND_NOT_ALLOWED);
+        }
+
+        // 환불 기한은 Delivery가 기록한 실제 배송 완료 시각으로 판단한다.
+        Instant deliveredAt = deliveryCompletionQueryUseCase
+                .getDeliveredAt(orderItem.deliveryGroupId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_NOT_ALLOWED));
 
-        validateRequestable(orderItem, customerId);
+        Instant now = Instant.now();
+        if (now.isBefore(deliveredAt) || now.isAfter(deliveredAt.plus(Duration.ofDays(7)))) {
+            throw new BusinessException(ErrorCode.REFUND_NOT_ALLOWED);
+        }
 
         if (refundRepository.existsByOrderItemIdAndStatusNot(orderItemId, RefundStatus.CANCELED)) {
             throw new BusinessException(ErrorCode.REFUND_ALREADY_REQUESTED);
         }
 
-        return refundRepository.save(Refund.request(
-                orderItemId,
-                orderItem.refundAmount(),
-                reason,
-                Instant.now()
-        ));
+        long refundAmount = Math.multiplyExact(orderItem.unitPrice(), orderItem.quantity());
+
+        orderItemRefundUseCase.markRefundRequested(orderItemId);
+        return refundRepository.save(Refund.request(orderItemId, refundAmount, reason, now));
     }
 
     @Transactional
@@ -73,36 +87,23 @@ public class RefundService {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_NOT_FOUND));
 
-        RefundOrderItemSnapshot orderItem = requireOrderItemQueryPort()
-                .findById(refund.getOrderItemId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_CANCEL_NOT_ALLOWED));
-
-        if (!customerId.equals(orderItem.customerId()) || refund.getStatus() != RefundStatus.REQUESTED) {
+        OrderItemDetailView orderItem = getOrderItem(refund.getOrderItemId());
+        if (!customerId.equals(orderItem.buyerId()) || refund.getStatus() != RefundStatus.REQUESTED) {
             throw new BusinessException(ErrorCode.REFUND_CANCEL_NOT_ALLOWED);
         }
 
+        orderItemRefundUseCase.cancelRefundRequest(refund.getOrderItemId());
         refund.cancel(Instant.now());
         return refund;
     }
 
-    private void validateRequestable(
-            RefundOrderItemSnapshot orderItem,
-            UUID customerId
-    ) {
-        if (!customerId.equals(orderItem.customerId())
-                || !orderItem.delivered()
-                || orderItem.confirmed()
-                || orderItem.canceled()
-                || orderItem.refundAmount() < 0) {
-            throw new BusinessException(ErrorCode.REFUND_NOT_ALLOWED);
-        }
+    private OrderItemDetailView getOrderItem(UUID orderItemId) {
+        return orderItemQueryUseCase
+                .getOrderItems(List.of(orderItemId))
+                .stream()
+                .filter(item -> orderItemId.equals(item.orderItemId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_ITEM_NOT_FOUND));
     }
 
-    private RefundOrderItemQueryPort requireOrderItemQueryPort() {
-        RefundOrderItemQueryPort port = orderItemQueryPortProvider.getIfAvailable();
-        if (port == null) {
-            throw new IllegalStateException("Order 주문상품 조회 Port 구현이 필요합니다.");
-        }
-        return port;
-    }
 }

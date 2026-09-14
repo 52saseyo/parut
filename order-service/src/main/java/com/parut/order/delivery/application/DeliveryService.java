@@ -12,6 +12,7 @@ import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
@@ -29,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class DeliveryService implements DeliveryCreateUseCase {
+public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletionQueryUseCase {
 
     /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
     private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
@@ -53,6 +54,17 @@ public class DeliveryService implements DeliveryCreateUseCase {
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
                 .forEach(this::findOrCreateDelivery);
+    }
+
+    @Override
+    public Optional<Instant> getDeliveredAt (UUID deliveryGroupId) {
+        if (deliveryGroupId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
+                .filter(delivery -> delivery.getStatus() == DeliveryStatus.DELIVERED)
+                .map(Delivery::getDeliveredAt);
     }
 
     public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
