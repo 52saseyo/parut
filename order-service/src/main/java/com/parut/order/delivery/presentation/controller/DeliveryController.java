@@ -42,6 +42,17 @@ public class DeliveryController {
         return ApiResponse.success(deliveries, traceId);
     }
 
+    @GetMapping("/{deliveryId}")
+    public ApiResponse<DeliveryResponse> getDelivery(
+            @PathVariable UUID deliveryId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID userId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String userRole,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+    ) {
+        Delivery delivery = deliveryService.getDelivery(deliveryId, userId, userRole);
+        return ApiResponse.success(DeliveryResponse.from(delivery), traceId);
+    }
+
     @PatchMapping("/{deliveryId}/ship")
     public ApiResponse<StartDeliveryResponse> startDelivery(
             @PathVariable UUID deliveryId,

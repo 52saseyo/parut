@@ -118,6 +118,50 @@ class DeliveryServiceTest {
     }
 
     @Test
+    @DisplayName("구매자와 판매자는 본인 배송을, 관리자는 모든 배송을 단건 조회한다")
+    void 배송_단건_조회() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderDeliveryGroupQueryUseCase.isOwnedByCustomer(DELIVERY_GROUP_ID, userId)).thenReturn(true);
+        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
+                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
+
+        assertThat(deliveryService.getDelivery(deliveryId, userId, "CUSTOMER")).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, SELLER_ID, "SELLER")).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, UUID.randomUUID(), "ADMIN")).isSameAs(delivery);
+    }
+
+    @Test
+    @DisplayName("다른 사람의 배송이나 허용되지 않은 역할의 단건 조회를 거부한다")
+    void 배송_단건_조회_권한_없음() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(Delivery.create(DELIVERY_GROUP_ID)));
+        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
+                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
+
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "CUSTOMER"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "SELLER"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "UNKNOWN"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("없는 배송의 단건 조회는 DELIVERY_NOT_FOUND를 반환한다")
+    void 배송_단건_조회_대상_없음() {
+        assertThatThrownBy(() -> deliveryService.getDelivery(UUID.randomUUID(), SELLER_ID, "SELLER"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("배송 시작 60초가 지난 배송을 완료 대상으로 조회한다")
     void 배송_완료_기준_시각_계산() {
         when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
