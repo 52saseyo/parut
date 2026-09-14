@@ -23,7 +23,7 @@ import com.parut.order.refund.infrastructure.persistence.RefundRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 환불 요청과 고객의 요청 취소를 처리한다.
+ * 환불 요청과 고객의 요청 취소, 판매자 거절을 처리한다.
  *
  * <p>주문상품 조회와 상태 변경은 Order 포트를 통해 처리한다.
  */
@@ -94,6 +94,33 @@ public class RefundService {
 
         orderItemRefundUseCase.cancelRefundRequest(refund.getOrderItemId());
         refund.cancel(Instant.now());
+        return refund;
+    }
+
+    @Transactional
+    public Refund rejectRefund(
+            UUID refundId,
+            UUID sellerId,
+            String rejectionReason
+    ) {
+        if (refundId == null || sellerId == null || rejectionReason == null || rejectionReason.isBlank()
+                || rejectionReason.length() > 500) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        Refund refund = refundRepository.findById(refundId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_NOT_FOUND));
+
+        if (!sellerId.equals(getOrderItem(refund.getOrderItemId()).sellerId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        if (refund.getStatus() != RefundStatus.REQUESTED) {
+            throw new BusinessException(ErrorCode.REFUND_ALREADY_PROCESSED);
+        }
+
+        orderItemRefundUseCase.confirmRejectedRefund(refund.getOrderItemId());
+        refund.reject(rejectionReason, Instant.now(), sellerId);
         return refund;
     }
 

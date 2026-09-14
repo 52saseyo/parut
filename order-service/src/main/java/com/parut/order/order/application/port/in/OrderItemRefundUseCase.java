@@ -12,4 +12,7 @@ public interface OrderItemRefundUseCase {
 
     /** REFUND_REQUESTED 상태일 때만 ORDERED로 되돌린다. */
     void cancelRefundRequest(UUID orderItemId);
+
+    /** REFUND_REQUESTED 상태를 CONFIRMED로 변경하고 확정 시각을 기록한다. */
+    void confirmRejectedRefund(UUID orderItemId);
 }

@@ -18,6 +18,7 @@ import com.parut.order.refund.application.RefundService;
 import com.parut.order.refund.domain.Refund;
 import com.parut.order.refund.presentation.dto.request.RequestRefundRequest;
 import com.parut.order.refund.presentation.dto.response.RefundResponse;
+import com.parut.order.refund.presentation.dto.request.RejectRefundRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -52,6 +53,17 @@ public class RefundController {
             @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
     ) {
         Refund refund = refundService.cancelRefund(refundId, customerId);
+        return ApiResponse.success(RefundResponse.from(refund), traceId);
+    }
+
+    @PatchMapping("/refunds/{refundId}/reject")
+    public ApiResponse<RefundResponse> rejectRefund(
+            @PathVariable UUID refundId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            @RequestBody RejectRefundRequest request
+    ) {
+        Refund refund = refundService.rejectRefund(refundId, sellerId, request.rejectionReason());
         return ApiResponse.success(RefundResponse.from(refund), traceId);
     }
 }

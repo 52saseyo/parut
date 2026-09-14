@@ -136,6 +136,43 @@ class RefundServiceTest {
         verify(orderItemRefundUseCase).cancelRefundRequest(ORDER_ITEM_ID);
     }
 
+    @Test
+    @DisplayName("환불 거절")
+    void 환불_거절() {
+        UUID refundId = UUID.randomUUID();
+        Refund refund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", Instant.now());
+
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
+        when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID)))
+                .thenReturn(List.of(orderItem(OrderItemStatus.REFUND_REQUESTED, DeliveryGroupStatus.DELIVERED)));
+
+        Refund rejected = refundService.rejectRefund(refundId, SELLER_ID, "환불 거절 사유");
+
+        assertThat(rejected.getStatus()).isEqualTo(RefundStatus.REJECTED);
+        assertThat(rejected.getRejectionReason()).isEqualTo("환불 거절 사유");
+        assertThat(rejected.getProcessedAt()).isNotNull();
+        assertThat(rejected.getProcessedBy()).isEqualTo(SELLER_ID);
+        verify(orderItemRefundUseCase).confirmRejectedRefund(ORDER_ITEM_ID);
+    }
+
+    @Test
+    @DisplayName("다른 판매자의 환불 거절 요청은 거부한다")
+    void 환불_거절_권한_검증() {
+        UUID refundId = UUID.randomUUID();
+        Refund refund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", Instant.now());
+
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
+        when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID)))
+                .thenReturn(List.of(orderItem(OrderItemStatus.REFUND_REQUESTED, DeliveryGroupStatus.DELIVERED)));
+
+        assertThatThrownBy(() -> refundService.rejectRefund(refundId, UUID.randomUUID(), "환불 거절 사유"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        assertThat(refund.getStatus()).isEqualTo(RefundStatus.REQUESTED);
+        verifyNoInteractions(orderItemRefundUseCase);
+    }
+
     private OrderItemDetailView orderItem() {
         return orderItem(OrderItemStatus.ORDERED, DeliveryGroupStatus.DELIVERED);
     }
