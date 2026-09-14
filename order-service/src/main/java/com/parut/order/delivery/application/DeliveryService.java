@@ -55,9 +55,12 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .forEach(this::findOrCreateDelivery);
     }
 
-    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
+    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId, String userRole) {
         if (orderId == null || sellerId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!"SELLER".equals(userRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
@@ -114,11 +117,15 @@ public class DeliveryService implements DeliveryCreateUseCase {
     public Delivery startDelivery(
             UUID deliveryId,
             UUID sellerId,
+            String userRole,
             String trackingNumber
     ) {
         if (deliveryId == null || sellerId == null
                 || trackingNumber == null || trackingNumber.isBlank() || trackingNumber.length() > 30) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!"SELLER".equals(userRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findById(deliveryId)

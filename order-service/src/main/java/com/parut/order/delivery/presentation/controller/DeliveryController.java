@@ -33,9 +33,10 @@ public class DeliveryController {
     public ApiResponse<List<DeliveryResponse>> getDeliveries(
             @RequestParam UUID orderId,
             @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String userRole,
             @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
     ) {
-        List<DeliveryResponse> deliveries = deliveryService.getDeliveries(orderId, sellerId).stream()
+        List<DeliveryResponse> deliveries = deliveryService.getDeliveries(orderId, sellerId, userRole).stream()
                 .map(DeliveryResponse::from)
                 .toList();
 
@@ -57,12 +58,14 @@ public class DeliveryController {
     public ApiResponse<StartDeliveryResponse> startDelivery(
             @PathVariable UUID deliveryId,
             @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String userRole,
             @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
             @RequestBody StartDeliveryRequest request
     ) {
         Delivery delivery = deliveryService.startDelivery(
                 deliveryId,
                 sellerId,
+                userRole,
                 request.trackingNumber()
         );
 
