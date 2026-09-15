@@ -579,6 +579,66 @@
                       }
                     }
                   ]
+                },
+                {
+                  "name": "타임딜 상품 강제 종료",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stop",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals",
+                        "{{timeDealId}}",
+                        "stop"
+                      ]
+                    },
+                    "description": "판매자 본인 또는 ADMIN만 강제 종료 가능. userRole 미설정 시 SELLER. ACTIVE 상태인 타임딜만 STOPPED로 변경한다. 요청 Body는 없다. 성공 200 OK: data에 timeDealId·status=STOPPED, 최상위에 timestamp·traceId. 주요 실패: 인가 403, 대상 없음 404, ACTIVE가 아닌 상태 409. 남은 재고와 RESERVED 구매 건은 자동 복구·즉시 취소하지 않는다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); ",
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 응답과 traceId가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.traceId).to.eql(pm.variables.get('timeDealTraceId')); pm.expect(body.timestamp).to.be.a('string'); });",
+                          "pm.test('강제 종료 결과가 반환된다', () => { pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); pm.expect(body.data.status).to.eql('STOPPED'); });",
+                          "if (pm.response.code === 200 && body.code === 'OK' && body.data) pm.environment.set('timeDealStatus', body.data.status);"
+                        ]
+                      }
+                    }
+                  ]
                 }
               ]
             }
