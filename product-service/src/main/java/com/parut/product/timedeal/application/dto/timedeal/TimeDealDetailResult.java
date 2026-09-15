@@ -13,11 +13,13 @@ public record TimeDealDetailResult(
         BigDecimal discountRate, Long dealPrice, TimeDealProductGrade productGrade,
         String origin, LocalDate harvestedDate
 ) {
-    public static TimeDealDetailResult from(TimeDealDetailView view, String imageUrl) {
+    public static TimeDealDetailResult from(TimeDealDetailView timeDealDetailView, String imageUrl) {
         return new TimeDealDetailResult(
-                view.timeDealId(), view.productId(), view.sellerId(), imageUrl,
-                view.productName(), view.description(), view.originalPrice(),
-                view.discountRate(), view.dealPrice(), view.productGrade(),
-                view.origin(), view.harvestedDate());
+                timeDealDetailView.timeDealId(), timeDealDetailView.productId(),
+                timeDealDetailView.sellerId(), imageUrl, timeDealDetailView.productName(),
+                timeDealDetailView.description(), timeDealDetailView.originalPrice(),
+                timeDealDetailView.discountRate(), timeDealDetailView.dealPrice(),
+                timeDealDetailView.productGrade(), timeDealDetailView.origin(),
+                timeDealDetailView.harvestedDate());
     }
 }

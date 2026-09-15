@@ -46,9 +46,10 @@ public class TimeDealController {
     public ResponseEntity<ApiResponse<TimeDealPublicDetailResponse>> getDetail(
             @PathVariable UUID timeDealId
     ) {
-        TimeDealPublicDetailResponse response =
+        TimeDealPublicDetailResponse timeDealPublicDetailResponse =
                 TimeDealPublicDetailResponse.from(timeDealQueryUseCase.getPublicDetail(timeDealId));
-        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
+        return ResponseEntity.ok(ApiResponse.success(
+                timeDealPublicDetailResponse, TraceIdContext.currentTraceId()));
     }
 
     @DeleteMapping("/{timeDealId}")
@@ -67,10 +68,10 @@ public class TimeDealController {
             @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
     ) {
-        TimeDealStopResult result = timeDealCommandUseCase.stop(
+        TimeDealStopResult timeDealStopResult = timeDealCommandUseCase.stop(
                 new TimeDealStopCommand(timeDealId, requesterId, requesterRole));
         return ResponseEntity.ok(ApiResponse.success(
-                TimeDealStopResponse.from(result), TraceIdContext.currentTraceId()));
+                TimeDealStopResponse.from(timeDealStopResult), TraceIdContext.currentTraceId()));
     }
 
     @PatchMapping("/{timeDealId}")
@@ -80,10 +81,10 @@ public class TimeDealController {
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody TimeDealUpdateRequest request
     ) {
-        TimeDealUpdateResult result =
+        TimeDealUpdateResult timeDealUpdateResult =
                 timeDealCommandUseCase.update(request.toCommand(timeDealId, requesterId, requesterRole));
         return ResponseEntity.ok(ApiResponse.success(
-                TimeDealUpdateResponse.from(result), TraceIdContext.currentTraceId()));
+                TimeDealUpdateResponse.from(timeDealUpdateResult), TraceIdContext.currentTraceId()));
     }
 
 

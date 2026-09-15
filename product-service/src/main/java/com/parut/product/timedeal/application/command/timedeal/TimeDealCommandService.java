@@ -194,16 +194,17 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         Instant now = Instant.now();
 
         ProductStockAllocateCommand productStockAllocateCommand = timeDealConvertCommand.toAllocateCommand();
-        ProductStockAllocateResult allocatedResult = productStockAllocationPort.allocate(productStockAllocateCommand);
+        ProductStockAllocateResult productStockAllocateResult =
+                productStockAllocationPort.allocate(productStockAllocateCommand);
         TimeDeal timeDeal = TimeDeal.create(
-                allocatedResult.sellerId(),
-                allocatedResult.productId(),
-                allocatedResult.productName(),
-                allocatedResult.productDescription(),
-                toProductGrade(allocatedResult.appearanceType()),
-                allocatedResult.productOrigin(),
-                allocatedResult.productHarvestedDate(),
-                allocatedResult.price(),
+                productStockAllocateResult.sellerId(),
+                productStockAllocateResult.productId(),
+                productStockAllocateResult.productName(),
+                productStockAllocateResult.productDescription(),
+                toProductGrade(productStockAllocateResult.appearanceType()),
+                productStockAllocateResult.productOrigin(),
+                productStockAllocateResult.productHarvestedDate(),
+                productStockAllocateResult.price(),
                 timeDealConvertCommand.discountRate(),
                 timeDealConvertCommand.startAt(),
                 timeDealConvertCommand.endAt(),
@@ -219,16 +220,17 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
             throw new BusinessException(ErrorCode.TIME_DEAL_CONVERSION_ALREADY_EXISTS);
         }
 
-        TimeDealStock timeDealStock = timeDealPolicy.allocateStock(savedTimeDeal, allocatedResult.quantity(), timeDealConvertCommand.lowStockThreshold());
+        TimeDealStock timeDealStock = timeDealPolicy.allocateStock(
+                savedTimeDeal, productStockAllocateResult.quantity(), timeDealConvertCommand.lowStockThreshold());
 
         timeDealStockRepository.save(timeDealStock);
 
         log.info(
                 "[TimeDeal] 일반 상품 전환 완료. timeDealId={}, productId={}, sellerId={}, quantity={}",
                 savedTimeDeal.getId(),
-                allocatedResult.productId(),
-                allocatedResult.sellerId(),
-                allocatedResult.quantity()
+                productStockAllocateResult.productId(),
+                productStockAllocateResult.sellerId(),
+                productStockAllocateResult.quantity()
         );
         return TimeDealCreateResult.from(savedTimeDeal);
     }
