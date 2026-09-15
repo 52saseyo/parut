@@ -5,6 +5,7 @@ import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.domain.product.Product;
@@ -47,9 +48,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductStockEventLogRepository productStockEventLogRepository;
     private final ProductReader productReader;
     private final ProductStateManager productStateManager;
-
-    private static final String ADMIN_ROLE = "ADMIN";
-    private static final String SELLER_ROLE = "SELLER";
+    private final ProductStockAuthorizationChecker authorizationChecker;
 
     // 상품 등록 시 재고 등록
     @Override
@@ -80,13 +79,13 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     // 재고 수정
     @Override
-    public void updateStock(UUID productId, UUID sellerId, int newTotalQuantity) {
+    public void updateStock(UUID productId, UUID requesterId, String requesterRole, int newTotalQuantity) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
-        if(!productReader.isOwnedBy(productId, sellerId)) {
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
-        }
+        UUID sellerId = productReader.getSellerId(productId);
+        authorizationChecker.requireOwnerOrAdmin(requesterId, requesterRole, sellerId);
+
         StockStatus previousStatus = stock.getStatus();
 
         int reservedQuantity = stock.getTotalQuantity() - stock.getAvailableQuantity();
@@ -233,8 +232,11 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProductStock> getStockList(UUID sellerId, Pageable pageable) {
-        List<UUID> productIds = productReader.getProductIdsBySellerId(sellerId);
+    public Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable) {
+        if (authorizationChecker.isAdmin(requesterRole)) {
+            return productStockRepository.findByDeletedAtIsNull(pageable);
+        }
+        List<UUID> productIds = productReader.getProductIdsBySellerId(requesterId);
         return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
     }
 
@@ -242,7 +244,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     public ProductStockAllocateResult allocate(ProductStockAllocateCommand command) {
         Product product = productReader.getProduct(command.productId());
-        validateRequester(command, product.getSellerId());
+        authorizationChecker.requireOwnerOrAdmin(command.requesterId(), command.requesterRole(), product.getSellerId());
 
         if (product.getStatus() != ProductStatus.ON_SALE) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
@@ -274,7 +276,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     public void deallocate(ProductStockAllocateCommand command) {
         UUID sellerId = productReader.getSellerId(command.productId());
-        validateRequester(command,sellerId);
+        authorizationChecker.requireOwnerOrAdmin(command.requesterId(), command.requesterRole(), sellerId);
 
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
@@ -310,17 +312,6 @@ public class ProductStockServiceImpl implements ProductStockService{
     private void validateStockOwnership(ProductStock stock, UUID productId) {
         if (!stock.getProductId().equals(productId)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
-        }
-    }
-
-    // 소유권 검증
-    private void validateRequester(ProductStockAllocateCommand command, UUID sellerId) {
-        boolean isAdmin = ADMIN_ROLE.equals(command.requesterRole());
-        boolean isOwner = SELLER_ROLE.equals(command.requesterRole())
-                && sellerId.equals(command.requesterId());
-
-        if (!isAdmin && !isOwner) {
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
         }
     }
 
