@@ -5,7 +5,10 @@ import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealUpdateResponse;
+import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealStopResponse;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealPublicDetailResponse;
@@ -57,6 +60,18 @@ public class TimeDealController {
     ) {
         timeDealCommandUseCase.delete(new TimeDealDeleteCommand(timeDealId, requesterId, requesterRole));
         return ResponseEntity.ok(ApiResponse.success(null, traceId));
+    }
+
+    @PatchMapping("/{timeDealId}/stop")
+    public ResponseEntity<ApiResponse<TimeDealStopResponse>> stop(
+            @PathVariable UUID timeDealId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+    ) {
+        TimeDealStopResult result = timeDealCommandUseCase.stop(
+                new TimeDealStopCommand(timeDealId, requesterId, requesterRole));
+        return ResponseEntity.ok(ApiResponse.success(TimeDealStopResponse.from(result), traceId));
     }
 
     @PatchMapping("/{timeDealId}")
