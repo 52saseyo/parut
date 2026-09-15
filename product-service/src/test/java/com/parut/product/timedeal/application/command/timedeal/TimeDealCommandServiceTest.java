@@ -86,7 +86,7 @@ class TimeDealCommandServiceTest {
         private final UUID id = UUID.randomUUID();
 
         private TimeDeal existingTimeDeal() {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
 
@@ -198,7 +198,7 @@ class TimeDealCommandServiceTest {
         private final UUID id = UUID.randomUUID();
 
         private TimeDeal activeTimeDeal() {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
             ReflectionTestUtils.setField(timeDeal, "id", id);
@@ -245,7 +245,7 @@ class TimeDealCommandServiceTest {
 
         @Test
         void SCHEDULED_타임딜은_강제_종료할_수_없다() {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
             ReflectionTestUtils.setField(timeDeal, "id", id);
@@ -270,7 +270,6 @@ class TimeDealCommandServiceTest {
             return new TimeDealCreateCommand(
                     SELLER_ID,
                     role,
-                    null,
                     "산지직송 사과 5kg",
                     "당일 수확한 사과입니다.",
                     TimeDealProductGrade.UGLY,
@@ -412,7 +411,7 @@ class TimeDealCommandServiceTest {
     class Update {
 
         private TimeDeal existingTimeDeal(UUID id) {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, null, null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, null, "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
 
@@ -424,7 +423,7 @@ class TimeDealCommandServiceTest {
 
         private TimeDealUpdateCommand updateCommand(UUID id, UUID requesterId, String role) {
             return new TimeDealUpdateCommand(id, requesterId, role,
-                    null, "수정 사과", null, null, null, null, null,
+                    "수정 사과", null, null, null, null, null,
                     BigDecimal.valueOf(20), null, null, null);
         }
 

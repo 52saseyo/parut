@@ -128,7 +128,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         Instant now = Instant.now();
         // NOTE: 단일 애그리거트 수정이므로 TimeDealPolicy의 조율 없이 도메인에 위임한다.
         timeDeal.update(
-                command.imageId(), command.name(), command.description(), command.productGrade(),
+                command.name(), command.description(), command.productGrade(),
                 command.origin(), command.harvestedDate(), command.originalPrice(), command.discountRate(),
                 command.startAt(), command.endAt(), command.maxPurchaseQuantity(), now
         );
@@ -149,7 +149,6 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         TimeDeal timeDeal = TimeDeal.create(
                 timeDealCreateCommand.sellerId(),
                 null,
-                timeDealCreateCommand.imageId(),
                 timeDealCreateCommand.name(),
                 timeDealCreateCommand.description(),
                 timeDealCreateCommand.productGrade(),
@@ -174,6 +173,10 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         );
         timeDealStockRepository.save(timeDealStock);
 
+        // TODO: timedeal_image 테이블과 이미지 연결 입력 계약이 생기면,
+        //       TimeDealImageCommandPort를 통해 이미지 연결을 저장한다.
+        //       같은 애플리케이션·DB 안의 저장소라면 이 유즈케이스 트랜잭션에 함께 참여시킨다.
+
         log.info(
                 "[TimeDeal] 직접 등록 완료. timeDealId={}, sellerId={}, initialQuantity={}",
                 savedTimeDeal.getId(),
@@ -195,7 +198,6 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         TimeDeal timeDeal = TimeDeal.create(
                 allocatedResult.sellerId(),
                 allocatedResult.productId(),
-                allocatedResult.imageId(),
                 allocatedResult.productName(),
                 allocatedResult.productDescription(),
                 toProductGrade(allocatedResult.appearanceType()),

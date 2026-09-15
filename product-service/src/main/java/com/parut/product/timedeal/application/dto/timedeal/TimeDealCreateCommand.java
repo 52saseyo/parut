@@ -15,7 +15,6 @@ import java.util.UUID;
 public record TimeDealCreateCommand(
         UUID sellerId,
         String requesterRole,
-        UUID imageId,
         String name,
         String description,
         TimeDealProductGrade productGrade,

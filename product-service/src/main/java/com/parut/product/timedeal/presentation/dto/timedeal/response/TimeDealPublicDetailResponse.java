@@ -1,6 +1,6 @@
 package com.parut.product.timedeal.presentation.dto.timedeal.response;
 
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import java.math.BigDecimal;
@@ -12,7 +12,7 @@ public record TimeDealPublicDetailResponse(
         UUID timeDealId,
         UUID productId,
         UUID sellerId,
-        UUID imageId,
+        String imageUrl,
         String name,
         String description,
         TimeDealProductGrade productGrade,
@@ -35,29 +35,29 @@ public record TimeDealPublicDetailResponse(
     ) {
     }
 
-    public static TimeDealPublicDetailResponse from(TimeDealPublicDetailView timeDealPublicDetailView) {
+    public static TimeDealPublicDetailResponse from(TimeDealPublicDetailResult result) {
         return new TimeDealPublicDetailResponse(
-                timeDealPublicDetailView.timeDealId(),
-                timeDealPublicDetailView.productId(),
-                timeDealPublicDetailView.sellerId(),
-                timeDealPublicDetailView.imageId(),
-                timeDealPublicDetailView.name(),
-                timeDealPublicDetailView.description(),
-                timeDealPublicDetailView.productGrade(),
-                timeDealPublicDetailView.origin(),
-                timeDealPublicDetailView.harvestedDate(),
-                timeDealPublicDetailView.originalPrice(),
-                timeDealPublicDetailView.discountRate(),
-                timeDealPublicDetailView.dealPrice(),
-                timeDealPublicDetailView.startAt(),
-                timeDealPublicDetailView.endAt(),
-                timeDealPublicDetailView.maxPurchaseQuantity(),
-                timeDealPublicDetailView.status(),
+                result.timeDealId(),
+                result.productId(),
+                result.sellerId(),
+                result.imageUrl(),
+                result.name(),
+                result.description(),
+                result.productGrade(),
+                result.origin(),
+                result.harvestedDate(),
+                result.originalPrice(),
+                result.discountRate(),
+                result.dealPrice(),
+                result.startAt(),
+                result.endAt(),
+                result.maxPurchaseQuantity(),
+                result.status(),
                 new Stock(
-                        timeDealPublicDetailView.availableQuantity(),
-                        timeDealPublicDetailView.reservedQuantity(),
-                        timeDealPublicDetailView.soldQuantity(),
-                        timeDealPublicDetailView.lowStockThreshold()
+                        result.availableQuantity(),
+                        result.reservedQuantity(),
+                        result.soldQuantity(),
+                        result.lowStockThreshold()
                 )
         );
     }

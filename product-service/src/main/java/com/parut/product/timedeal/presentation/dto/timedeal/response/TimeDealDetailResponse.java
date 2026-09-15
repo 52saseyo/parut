@@ -1,6 +1,6 @@
 package com.parut.product.timedeal.presentation.dto.timedeal.response;
 
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 
 import java.math.BigDecimal;
@@ -13,7 +13,7 @@ public record TimeDealDetailResponse(
         UUID timeDealId,
         UUID productId,
         UUID sellerId,
-        UUID imageId,
+        String imageUrl,
         String productName,
         String description,
         Long originalPrice,
@@ -23,20 +23,20 @@ public record TimeDealDetailResponse(
         String origin,
         LocalDate harvestedDate
 ) {
-    public static TimeDealDetailResponse from(TimeDealDetailView timeDealDetailView) {
+    public static TimeDealDetailResponse from(TimeDealDetailResult result) {
         return new TimeDealDetailResponse(
-                timeDealDetailView.timeDealId(),
-                timeDealDetailView.productId(),
-                timeDealDetailView.sellerId(),
-                timeDealDetailView.imageId(),
-                timeDealDetailView.productName(),
-                timeDealDetailView.description(),
-                timeDealDetailView.originalPrice(),
-                timeDealDetailView.discountRate(),
-                timeDealDetailView.dealPrice(),
-                timeDealDetailView.productGrade(),
-                timeDealDetailView.origin(),
-                timeDealDetailView.harvestedDate()
+                result.timeDealId(),
+                result.productId(),
+                result.sellerId(),
+                result.imageUrl(),
+                result.productName(),
+                result.description(),
+                result.originalPrice(),
+                result.discountRate(),
+                result.dealPrice(),
+                result.productGrade(),
+                result.origin(),
+                result.harvestedDate()
         );
     }
 }

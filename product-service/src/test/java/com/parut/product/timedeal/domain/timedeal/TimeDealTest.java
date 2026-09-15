@@ -42,7 +42,6 @@ class TimeDealTest {
         return TimeDeal.create(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
                 "산지직송 사과 5kg",
                 "당일 수확한 사과입니다.",
                 TimeDealProductGrade.NORMAL,
@@ -68,7 +67,6 @@ class TimeDealTest {
         return TimeDeal.create(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
                 name,
                 description,
                 productGrade,
@@ -93,7 +91,7 @@ class TimeDealTest {
             Instant now
     ) {
         timeDeal.update(
-                null, null, null, null, null, null,
+                null, null, null, null, null,
                 originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity, now
         );
     }
@@ -266,7 +264,7 @@ class TimeDealTest {
         @DisplayName("직접 등록이면 productId 없이도 생성된다")
         void 직접_등록() {
             TimeDeal timeDeal = TimeDeal.create(
-                    UUID.randomUUID(), null, null,
+                    UUID.randomUUID(), null,
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT);
 
@@ -287,7 +285,7 @@ class TimeDealTest {
         @DisplayName("판매자가 없으면 예외")
         void 판매자_null() {
             assertThatThrownBy(() -> TimeDeal.create(
-                    null, UUID.randomUUID(), null,
+                    null, UUID.randomUUID(),
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
@@ -424,13 +422,10 @@ class TimeDealTest {
         @DisplayName("표시용 스냅샷도 부분 수정된다")
         void 스냅샷_부분_수정() {
             TimeDeal timeDeal = scheduledTimeDeal();
-            UUID newImageId = UUID.randomUUID();
-
             timeDeal.update(
-                    newImageId, "못난이 사과 5kg", null, TimeDealProductGrade.UGLY, null, null,
+                    "못난이 사과 5kg", null, TimeDealProductGrade.UGLY, null, null,
                     null, null, null, null, null, CREATED_AT);
 
-            assertThat(timeDeal.getImageId()).isEqualTo(newImageId);
             assertThat(timeDeal.getName()).isEqualTo("못난이 사과 5kg");
             assertThat(timeDeal.getProductGrade()).isEqualTo(TimeDealProductGrade.UGLY);
             assertThat(timeDeal.getOrigin()).isEqualTo("경북 안동");
@@ -443,7 +438,7 @@ class TimeDealTest {
             TimeDeal timeDeal = scheduledTimeDeal();
 
             assertThatThrownBy(() -> timeDeal.update(
-                    null, "   ", null, null, null, null,
+                    "   ", null, null, null, null,
                     null, null, null, null, null, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
