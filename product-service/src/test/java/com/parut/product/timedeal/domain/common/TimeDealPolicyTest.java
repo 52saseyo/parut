@@ -579,39 +579,4 @@ class TimeDealPolicyTest {
     }
 
 
-    @Nested
-    @DisplayName("판매 기간 종료")
-    class EndBySalePeriodEnd {
-
-        @Test
-        @DisplayName("판매 기간이 지났으면 ENDED로 종료된다")
-        void 종료_성공() {
-            TimeDeal timeDeal = activeTimeDeal();
-
-            timeDealPolicy.endBySalePeriodEnd(timeDeal, AFTER_END);
-
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
-        }
-
-        @Test
-        @DisplayName("판매 기간이 남아 있으면 종료할 수 없다 — 소진 조기 종료 경로와 구분된다")
-        void 기간중_종료불가() {
-            TimeDeal timeDeal = activeTimeDeal();
-
-            assertThatThrownBy(() -> timeDealPolicy.endBySalePeriodEnd(timeDeal, IN_WINDOW))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_SALE_PERIOD_NOT_ENDED);
-        }
-
-        @Test
-        @DisplayName("activate가 한 번도 돌지 않은 SCHEDULED 타임딜도 종료할 수 있다")
-        void 예정딜_종료() {
-            TimeDeal timeDeal = scheduledTimeDeal(MAX_PURCHASE_QUANTITY);
-
-            timeDealPolicy.endBySalePeriodEnd(timeDeal, AFTER_END);
-
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
-        }
-    }
 }

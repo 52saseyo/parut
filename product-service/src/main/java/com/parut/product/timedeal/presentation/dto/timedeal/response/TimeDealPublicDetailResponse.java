@@ -1,9 +1,8 @@
 package com.parut.product.timedeal.presentation.dto.timedeal.response;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
-import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
-
+import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
