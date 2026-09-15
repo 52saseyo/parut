@@ -1,5 +1,6 @@
 package com.parut.product.productStock;
 
+import com.parut.product.global.common.UserRole;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
@@ -290,7 +291,7 @@ public class ProductStockServiceImplTest {
         void getStockList_byAdmin_returnsAllStocks() {
             Pageable pageable = PageRequest.of(0, 10);
             Page<ProductStock> page = new PageImpl<>(List.of(ProductStock.create(productId, 100, 10)));
-            given(authorizationChecker.isAdmin("ADMIN")).willReturn(true);
+            given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
             given(productStockRepository.findByDeletedAtIsNull(pageable)).willReturn(page);
 
             Page<ProductStock> result = productStockService.getStockList(UUID.randomUUID(), "ADMIN", pageable);
@@ -569,7 +570,7 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 100, 10);
             Product product = createOnSaleProduct(sellerId, 5000L);
 
-            given(authorizationChecker.isAdmin("ADMIN")).willReturn(true);
+            given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
             given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
@@ -596,7 +597,7 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(stock, "id", stockId);
             Product product = createOnSaleProduct(sellerId, 5000L);
 
-            given(authorizationChecker.isAdmin("SELLER")).willReturn(false);
+            given(authorizationChecker.requireSellerOrAdminRole("SELLER")).willReturn(UserRole.SELLER);
             given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of(productId));
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
                     .willReturn(List.of(stock));
@@ -616,7 +617,7 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("판매자가 소유한 상품이 없으면 빈 목록을 반환한다")
         void getIsolatedReservations_sellerNoOwnedProducts_returnsEmpty() {
-            given(authorizationChecker.isAdmin("SELLER")).willReturn(false);
+            given(authorizationChecker.requireSellerOrAdminRole("SELLER")).willReturn(UserRole.SELLER);
             given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of()))
                     .willReturn(List.of());
@@ -641,7 +642,7 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 100, 10);
             Product product = createOnSaleProduct(sellerId, 5000L);
 
-            given(authorizationChecker.isAdmin("ADMIN")).willReturn(true);
+            given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
             given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));

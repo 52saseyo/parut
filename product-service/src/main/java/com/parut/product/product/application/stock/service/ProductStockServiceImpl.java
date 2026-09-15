@@ -1,6 +1,7 @@
 package com.parut.product.product.application.stock.service;
 
 
+import com.parut.product.global.common.UserRole;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
@@ -47,7 +48,6 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Value("${parut.product-stock.reservation-ttl}")
     private Duration reservationTtl;
-
 
     private final ProductStockRepository productStockRepository;
     private final ProductStockReservationRepository productStockReservationRepository;
@@ -120,6 +120,76 @@ public class ProductStockServiceImpl implements ProductStockService{
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
     }
 
+    // 격리된 재고 조회
+    @Override
+    @Transactional(readOnly = true)
+    public List<IsolatedReservationResult> getIsolatedReservations(UUID requesterId, String requesterRole) {
+        UserRole role = authorizationChecker.requireSellerOrAdminRole(requesterRole);
+        List<ProductStockReservation> reservations;
+
+        if (role == UserRole.ADMIN) {
+            reservations = productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED);
+        } else {
+            List<UUID> productIds = productReader.getProductIdsBySellerId(requesterId);
+            List<UUID> stockIds = productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds)
+                    .stream()
+                    .map(ProductStock::getId)
+                    .toList();
+            reservations = productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, stockIds);
+        }
+
+        List<IsolatedReservationResult> result = new ArrayList<>();
+        for (ProductStockReservation reservation : reservations) {
+            ProductStock stock = productStockRepository.findById(reservation.getStockId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+            Product product = productReader.getProduct(stock.getProductId());
+
+            result.add(new IsolatedReservationResult(
+                    reservation.getId(),
+                    stock.getProductId(),
+                    product.getName(),
+                    product.getSellerId(),
+                    reservation.getOrderId(),
+                    reservation.getQuantity(),
+                    reservation.getExpiresAt()
+            ));
+        }
+        return result;
+    }
+
+    // 격리된 예약 복구
+    @Override
+    public void recoverIsolatedReservation(UUID reservationId, UUID requesterId, String requesterRole) {
+        authorizationChecker.requireAdmin(requesterRole);
+
+        ProductStockReservation reservation = productStockReservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
+
+        reservation.recoverFromIsolation();
+        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+
+        // 이미 재고 복구(RESTORE)가 실제로 반영됐는지 확인 - 격리 상태 자체가 이걸 몰라서 생긴 것이므로 필수 검증
+        boolean alreadyRestored = productStockEventLogRepository
+                .findByReservationIdAndEventType(reservation.getId(), StockEventType.RESTORE)
+                .isPresent();
+
+        if (alreadyRestored) {
+            return; // 재고도 이미 복구됐고 로그도 이미 있으니, 상태 전이만 하고 여기서 끝냄
+        }
+        ProductStockEventLog reserveLog = productStockEventLogRepository
+                .findByReservationIdAndEventType(reservation.getId(), StockEventType.RESERVE)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND));
+
+        ProductStock stock = productStockRepository.findById(reservation.getStockId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+        stock.restore(reservation.getQuantity());
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+        saveEventLog(reservation.getId(), reserveLog.getOrderItemId(), StockEventType.RESTORE);
+    }
+
+
+    // 재고 예약
     @Override
     public void reserve(UUID orderId, List<ProductStockReserveItem> items) {
         Instant expiresAt = Instant.now().plus(reservationTtl);
@@ -320,7 +390,8 @@ public class ProductStockServiceImpl implements ProductStockService{
     @Override
     @Transactional(readOnly = true)
     public Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable) {
-        if (authorizationChecker.isAdmin(requesterRole)) {
+        UserRole role = authorizationChecker.requireSellerOrAdminRole(requesterRole);
+        if (role == UserRole.ADMIN) {
             return productStockRepository.findByDeletedAtIsNull(pageable);
         }
         List<UUID> productIds = productReader.getProductIdsBySellerId(requesterId);
