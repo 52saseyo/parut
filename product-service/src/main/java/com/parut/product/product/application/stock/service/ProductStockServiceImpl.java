@@ -6,6 +6,8 @@ import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
+import com.parut.product.product.application.dto.stock.ProductStockItem;
+import com.parut.product.product.application.dto.stock.ProductStockReserveItem;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.domain.product.Product;
@@ -20,6 +22,7 @@ import com.parut.product.product.infrastructure.stock.persistence.ProductStockEv
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -33,6 +36,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -115,86 +119,100 @@ public class ProductStockServiceImpl implements ProductStockService{
     }
 
     @Override
-    public void reserve(UUID productId, UUID orderId, UUID orderItemId, int quantity) {
-       if(isAlreadyProcessed(orderItemId, StockEventType.RESERVE)) {
-           return;
-       }
-        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
-        stock.reserve(quantity);
-
-        try {
-            productStockRepository.saveAndFlush(stock);
-
-        } catch (OptimisticLockingFailureException e) {
-            if(isAlreadyProcessed(orderItemId, StockEventType.RESERVE)) {
-                return; // 동시 재시도 - 이미 성공, 멱등 처리
+    public void reserve(UUID orderId, List<ProductStockReserveItem> items) {
+        Instant expiresAt = Instant.now().plus(reservationTtl);
+        for (ProductStockReserveItem item : items) {
+            if (isAlreadyProcessed(item.orderItemId(), StockEventType.RESERVE)) {
+                continue;
             }
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+            ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(item.productId())
+                    .orElseThrow(() -> {
+                        log.warn("[reserve] 재고 없음 - orderId={}, orderItemId={}, productId={}",
+                                orderId, item.orderItemId(), item.productId());
+                        return new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+                    });
+            stock.reserve(item.quantity());
+
+            try {
+                productStockRepository.saveAndFlush(stock);
+            } catch (OptimisticLockingFailureException e) {
+                if (isAlreadyProcessed(item.orderItemId(), StockEventType.RESERVE)) {
+                    continue;
+                }
+                log.warn("[reserve] 낙관적 락 충돌 - orderId={}, orderItemId={}, productId={}",
+                        orderId, item.orderItemId(), item.productId());
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+            }
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stock.getId(), orderId, item.quantity(), expiresAt);
+            productStockReservationRepository.save(reservation);
+
+            saveEventLog(reservation.getId(), item.orderItemId(), StockEventType.RESERVE);
         }
-
-        // 현재 시각 + 30분으로 만료 예약 시간 생성
-        ProductStockReservation reservation = ProductStockReservation
-                .create(stock.getId(), orderId, quantity, Instant.now().plus(reservationTtl));
-        productStockReservationRepository.save(reservation);
-
-        saveEventLog(reservation.getId(), orderItemId, StockEventType.RESERVE);
+    }
+    @Override
+    public void confirm(UUID orderId, List<ProductStockItem> items) {
+        for (ProductStockItem item : items) {
+            if (isAlreadyProcessed(item.orderItemId(), StockEventType.CONFIRM)) {
+                continue;
+            }
+            ProductStockReservation reservation = findReservationByOrderItemId(item.orderItemId(), orderId);
+            reservation.confirm();
+            saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+            ProductStock stock = productStockRepository.findById(reservation.getStockId())
+                    .orElseThrow(() -> {
+                        log.warn("[confirm] 재고 없음 - orderId={}, orderItemId={}, stockId={}",
+                                orderId, item.orderItemId(), reservation.getStockId());
+                        return new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+                    });
+            validateStockOwnership(stock, item.productId());
+            stock.confirm(reservation.getQuantity());
+            saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+            if (stock.getStatus() == StockStatus.SOLD_OUT) {
+                notifySoldOut(item.productId());
+            }
+            saveEventLog(reservation.getId(), item.orderItemId(), StockEventType.CONFIRM);
+        }
     }
 
     @Override
-    public void confirm(UUID productId, UUID orderId, UUID orderItemId) {
-        if(isAlreadyProcessed(orderItemId, StockEventType.CONFIRM)) {
-            return;
+    public void restore(UUID orderId, List<ProductStockItem> items) {
+        for (ProductStockItem item : items) {
+            if (isAlreadyProcessed(item.orderItemId(), StockEventType.RESTORE)) {
+                continue;
+            }
+            ProductStockReservation reservation = findReservationByOrderItemId(item.orderItemId(), orderId);
+
+            if (reservation.getStatus() == ReservationStatus.EXPIRED) {
+                // 스케줄러가 이미 만료 처리(재고 복구 + RESTORE 이벤트로그 저장)까지 원자적으로 끝냄
+                // -> 재고/로그 재처리 없이 멱등 반환
+                continue;
+            }
+
+            if (reservation.getStatus() == ReservationStatus.EXPIRATION_FAILED) {
+                // 재고 복구 여부가 불확실한 격리 상태
+                log.warn("[restore] 격리된 예약 - orderId={}, orderItemId={}, reservationId={}",
+                        orderId, item.orderItemId(), reservation.getId());
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+            }
+
+            reservation.cancel();
+            saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+
+            ProductStock stock = productStockRepository.findById(reservation.getStockId())
+                    .orElseThrow(() -> {
+                        log.warn("[restore] 재고 없음 - orderId={}, orderItemId={}, stockId={}",
+                                orderId, item.orderItemId(), reservation.getStockId());
+                        return new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+                    });
+
+            validateStockOwnership(stock, item.productId());
+
+            stock.restore(reservation.getQuantity());
+            saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+
+            saveEventLog(reservation.getId(), item.orderItemId(), StockEventType.RESTORE);
         }
-        ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
-        reservation.confirm();
-        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-
-        ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
-
-        validateStockOwnership(stock, productId);
-
-        stock.confirm(reservation.getQuantity());
-        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-        if (stock.getStatus() == StockStatus.SOLD_OUT) {
-            notifySoldOut(productId);
-        }
-        saveEventLog(reservation.getId(), orderItemId, StockEventType.CONFIRM);
-    }
-
-    @Override
-    public void restore(UUID productId, UUID orderId, UUID orderItemId) {
-        if (isAlreadyProcessed(orderItemId, StockEventType.RESTORE)) {
-            return;
-        }
-
-        ProductStockReservation reservation = findReservationByOrderItemId(orderItemId, orderId);
-
-
-        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
-            // 스케줄러가 이미 만료 처리(재고 복구 + RESTORE 이벤트로그 저장)까지 원자적으로 끝냄
-            // -> 재고/로그 재처리 없이 멱등 반환
-            return;
-        }
-
-        if (reservation.getStatus() == ReservationStatus.EXPIRATION_FAILED) {
-            // 재고 복구 여부가 불확실한 격리 상태 -> 별도 에러로 명확히 구분
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
-        }
-
-        reservation.cancel();
-        saveReservationSafely(reservation, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-
-        ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
-
-        validateStockOwnership(stock, productId);
-
-        stock.restore(reservation.getQuantity());
-        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-
-        saveEventLog(reservation.getId(), orderItemId, StockEventType.RESTORE);
     }
 
     private boolean isAlreadyProcessed(UUID orderItemId, StockEventType eventType) {

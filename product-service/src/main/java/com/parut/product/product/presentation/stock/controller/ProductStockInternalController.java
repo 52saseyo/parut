@@ -20,32 +20,27 @@ public class ProductStockInternalController {
 
     private final ProductStockService productStockService;
 
-    @PostMapping("/{productId}/reserve")
+    @PostMapping("/reserve")
     public ResponseEntity<ApiResponse<Void>> reserve(
-            @PathVariable UUID productId,
             @Valid @RequestBody ProductStockReserveRequest request
     ) {
-        productStockService.reserve(
-                productId, request.orderId(), request.orderItemId(), request.quantity()
-        );
+        productStockService.reserve(request.orderId(), request.toItems());
         return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 
-    @PostMapping("/{productId}/confirm")
+    @PostMapping("/confirm")
     public ResponseEntity<ApiResponse<Void>> confirm(
-            @PathVariable UUID productId,
             @Valid @RequestBody ProductStockConfirmRequest request
     ) {
-        productStockService.confirm(productId, request.orderId(), request.orderItemId());
+        productStockService.confirm(request.orderId(), request.toItems());
         return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 
-    @PostMapping("/{productId}/restore")
+    @PostMapping("/restore")
     public ResponseEntity<ApiResponse<Void>> restore(
-            @PathVariable UUID productId,
             @Valid @RequestBody ProductStockRestoreRequest request
     ) {
-        productStockService.restore(productId, request.orderId(), request.orderItemId());
+        productStockService.restore(request.orderId(), request.toItems());
         return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 
