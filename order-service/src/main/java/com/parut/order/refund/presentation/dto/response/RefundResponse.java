@@ -12,8 +12,11 @@ public record RefundResponse(
         RefundStatus status,
         long refundAmount,
         String reason,
+        String rejectionReason,
         Instant requestedAt,
-        Instant canceledAt
+        Instant canceledAt,
+        Instant processedAt,
+        UUID processedBy
 ) {
     public static RefundResponse from(Refund refund) {
         return new RefundResponse(
@@ -22,8 +25,11 @@ public record RefundResponse(
                 refund.getStatus(),
                 refund.getRefundAmount(),
                 refund.getReason(),
+                refund.getRejectionReason(),
                 refund.getRequestedAt(),
-                refund.getCanceledAt()
+                refund.getCanceledAt(),
+                refund.getProcessedAt(),
+                refund.getProcessedBy()
         );
     }
 }

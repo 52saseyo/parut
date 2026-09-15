@@ -1,5 +1,6 @@
 package com.parut.order.refund.presentation.controller;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -14,11 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.parut.order.global.common.ApiResponse;
 import com.parut.order.global.constant.HeaderConstants;
+import com.parut.order.refund.application.RefundFacade;
 import com.parut.order.refund.application.RefundService;
 import com.parut.order.refund.domain.Refund;
+import com.parut.order.refund.presentation.dto.request.ApproveRefundRequest;
+import com.parut.order.refund.presentation.dto.request.RejectRefundRequest;
 import com.parut.order.refund.presentation.dto.request.RequestRefundRequest;
 import com.parut.order.refund.presentation.dto.response.RefundResponse;
-import com.parut.order.refund.presentation.dto.request.RejectRefundRequest;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 public class RefundController {
 
     private final RefundService refundService;
+    private final RefundFacade refundFacade;
 
     @PostMapping("/order-items/{orderItemId}/refunds")
     @ResponseStatus(HttpStatus.CREATED)
@@ -65,5 +69,21 @@ public class RefundController {
     ) {
         Refund refund = refundService.rejectRefund(refundId, sellerId, request.rejectionReason());
         return ApiResponse.success(RefundResponse.from(refund), traceId);
+    }
+
+    @PatchMapping("/refunds/approve")
+    public ApiResponse<List<RefundResponse>> approveRefunds(
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.IDEMPOTENCY_KEY) String cancelRequestId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            @RequestBody ApproveRefundRequest request
+    ) {
+        List<RefundResponse> refunds = refundFacade
+                .approveRefunds(request.refundIds(), sellerId, cancelRequestId)
+                .stream()
+                .map(RefundResponse::from)
+                .toList();
+
+        return ApiResponse.success(refunds, traceId);
     }
 }
