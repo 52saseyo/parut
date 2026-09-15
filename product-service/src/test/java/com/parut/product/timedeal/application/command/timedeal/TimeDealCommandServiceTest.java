@@ -69,6 +69,7 @@ class TimeDealCommandServiceTest {
     @BeforeEach
     void setUp() {
         timeDealCommandService = new TimeDealCommandService(
+                org.mockito.Mockito.mock(TimeDealSalePeriodProcessor.class),
                 timeDealRepository,
                 timeDealStockRepository,
                 new TimeDealPolicy(),
@@ -89,7 +90,7 @@ class TimeDealCommandServiceTest {
 
             ReflectionTestUtils.setField(timeDeal, "id", id);
 
-            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
             return timeDeal;
         }
 
@@ -144,7 +145,7 @@ class TimeDealCommandServiceTest {
 
         @Test
         void 타임딜이_없으면_404다() {
-            when(timeDealRepository.findById(id)).thenReturn(Optional.empty());
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
             assertThatThrownBy(() -> timeDealCommandService.delete(
                     new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_FOUND);
@@ -349,7 +350,7 @@ class TimeDealCommandServiceTest {
 
             ReflectionTestUtils.setField(timeDeal, "id", id);
 
-            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
             return timeDeal;
         }
 
@@ -417,7 +418,7 @@ class TimeDealCommandServiceTest {
         @Test
         void 수정_대상이_없으면_찾을수없음_오류다() {
             UUID id = UUID.randomUUID();
-            when(timeDealRepository.findById(id)).thenReturn(Optional.empty());
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
             assertThatThrownBy(() -> timeDealCommandService.update(updateCommand(id, SELLER_ID, "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_FOUND);
             verify(timeDealRepository, never()).saveAndFlush(any());

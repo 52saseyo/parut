@@ -9,6 +9,10 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand
 
 public interface TimeDealCommandUseCase {
 
+    void endTimeDeals();
+
+    void activateTimeDeals();
+
     void delete(TimeDealDeleteCommand command);
 
     TimeDealUpdateResult update(TimeDealUpdateCommand command);

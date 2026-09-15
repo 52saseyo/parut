@@ -104,6 +104,62 @@ class TimeDealTest {
         return timeDeal;
     }
 
+    @Test
+    void 판매시작_직전에는_예정상태를_유지한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(START_AT.minusNanos(1));
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.SCHEDULED);
+    }
+
+    @Test
+    void 시작시각에_활성화하고_중복실행은_무시한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(START_AT);
+        timeDeal.updateSaleStatus(START_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+    }
+
+    @Test
+    void 오픈을_놓쳤어도_종료시각이면_바로_종료한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(END_AT);
+        timeDeal.updateSaleStatus(END_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
+    }
+
+    @Test
+    void 진행중인_타임딜도_종료시각에_종료한다() {
+        TimeDeal timeDeal = activeTimeDeal();
+        timeDeal.updateSaleStatus(END_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
+    }
+
+    @Test
+    void 중단되거나_삭제된_타임딜은_활성화하지_않는다() {
+        TimeDeal stoppedTimeDeal = activeTimeDeal();
+        stoppedTimeDeal.stop();
+        TimeDeal deletedTimeDeal = scheduledTimeDeal();
+        deletedTimeDeal.softDelete("seller");
+        stoppedTimeDeal.updateSaleStatus(START_AT);
+        deletedTimeDeal.updateSaleStatus(START_AT);
+        assertThat(stoppedTimeDeal.getStatus()).isEqualTo(TimeDealStatus.STOPPED);
+        assertThat(deletedTimeDeal.getStatus()).isEqualTo(TimeDealStatus.SCHEDULED);
+    }
+
+    @Test
+    void 판매기간중에는_활성상태를_유지한다() {
+        TimeDeal timeDeal = activeTimeDeal();
+        timeDeal.updateSaleStatus(IN_WINDOW);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+    }
+
+    @Test
+    void 상태갱신_기준시각은_필수다() {
+        assertThatThrownBy(() -> scheduledTimeDeal().updateSaleStatus(null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
     @Nested
     @DisplayName("생성")
     class Create {
@@ -537,6 +593,17 @@ class TimeDealTest {
     @Nested
     @DisplayName("구매 가능 여부 검증")
     class ValidatePurchasable {
+        @Test
+        void 시작시각은_허용하고_종료시각은_거절한다() {
+            TimeDeal timeDeal = scheduledTimeDeal();
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(START_AT.minusNanos(1)))
+                    .isInstanceOf(BusinessException.class);
+            timeDeal.validatePurchasable(END_AT.minusNanos(1));
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(END_AT))
+                    .isInstanceOf(BusinessException.class);
+            timeDeal.validatePurchasable(START_AT);
+        }
+
 
         @Test
         @DisplayName("배치가 활성화를 못 돌려 SCHEDULED여도 판매 기간 안이면 구매할 수 있다 — 지연 평가")
@@ -547,11 +614,14 @@ class TimeDealTest {
         }
 
         @Test
-        @DisplayName("종료 시각 정각은 아직 구매할 수 있다")
-        void 종료_경계_통과() {
+        @DisplayName("종료 시각 정각부터 구매할 수 없다")
+        void 종료_경계_불가() {
             TimeDeal timeDeal = activeTimeDeal();
 
-            timeDeal.validatePurchasable(END_AT);
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(END_AT))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
         }
 
         @Test
