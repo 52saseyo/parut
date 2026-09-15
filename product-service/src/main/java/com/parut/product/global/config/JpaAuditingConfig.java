@@ -1,6 +1,7 @@
 package com.parut.product.global.config;
 
 import com.parut.product.global.common.AuditorContext;
+import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
@@ -18,9 +19,6 @@ import java.util.Optional;
 @Configuration
 @EnableJpaAuditing
 public class JpaAuditingConfig {
-
-    private static final String SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
-    private static final String BATCH_SYSTEM_USR_ID = "00000000-0000-0000-0000-000000000001";
 
     @Bean
     public AuditorAware<String> auditorProvider() {
@@ -44,7 +42,7 @@ public class JpaAuditingConfig {
             Object internalRequest = request.getAttribute(ServiceKeyInterceptor.INTERNAL_REQUEST_ATTRIBUTE);
 
             if (Boolean.TRUE.equals(internalRequest)) {
-                return Optional.of(SYSTEM_USER_ID);
+                return Optional.of(AuditorConstants.SYSTEM_USER_ID);
             }
 
             // 일반 사용자 요청USER_ID
@@ -62,4 +60,3 @@ public class JpaAuditingConfig {
         };
     }
 }
-

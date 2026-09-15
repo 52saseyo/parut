@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.application.command.timedeal;
 
 import com.parut.product.global.common.AuditorContext;
+import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
@@ -73,7 +74,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private void processTimeDeals(List<UUID> ids) {
         for (UUID id : ids) {
             try {
-                AuditorContext.set("00000000-0000-0000-0000-000000000001");
+                AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
                 // 대상 조회 이후 시간이 흐르거나 판매 조건이 바뀔 수 있어 처리 시점에 재판정한다.
                 timeDealSalePeriodProcessor.synchronize(id);
             } catch (Exception e) {

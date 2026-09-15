@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.application.command.timedeal;
 
 import com.parut.product.global.common.AuditorContext;
+import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import org.junit.jupiter.api.Test;
 import java.util.List;
@@ -22,7 +23,7 @@ class TimeDealSalePeriodBatchTest {
         when(repository.findTimeDealsToActivate(any(), eq(third), eq(100))).thenReturn(List.of());
         doThrow(new IllegalStateException("실패 건은 다음 실행에 재시도")).when(processor).synchronize(first);
         doAnswer(invocation -> {
-            assertThat(AuditorContext.get()).contains("00000000-0000-0000-0000-000000000001");
+            assertThat(AuditorContext.get()).contains(AuditorConstants.BATCH_SYSTEM_USER_ID);
             return null;
         }).when(processor).synchronize(second);
 
@@ -53,7 +54,7 @@ class TimeDealSalePeriodBatchTest {
                 .when(processor).synchronize(first);
         doAnswer(invocation -> {
             assertThat(AuditorContext.get())
-                    .contains("00000000-0000-0000-0000-000000000001");
+                    .contains(AuditorConstants.BATCH_SYSTEM_USER_ID);
             return null;
         }).when(processor).synchronize(second);
 
