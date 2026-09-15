@@ -109,9 +109,11 @@ class TimeDealControllerTest {
             UUID timeDealId = UUID.randomUUID();
             when(queryUseCase.getPublicDetail(timeDealId))
                     .thenThrow(new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-            mvc.perform(get("/api/v1/time-deals/{id}", timeDealId))
+            mvc.perform(get("/api/v1/time-deals/{id}", timeDealId)
+                            .header("X-Trace-Id", "trace-error-404"))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.code").value("TIME_DEAL_NOT_FOUND"));
+                    .andExpect(jsonPath("$.code").value("TIME_DEAL_NOT_FOUND"))
+                    .andExpect(jsonPath("$.traceId").value("trace-error-404"));
         }
     }
 
