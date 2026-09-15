@@ -151,8 +151,7 @@ public class TimeDealPolicy {
         return timeDealStock;
     }
 
-    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이
-    // 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
+    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
     public void delete(TimeDeal timeDeal, TimeDealStock stock, String deletedBy) {
         validateRequiredFields(timeDeal, stock);
         stock.validateBelongsToTimeDeal(timeDeal.getId());

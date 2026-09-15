@@ -30,11 +30,12 @@ public class InternalTimeDealController {
     // NOTE: 표시 정보가 전부 타임딜 자기 컬럼(스냅샷)이라 상품 조회 없이 한 번에 내려간다.
     @GetMapping("/time-deals/{timeDealId}")
     public ResponseEntity<ApiResponse<TimeDealDetailResponse>> getDetail(
-            @PathVariable UUID timeDealId
+            @PathVariable UUID timeDealId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
     ) {
         TimeDealDetailView timeDealDetailView = timeDealQueryUseCase.getDetail(timeDealId);
         return ResponseEntity.ok(
-                ApiResponse.success(TimeDealDetailResponse.from(timeDealDetailView), null));
+                ApiResponse.success(TimeDealDetailResponse.from(timeDealDetailView), traceId));
     }
 
 
