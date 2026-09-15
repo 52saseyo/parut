@@ -36,6 +36,7 @@ class DeliveryServiceTest {
     private static final UUID DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
     private static final UUID SECOND_DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b9");
     private static final UUID ORDER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
+    private static final UUID DELIVERY_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bd");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bb");
     private static final Instant COMPLETION_TIME = Instant.parse("2026-09-05T07:00:00Z");
     private static final Instant COMPLETION_THRESHOLD = Instant.parse("2026-09-05T06:59:00Z");
@@ -118,35 +119,29 @@ class DeliveryServiceTest {
     }
 
     @Test
-    @DisplayName("배송 시작 60초가 지난 배송을 완료 대상으로 조회한다")
-    void 배송_완료_기준_시각_계산() {
-        when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        )).thenReturn(List.of());
-
-        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
-
-        verify(deliveryRepository).findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        );
-    }
-
-    @Test
-    @DisplayName("완료 대상 배송의 상태를 변경하고 Order 배송 그룹 상태를 동기화한다")
+    @DisplayName("완료 대상 배송과 주문 배송 그룹을 함께 완료한다")
     void 배송_자동_완료() {
         Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
         delivery.ship("1234567890", COMPLETION_THRESHOLD);
-        when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        )).thenReturn(List.of(delivery));
+        when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
 
-        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
+        deliveryService.completeEligibleDelivery(DELIVERY_ID, COMPLETION_TIME, COMPLETION_THRESHOLD);
 
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETION_TIME);
         verify(orderDeliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);
+    }
+
+    @Test
+    @DisplayName("완료 기준보다 늦게 시작한 배송은 건너뛴다")
+    void 완료_대상_재확인() {
+        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        delivery.ship("1234567890", COMPLETION_THRESHOLD.plusSeconds(1));
+        when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
+
+        deliveryService.completeEligibleDelivery(DELIVERY_ID, COMPLETION_TIME, COMPLETION_THRESHOLD);
+
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+        verify(orderDeliveryGroupStatusUseCase, never()).markDelivered(DELIVERY_GROUP_ID);
     }
 }
