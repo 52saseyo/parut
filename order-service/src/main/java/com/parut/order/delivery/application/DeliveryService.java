@@ -31,9 +31,6 @@ import lombok.RequiredArgsConstructor;
 @Transactional(readOnly = true)
 public class DeliveryService implements DeliveryCreateUseCase {
 
-    /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
-    private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
-
     private final DeliveryRepository deliveryRepository;
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
     private final OrderDeliveryGroupStatusUseCase orderDeliveryGroupStatusUseCase;
@@ -153,22 +150,22 @@ public class DeliveryService implements DeliveryCreateUseCase {
     }
 
     /**
-     * 시작한 지 60초가 지난 배송을 완료한다.
+     * 배송 한 건과 주문 배송 그룹을 같은 트랜잭션에서 완료한다.
+     * 스케줄러가 이 메서드를 건별로 호출해 한 건의 실패가 다른 건에 영향을 주지 않는다.
      */
     @Transactional
-    public void completeEligibleDeliveries(Instant completionTime) {
-        if (completionTime == null) {
+    public void completeEligibleDelivery(UUID deliveryId, Instant completionTime, Instant completionThreshold) {
+        if (deliveryId == null || completionTime == null || completionThreshold == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                completionTime.minusSeconds(DELIVERY_COMPLETION_DELAY_SECONDS)
-        );
+        Delivery delivery = deliveryRepository.findById(deliveryId).orElse(null);
+        if (delivery == null || delivery.getStatus() != DeliveryStatus.SHIPPED
+                || delivery.getShippedAt().isAfter(completionThreshold)) {
+            return;
+        }
 
-        deliveries.forEach(delivery -> {
-            delivery.complete(completionTime);
-            orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
-        });
+        delivery.complete(completionTime);
+        orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
     }
 }
