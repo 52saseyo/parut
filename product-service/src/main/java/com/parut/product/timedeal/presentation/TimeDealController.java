@@ -2,10 +2,14 @@ package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.common.ApiResponse;
 import com.parut.product.global.constant.HeaderConstants;
+import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealUpdateResponse;
+import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealStopResponse;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealPublicDetailResponse;
@@ -40,23 +44,33 @@ public class TimeDealController {
 
     @GetMapping("/{timeDealId}")
     public ResponseEntity<ApiResponse<TimeDealPublicDetailResponse>> getDetail(
-            @PathVariable UUID timeDealId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+            @PathVariable UUID timeDealId
     ) {
         TimeDealPublicDetailResponse response =
                 TimeDealPublicDetailResponse.from(timeDealQueryUseCase.getPublicDetail(timeDealId));
-        return ResponseEntity.ok(ApiResponse.success(response, traceId));
+        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
     }
 
     @DeleteMapping("/{timeDealId}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID timeDealId,
             @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
-            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
     ) {
         timeDealCommandUseCase.delete(new TimeDealDeleteCommand(timeDealId, requesterId, requesterRole));
-        return ResponseEntity.ok(ApiResponse.success(null, traceId));
+        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
+    }
+
+    @PatchMapping("/{timeDealId}/stop")
+    public ResponseEntity<ApiResponse<TimeDealStopResponse>> stop(
+            @PathVariable UUID timeDealId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
+    ) {
+        TimeDealStopResult result = timeDealCommandUseCase.stop(
+                new TimeDealStopCommand(timeDealId, requesterId, requesterRole));
+        return ResponseEntity.ok(ApiResponse.success(
+                TimeDealStopResponse.from(result), TraceIdContext.currentTraceId()));
     }
 
     @PatchMapping("/{timeDealId}")
@@ -64,12 +78,12 @@ public class TimeDealController {
             @PathVariable UUID timeDealId,
             @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
             @Valid @RequestBody TimeDealUpdateRequest request
     ) {
         TimeDealUpdateResult result =
                 timeDealCommandUseCase.update(request.toCommand(timeDealId, requesterId, requesterRole));
-        return ResponseEntity.ok(ApiResponse.success(TimeDealUpdateResponse.from(result), traceId));
+        return ResponseEntity.ok(ApiResponse.success(
+                TimeDealUpdateResponse.from(result), TraceIdContext.currentTraceId()));
     }
 
 
@@ -78,13 +92,13 @@ public class TimeDealController {
     public ResponseEntity<ApiResponse<TimeDealCreateResponse>> create(
             @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
             @Valid @RequestBody TimeDealCreateRequest timeDealCreateRequest
     ) {
         TimeDealCreateResult timeDealCreateResult =
                 timeDealCommandUseCase.create(timeDealCreateRequest.toCommand(sellerId, requesterRole));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(TimeDealCreateResponse.from(timeDealCreateResult), traceId));
+                .body(ApiResponse.success(
+                        TimeDealCreateResponse.from(timeDealCreateResult), TraceIdContext.currentTraceId()));
     }
 
 
@@ -93,12 +107,12 @@ public class TimeDealController {
     public ResponseEntity<ApiResponse<TimeDealCreateResponse>> convert(
             @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
             @Valid @RequestBody TimeDealConvertRequest timeDealConvertRequest
     ) {
         TimeDealCreateResult timeDealCreateResult =
                 timeDealCommandUseCase.convert(timeDealConvertRequest.toCommand(requesterId, requesterRole));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(TimeDealCreateResponse.from(timeDealCreateResult), traceId));
+                .body(ApiResponse.success(
+                        TimeDealCreateResponse.from(timeDealCreateResult), TraceIdContext.currentTraceId()));
     }
 }

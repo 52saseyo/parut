@@ -13,6 +13,8 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -99,6 +101,20 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
         timeDealRepository.save(timeDeal);
         timeDealStockRepository.save(stock);
+    }
+
+    @Override
+    @Transactional
+    public TimeDealStopResult stop(TimeDealStopCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+
+        // NOTE: ACTIVE 타임딜만 STOPPED로 전이한다. 상태 전이 규칙은 도메인이 담당한다.
+        timeDeal.stop();
+        TimeDeal savedTimeDeal = timeDealRepository.save(timeDeal);
+        return TimeDealStopResult.from(savedTimeDeal);
     }
 
     @Override
