@@ -10,7 +10,6 @@ import java.util.UUID;
 
 // NOTE: PATCH 부분 수정. 생략과 명시적 null 모두 변경하지 않음을 뜻한다.
 public record TimeDealUpdateRequest(
-        UUID imageId,
         String name,
         String description,
         TimeDealProductGrade productGrade,
@@ -25,7 +24,7 @@ public record TimeDealUpdateRequest(
     public TimeDealUpdateCommand toCommand(UUID timeDealId, UUID requesterId, String requesterRole) {
         return new TimeDealUpdateCommand(
                 timeDealId, requesterId, requesterRole,
-                imageId, name, description, productGrade, origin, harvestedDate, originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity
+                name, description, productGrade, origin, harvestedDate, originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity
         );
     }
 }

@@ -44,7 +44,7 @@ class TimeDealPolicyTest {
 
     private static TimeDeal scheduledTimeDeal(int maxPurchaseQuantity) {
         TimeDeal timeDeal = TimeDeal.create(
-                UUID.randomUUID(), UUID.randomUUID(), null,
+                UUID.randomUUID(), UUID.randomUUID(),
                 "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, maxPurchaseQuantity, CREATED_AT);
@@ -515,7 +515,7 @@ class TimeDealPolicyTest {
         @DisplayName("저장 전 타임딜을 넘기면 예외 — ID가 null이라 걸러진다")
         void 저장전_타임딜() {
             TimeDeal unsavedTimeDeal = TimeDeal.create(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), UUID.randomUUID(),
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30),
                     START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);

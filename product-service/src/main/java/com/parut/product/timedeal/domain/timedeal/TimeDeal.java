@@ -32,9 +32,6 @@ public class TimeDeal extends DeletableEntity {
     @Column(name = "product_id", columnDefinition = "uuid", updatable = false)
     private UUID productId;
 
-    @Column(name = "image_id", columnDefinition = "uuid")
-    private UUID imageId;
-
     @Column(name = "original_price", nullable = false)
     private Long originalPrice;
 
@@ -76,7 +73,6 @@ public class TimeDeal extends DeletableEntity {
     private TimeDeal(
             UUID sellerId,
             UUID productId,
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -102,7 +98,6 @@ public class TimeDeal extends DeletableEntity {
 
         this.sellerId = sellerId;
         this.productId = productId;
-        this.imageId = imageId;
         this.name = name;
         this.description = description;
         this.productGrade = productGrade;
@@ -122,7 +117,6 @@ public class TimeDeal extends DeletableEntity {
     public static TimeDeal create(
             UUID sellerId,
             UUID productId,
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -138,7 +132,6 @@ public class TimeDeal extends DeletableEntity {
         return new TimeDeal(
                 sellerId,
                 productId,
-                imageId,
                 name,
                 description,
                 productGrade,
@@ -157,7 +150,6 @@ public class TimeDeal extends DeletableEntity {
     // NOTE: PATCH 부분 수정(null = 변경 없음). 검증은 병합한 뒤의 값으로 해야 기간 역전 같은 조합 오류를 잡는다.
     // NOTE: sellerId·productId는 수정 대상이 아니다 — 소유권과 전환 출처는 생성 시점에 고정된다.
     public void update(
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -177,7 +169,6 @@ public class TimeDeal extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
         }
 
-        UUID newImageId = imageId != null ? imageId : this.imageId;
         String newName = name != null ? name : this.name;
         String newDescription = description != null ? description : this.description;
         TimeDealProductGrade newProductGrade = productGrade != null ? productGrade : this.productGrade;
@@ -199,7 +190,6 @@ public class TimeDeal extends DeletableEntity {
         validateOriginalPrice(newOriginalPrice);
         validateDiscountRate(newDiscountRate);
 
-        this.imageId = newImageId;
         this.name = newName;
         this.description = newDescription;
         this.productGrade = newProductGrade;

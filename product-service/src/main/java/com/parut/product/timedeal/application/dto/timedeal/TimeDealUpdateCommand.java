@@ -14,7 +14,6 @@ public record TimeDealUpdateCommand(
         UUID timeDealId,
         UUID requesterId,
         String requesterRole,
-        UUID imageId,
         String name,
         String description,
         TimeDealProductGrade productGrade,
