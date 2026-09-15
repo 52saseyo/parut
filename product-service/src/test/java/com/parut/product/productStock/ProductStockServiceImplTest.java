@@ -5,6 +5,8 @@ import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
+import com.parut.product.product.application.dto.stock.ProductStockItem;
+import com.parut.product.product.application.dto.stock.ProductStockReserveItem;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.application.stock.service.ProductStockServiceImpl;
@@ -42,6 +44,8 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -385,90 +389,167 @@ public class ProductStockServiceImplTest {
     class Reserve {
 
         @Test
-        @DisplayName("이미 처리된 요청이면 아무 것도 하지 않고 반환한다 (멱등성)")
-        void reserve_alreadyProcessed_doesNothing() {
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(mock(ProductStockEventLog.class)));
+        @DisplayName("이미 처리된 항목은 건너뛰고, 나머지 항목은 정상 처리")
+        void reserve_alreadyProcessedItemSkipped_othersProcessed() {
+            UUID productId2 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            ProductStock stock2 = ProductStock.create(productId2, 100, 10);
 
-            productStockService.reserve(productId, orderId, orderItemId, 10);
+            ProductStockEventLog alreadyProcessedLog =
+                    ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
 
-            log.info("[ProductStockService.reserve] orderItemId={} 이미 RESERVE 로그 존재 -> 재고 조회 없이 종료 기대", orderItemId);
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of(alreadyProcessedLog)); // orderItemId만 이미 처리됨
 
-            verify(productStockRepository, never()).findByProductIdAndDeletedAtIsNull(any());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId2)))
+                    .willReturn(List.of(stock2));
+
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 10),
+                    new ProductStockReserveItem(productId2, orderItemId2, 20)
+            );
+
+            productStockService.reserve(orderId, items);
+
+            log.info("[ProductStockService.reserve] orderItemId={}(이미 처리) 건너뜀, orderItemId2={} 정상 처리 기대",
+                    orderItemId, orderItemId2);
+
+            verify(productStockRepository, never())
+                    .findByProductIdInAndDeletedAtIsNull(List.of(productId));
+
+            ArgumentCaptor<Collection<ProductStock>> stockCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockRepository).saveAllAndFlush(stockCaptor.capture());
+            assertThat(stockCaptor.getValue()).containsExactly(stock2);
+
+            verify(productStockReservationRepository).saveAllAndFlush(anyCollection());
         }
 
         @Test
-        @DisplayName("정상 예약 시 재고 차감, 예약 생성, 이벤트로그 저장이 모두 실행된다")
-        void reserve_success_persistsAll() {
-            ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.empty());
-            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
-                    .willReturn(Optional.of(stock));
+        @DisplayName("여러 항목을 정상 예약하면 항목 수만큼 재고 차감, 예약 생성, 이벤트로그 저장이 실행")
+        void reserve_bulkSuccess_persistsAllItems() {
+            UUID productId2 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            ProductStock stock1 = ProductStock.create(productId, 100, 10);
+            ProductStock stock2 = ProductStock.create(productId2, 50, 5);
 
-            productStockService.reserve(productId, orderId, orderItemId, 20);
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
+                    .willReturn(List.of(stock1, stock2));
 
-            log.info("[ProductStockService.reserve] productId={}, orderItemId={}, quantity=20 예약 성공 -> stock/reservation/eventLog 저장 확인",
-                    productId, orderItemId);
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 20),
+                    new ProductStockReserveItem(productId2, orderItemId2, 10)
+            );
 
-            verify(productStockRepository).saveAndFlush(stock);
-            verify(productStockReservationRepository).save(any(ProductStockReservation.class));
-            verify(productStockEventLogRepository).save(any(ProductStockEventLog.class));
+            productStockService.reserve(orderId, items);
+
+            log.info("[ProductStockService.reserve] 벌크 예약 성공 -> 2건 모두 저장 확인");
+
+            ArgumentCaptor<Collection<ProductStock>> stockCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockRepository).saveAllAndFlush(stockCaptor.capture());
+            assertThat(stockCaptor.getValue()).containsExactlyInAnyOrder(stock1, stock2);
+
+            ArgumentCaptor<Collection<ProductStockReservation>> reservationCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockReservationRepository).saveAllAndFlush(reservationCaptor.capture());
+            assertThat(reservationCaptor.getValue()).hasSize(2);
+
+            ArgumentCaptor<Collection<ProductStockEventLog>> logCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockEventLogRepository).saveAllAndFlush(logCaptor.capture());
+            assertThat(logCaptor.getValue()).hasSize(2);
         }
 
         @Test
-        @DisplayName("재고 부족 시 예외가 발생하고 예약/로그가 저장되지 않는다")
-        void reserve_shortage_doesNotPersistReservation() {
-            ProductStock stock = ProductStock.create(productId, 5, 1);
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.empty());
-            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
-                    .willReturn(Optional.of(stock));
+        @DisplayName("두 번째 항목에서 재고 부족 발생 시 예외가 전파되고 이후 항목은 처리되지 않음")
+        void reserve_bulkFailure_stopsProcessingRemainingItems() {
+            UUID productId2 = UUID.randomUUID();
+            UUID productId3 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            UUID orderItemId3 = UUID.randomUUID();
 
-            log.info("[ProductStockService.reserve] 가용 재고 5 < 요청 수량 10 -> 재고 부족 예외 및 예약 미저장 기대");
+            ProductStock stock1 = ProductStock.create(productId, 100, 10);
+            ProductStock stock2 = ProductStock.create(productId2, 5, 1); // 재고 부족 유발
 
-            assertThatThrownBy(() -> productStockService.reserve(productId, orderId, orderItemId, 10))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESERVE))
+                    .willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(
+                    List.of(productId, productId2, productId3)))
+                    .willReturn(List.of(stock1, stock2)); // productId3에 대한 재고는 없음(안 쓰임)
+
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 10),
+                    new ProductStockReserveItem(productId2, orderItemId2, 10), // 재고 5 < 요청 10 -> 실패
+                    new ProductStockReserveItem(productId3, orderItemId3, 10)
+            );
+
+            log.info("[ProductStockService.reserve] 두 번째 항목 재고 부족 -> 예외 전파 및 저장 미실행 기대");
+
+            assertThatThrownBy(() -> productStockService.reserve(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_SHORTAGE);
 
-            verify(productStockReservationRepository, never()).save(any());
-        }
-        @Test
-        @DisplayName("낙관적 락 충돌 + 동시 재시도로 이미 처리됨 -> 멱등 처리(예외 없음)")
-        void reserve_optimisticLockFailure_butAlreadyProcessed_doesNothingSilently() {
-            ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.empty())  // 첫 번째 체크: 아직 처리 안 됨
-                    .willReturn(Optional.of(mock(ProductStockEventLog.class)));  // 두 번째 체크(catch 안): 이미 처리됨
-            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
-                    .willReturn(Optional.of(stock));
-            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
-                    .willThrow(OptimisticLockingFailureException.class);
-
-            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 동시 재시도(이미 처리됨) -> 예외 없이 반환 기대");
-
-            productStockService.reserve(productId, orderId, orderItemId, 20);
-
-            verify(productStockReservationRepository, never()).save(any());
-            verify(productStockEventLogRepository, never()).save(any());
+            // 재고 부족은 메모리 단계에서 터지므로 저장 자체가 호출되지 않아야 함(all-or-nothing)
+            verify(productStockRepository, never()).saveAllAndFlush(any());
         }
 
         @Test
-        @DisplayName("낙관적 락 충돌 + 실제로 처리 안 됨 -> CONFLICT 예외")
-        void reserve_optimisticLockFailure_notProcessed_throwsConflict() {
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 예외")
+        void reserve_optimisticLockFailure_throwsConflict() {
             ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.empty());  // 첫 번째, 두 번째 체크 모두 없음
-            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
-                    .willReturn(Optional.of(stock));
-            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
+                    .willReturn(List.of(stock));
+            given(productStockRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
 
-            log.info("[ProductStockService.reserve] 낙관적 락 충돌 + 실제 미처리 -> CONFLICT 예외 기대");
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 20)
+            );
 
-            assertThatThrownBy(() -> productStockService.reserve(productId, orderId, orderItemId, 20))
+            log.info("[ProductStockService.reserve] 낙관적 락 충돌 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.reserve(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+
+            verify(productStockReservationRepository, never()).saveAllAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("여러 항목이 동일한 만료 시각을 사용한다")
+        void reserve_bulkItems_useSameExpiresAt() {
+            UUID productId2 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            ProductStock stock1 = ProductStock.create(productId, 100, 10);
+            ProductStock stock2 = ProductStock.create(productId2, 50, 5);
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
+                    .willReturn(List.of(stock1, stock2));
+
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 10),
+                    new ProductStockReserveItem(productId2, orderItemId2, 10)
+            );
+
+            productStockService.reserve(orderId, items);
+
+            ArgumentCaptor<Collection<ProductStockReservation>> captor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockReservationRepository).saveAllAndFlush(captor.capture());
+
+            List<ProductStockReservation> saved = new ArrayList<>(captor.getValue());
+            log.info("[ProductStockService.reserve] 항목1 expiresAt={}, 항목2 expiresAt={}",
+                    saved.get(0).getExpiresAt(), saved.get(1).getExpiresAt());
+
+            assertThat(saved).hasSize(2);
+            assertThat(saved.get(0).getExpiresAt()).isEqualTo(saved.get(1).getExpiresAt());
         }
     }
 
@@ -479,51 +560,118 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("정상 확정 시 예약 상태 변경과 재고 확정이 모두 반영된다")
         void confirm_success() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
             ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.CONFIRM))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.CONFIRM))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
 
-            productStockService.confirm(productId, orderId, orderItemId);
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            productStockService.confirm(orderId, items);
 
             log.info("[ProductStockService.confirm] orderItemId={} 확정 후 reservation.status={}", orderItemId, reservation.getStatus());
 
-            verify(productStockReservationRepository).saveAndFlush(reservation);
-            verify(productStockRepository).saveAndFlush(stock);
-            verify(productStockEventLogRepository).save(any(ProductStockEventLog.class));
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
+            verify(productStockReservationRepository).saveAllAndFlush(anyCollection());
+            verify(productStockRepository).saveAllAndFlush(anyCollection());
+
+            ArgumentCaptor<Collection<ProductStockEventLog>> logCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockEventLogRepository).saveAllAndFlush(logCaptor.capture());
+            assertThat(logCaptor.getValue()).hasSize(1);
+            assertThat(logCaptor.getValue().iterator().next().getOrderItemId()).isEqualTo(orderItemId);
+        }
+
+        @Test
+        @DisplayName("이미 처리된 항목은 건너뛰고, 나머지 항목은 정상 처리된다")
+        void confirm_alreadyProcessedItemSkipped_othersProcessed() {
+            UUID productId2 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            UUID reservationId2 = UUID.randomUUID();
+            UUID stockId2 = UUID.randomUUID();
+            ProductStockReservation reservation2 = ProductStockReservation
+                    .create(stockId2, orderId, 15, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation2, "id", reservationId2);
+            ProductStockEventLog reserveLog2 = ProductStockEventLog.create(reservationId2, orderItemId2, StockEventType.RESERVE);
+            ProductStock stock2 = ProductStock.create(productId2, 50, 5);
+            ReflectionTestUtils.setField(stock2, "id", stockId2);
+
+            ProductStockEventLog alreadyConfirmedLog =
+                    ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.CONFIRM);
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.CONFIRM))
+                    .willReturn(List.of(alreadyConfirmedLog)); // orderItemId만 이미 처리됨
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog2));
+            given(productStockReservationRepository.findAllById(List.of(reservationId2)))
+                    .willReturn(List.of(reservation2));
+            given(productStockRepository.findAllById(List.of(stockId2)))
+                    .willReturn(List.of(stock2));
+
+            List<ProductStockItem> items = List.of(
+                    new ProductStockItem(productId, orderItemId),
+                    new ProductStockItem(productId2, orderItemId2)
+            );
+
+            productStockService.confirm(orderId, items);
+
+            log.info("[ProductStockService.confirm] orderItemId={}(이미 처리) 건너뜀, orderItemId2={} 정상 처리 기대",
+                    orderItemId, orderItemId2);
+
+            verify(productStockEventLogRepository, never())
+                    .findByOrderItemIdInAndEventType(List.of(orderItemId), StockEventType.RESERVE);
+
+            ArgumentCaptor<Collection<ProductStock>> stockCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockRepository).saveAllAndFlush(stockCaptor.capture());
+            assertThat(stockCaptor.getValue()).containsExactly(stock2);
         }
 
         @Test
         @DisplayName("예약에 연결된 상품과 요청 productId가 다르면 예외가 발생한다")
         void confirm_ownershipMismatch_throwsException() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             UUID otherProductId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
-            ProductStock stock = ProductStock.create(otherProductId, 100, 10); // 다른 상품
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(otherProductId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.CONFIRM))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.CONFIRM))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
 
-            log.info("[ProductStockService.confirm] 요청 productId={} != 재고 소유 productId={} -> NOT_FOUND 예외 기대",
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            log.info("[ProductStockService.confirm] 요청 productId={} != 재고 소유 productId={} -> RESERVATION_NOT_FOUND 예외 기대",
                     productId, otherProductId);
 
-            assertThatThrownBy(() -> productStockService.confirm(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.confirm(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
@@ -531,47 +679,63 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("주문 ID가 예약과 일치하지 않으면 예외가 발생한다")
         void confirm_orderIdMismatch_throwsException() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             UUID differentOrderId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, differentOrderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.CONFIRM))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.CONFIRM))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.confirm] 요청 orderId={} != 예약된 orderId={} -> NOT_FOUND 예외 기대",
                     orderId, differentOrderId);
 
-            assertThatThrownBy(() -> productStockService.confirm(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.confirm(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
 
         @Test
-        @DisplayName("예약 낙관적 락 충돌 시 ALREADY_PROCESSED 에러로 변환된다")
-        void confirm_reservationOptimisticLockFailure_convertsToError() {
+        @DisplayName("예약/재고 저장 시 낙관적 락 충돌이 발생하면 ALREADY_PROCESSED 에러로 변환된다")
+        void confirm_optimisticLockFailure_convertsToError() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.CONFIRM))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockReservationRepository.saveAndFlush(any(ProductStockReservation.class)))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.CONFIRM))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
+            given(productStockReservationRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.confirm] 예약 저장 시 낙관적 락 충돌 발생 -> ALREADY_PROCESSED 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.confirm(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.confirm(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
@@ -579,21 +743,29 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("확정으로 재고가 0이 되면 품절 알림이 호출된다")
         void confirm_reachesZero_notifiesSoldOut() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
-            ProductStock stock = ProductStock.create(productId, 20, 5);   // ← total=20, 예약 수량(20)과 동일하게
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(productId, 20, 5);
+            ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.CONFIRM))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.CONFIRM))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
 
-            productStockService.confirm(productId, orderId, orderItemId);
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            productStockService.confirm(orderId, items);
 
             verify(productStateManager).soldOut(productId);
         }
@@ -605,67 +777,133 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("이미 처리된 요청이면 아무 것도 하지 않고 반환한다 (멱등성)")
         void restore_alreadyProcessed_doesNothing() {
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.of(mock(ProductStockEventLog.class)));
+            ProductStockEventLog alreadyRestoredLog =
+                    ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESTORE);
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of(alreadyRestoredLog));
 
-            productStockService.restore(productId, orderId, orderItemId);
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            productStockService.restore(orderId, items);
 
             log.info("[ProductStockService.restore] orderItemId={} 이미 RESTORE 로그 존재 -> 예약 조회 없이 종료 기대", orderItemId);
 
-            verify(productStockReservationRepository, never()).findById(any());
+            verify(productStockReservationRepository, never()).findAllById(any());
+        }
+
+        @Test
+        @DisplayName("이미 처리된 항목은 건너뛰고, 나머지 항목은 정상 처리된다")
+        void restore_alreadyProcessedItemSkipped_othersProcessed() {
+            UUID productId2 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            UUID reservationId2 = UUID.randomUUID();
+            UUID stockId2 = UUID.randomUUID();
+            ProductStockReservation reservation2 = ProductStockReservation
+                    .create(stockId2, orderId, 15, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation2, "id", reservationId2);
+            ProductStockEventLog reserveLog2 = ProductStockEventLog.create(reservationId2, orderItemId2, StockEventType.RESERVE);
+            ProductStock stock2 = ProductStock.create(productId2, 50, 5);
+            ReflectionTestUtils.setField(stock2, "id", stockId2);
+            stock2.reserve(15);
+
+            ProductStockEventLog alreadyRestoredLog =
+                    ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESTORE);
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.RESTORE))
+                    .willReturn(List.of(alreadyRestoredLog)); // orderItemId만 이미 처리됨
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog2));
+            given(productStockReservationRepository.findAllById(List.of(reservationId2)))
+                    .willReturn(List.of(reservation2));
+            given(productStockRepository.findAllById(List.of(stockId2)))
+                    .willReturn(List.of(stock2));
+
+            List<ProductStockItem> items = List.of(
+                    new ProductStockItem(productId, orderItemId),
+                    new ProductStockItem(productId2, orderItemId2)
+            );
+
+            productStockService.restore(orderId, items);
+
+            log.info("[ProductStockService.restore] orderItemId={}(이미 처리) 건너뜀, orderItemId2={} 정상 처리 기대",
+                    orderItemId, orderItemId2);
+
+            assertThat(reservation2.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            ArgumentCaptor<Collection<ProductStock>> stockCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockRepository).saveAllAndFlush(stockCaptor.capture());
+            assertThat(stockCaptor.getValue()).containsExactly(stock2);
         }
 
         @Test
         @DisplayName("정상 복구 시 예약 취소, 재고 복구, 이벤트로그 저장이 모두 실행된다")
         void restore_success() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
             ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
             stock.reserve(20);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
 
-            productStockService.restore(productId, orderId, orderItemId);
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            productStockService.restore(orderId, items);
 
             log.info("[ProductStockService.restore] orderItemId={} 복구 후 reservation.status={}, stock.available={}",
                     orderItemId, reservation.getStatus(), stock.getAvailableQuantity());
 
             assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-            verify(productStockReservationRepository).saveAndFlush(reservation);
-            verify(productStockRepository).saveAndFlush(stock);
-            verify(productStockEventLogRepository).save(any(ProductStockEventLog.class));
+            verify(productStockReservationRepository).saveAllAndFlush(anyCollection());
+            verify(productStockRepository).saveAllAndFlush(anyCollection());
+            verify(productStockEventLogRepository).saveAllAndFlush(anyCollection());
         }
 
         @Test
         @DisplayName("예약에 연결된 상품과 요청 productId가 다르면 예외가 발생한다")
         void restore_ownershipMismatch_throwsException() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             UUID otherProductId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
             ProductStock stock = ProductStock.create(otherProductId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
 
-            log.info("[ProductStockService.restore] 요청 productId={} != 재고 소유 productId={} -> NOT_FOUND 예외 기대",
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            log.info("[ProductStockService.restore] 요청 productId={} != 재고 소유 productId={} -> RESERVATION_NOT_FOUND 예외 기대",
                     productId, otherProductId);
 
-            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.restore(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
@@ -673,47 +911,64 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("주문 ID가 예약과 일치하지 않으면 예외가 발생한다")
         void restore_orderIdMismatch_throwsException() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             UUID differentOrderId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, differentOrderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.restore] 요청 orderId={} != 예약된 orderId={} -> NOT_FOUND 예외 기대",
                     orderId, differentOrderId);
 
-            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.restore(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
         }
 
         @Test
-        @DisplayName("예약 낙관적 락 충돌 시 ALREADY_PROCESSED 에러로 변환된다")
-        void restore_reservationOptimisticLockFailure_convertsToError() {
+        @DisplayName("예약/재고 저장 시 낙관적 락 충돌이 발생하면 ALREADY_PROCESSED 에러로 변환된다")
+        void restore_optimisticLockFailure_convertsToError() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+            stock.reserve(20);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
-            given(productStockReservationRepository.saveAndFlush(any(ProductStockReservation.class)))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
+            given(productStockReservationRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.restore] 예약 저장 시 낙관적 락 충돌 발생 -> ALREADY_PROCESSED 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.restore(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
@@ -721,48 +976,114 @@ public class ProductStockServiceImplTest {
         @Test
         @DisplayName("예약이 이미 EXPIRED 상태면 재고/로그를 재처리하지 않고 반환한다")
         void restore_reservationExpired_doesNothingSilently() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            reservation.expire(); // 스케줄러가 이미 만료 처리한 상태를 재현
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.expire();
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.restore] 예약 상태=EXPIRED -> 재고/로그 재처리 없이 반환 기대");
 
-            productStockService.restore(productId, orderId, orderItemId);
+            productStockService.restore(orderId, items);
 
-            verify(productStockRepository, never()).findById(any());
-            verify(productStockEventLogRepository, never()).save(any());
+            verify(productStockRepository, never()).findAllById(any());
+            verify(productStockEventLogRepository, never()).saveAllAndFlush(any());
         }
 
         @Test
         @DisplayName("예약이 EXPIRATION_FAILED 상태면 격리 에러로 응답한다")
         void restore_reservationIsolated_throwsIsolatedError() {
+            UUID reservationId = UUID.randomUUID();
             UUID stockId = UUID.randomUUID();
             ProductStockReservation reservation = ProductStockReservation
                     .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
-            reservation.fail(); // 격리 상태 재현
-            ProductStockEventLog reserveLog = ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESTORE))
-                    .willReturn(Optional.empty());
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.of(reserveLog));
-            given(productStockReservationRepository.findById(reserveLog.getReservationId()))
-                    .willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
 
             log.info("[ProductStockService.restore] 예약 상태=EXPIRATION_FAILED -> ISOLATED 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.restore(productId, orderId, orderItemId))
+            assertThatThrownBy(() -> productStockService.restore(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+        }
+
+        @Test
+        @DisplayName("두 번째 항목이 격리 상태면 예외가 전파되고 재고 조회는 실행되지 않는다")
+        void restore_bulkFailure_stopsProcessingRemainingItems() {
+            UUID productId2 = UUID.randomUUID();
+            UUID productId3 = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            UUID orderItemId3 = UUID.randomUUID();
+
+            UUID reservationId1 = UUID.randomUUID();
+            ProductStockReservation reservation1 = ProductStockReservation
+                    .create(UUID.randomUUID(), orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation1, "id", reservationId1);
+            ProductStockEventLog reserveLog1 = ProductStockEventLog.create(reservationId1, orderItemId, StockEventType.RESERVE);
+
+            UUID reservationId2 = UUID.randomUUID();
+            ProductStockReservation reservation2 = ProductStockReservation
+                    .create(UUID.randomUUID(), orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation2, "id", reservationId2);
+            reservation2.fail(); // 격리 상태 유발
+            ProductStockEventLog reserveLog2 = ProductStockEventLog.create(reservationId2, orderItemId2, StockEventType.RESERVE);
+
+            UUID reservationId3 = UUID.randomUUID();
+            ProductStockReservation reservation3 = ProductStockReservation
+                    .create(UUID.randomUUID(), orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation3, "id", reservationId3);
+            ProductStockEventLog reserveLog3 = ProductStockEventLog.create(reservationId3, orderItemId3, StockEventType.RESERVE);
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESTORE))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog1, reserveLog2, reserveLog3));
+            // reservationIds는 HashMap(reservationIdByOrderItemId)에서 만들어져 순서가 보장되지 않으므로
+            // 특정 순서의 List로 스텁하지 않고 any()로 느슨하게 받는다
+            given(productStockReservationRepository.findAllById(any()))
+                    .willReturn(List.of(reservation1, reservation2, reservation3));
+
+            List<ProductStockItem> items = List.of(
+                    new ProductStockItem(productId, orderItemId),
+                    new ProductStockItem(productId2, orderItemId2),
+                    new ProductStockItem(productId3, orderItemId3)
+            );
+
+            log.info("[ProductStockService.restore] 두 번째 항목 격리 상태 -> 예외 전파, 재고 조회 미실행 기대");
+
+            assertThatThrownBy(() -> productStockService.restore(orderId, items))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+
+            // 격리 상태에서 예외가 터지므로 재고 조회 자체가 실행되지 않아야 함
+            verify(productStockRepository, never()).findAllById(any());
         }
     }
 
@@ -775,16 +1096,21 @@ public class ProductStockServiceImplTest {
         @DisplayName("동시 요청으로 UNIQUE 제약이 걸리면 ALREADY_PROCESSED 에러로 변환된다")
         void saveEventLog_uniqueViolation_convertsToAlreadyProcessed() {
             ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdAndEventType(orderItemId, StockEventType.RESERVE))
-                    .willReturn(Optional.empty());
-            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId))
-                    .willReturn(Optional.of(stock));
-            given(productStockEventLogRepository.save(any(ProductStockEventLog.class)))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
+                    .willReturn(List.of(stock));
+            given(productStockEventLogRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(DataIntegrityViolationException.class);
+
+            List<ProductStockReserveItem> items = List.of(
+                    new ProductStockReserveItem(productId, orderItemId, 10)
+            );
 
             log.info("[ProductStockService.reserve] 이벤트로그 저장 시 UNIQUE 제약 위반(동시 요청) -> ALREADY_PROCESSED 예외 기대");
 
-            assertThatThrownBy(() -> productStockService.reserve(productId, orderId, orderItemId, 10))
+            assertThatThrownBy(() -> productStockService.reserve(orderId, items))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
