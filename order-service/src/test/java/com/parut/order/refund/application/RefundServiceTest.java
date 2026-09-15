@@ -28,6 +28,8 @@ import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
 import com.parut.order.order.application.port.in.dto.OrderItemDetailView;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderItemStatus;
+import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
+import com.parut.order.refund.application.dto.RefundApprovalContext;
 import com.parut.order.refund.domain.Refund;
 import com.parut.order.refund.domain.RefundStatus;
 import com.parut.order.refund.infrastructure.persistence.RefundRepository;
@@ -36,6 +38,7 @@ import com.parut.order.refund.infrastructure.persistence.RefundRepository;
 class RefundServiceTest {
 
     private static final UUID ORDER_ITEM_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
+    private static final UUID SECOND_ORDER_ITEM_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bd");
     private static final UUID CUSTOMER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b9");
     private static final UUID ORDER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bb");
@@ -173,8 +176,59 @@ class RefundServiceTest {
         verifyNoInteractions(orderItemRefundUseCase);
     }
 
+    @Test
+    @DisplayName("같은 주문과 판매자의 환불 요청을 함께 승인한다")
+    void 환불_다건_승인() {
+        UUID firstRefundId = UUID.randomUUID();
+        UUID secondRefundId = UUID.randomUUID();
+        List<UUID> refundIds = List.of(firstRefundId, secondRefundId);
+        Instant requestedAt = Instant.now();
+        Instant canceledAt = requestedAt.plusSeconds(1);
+
+        Refund firstRefund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", requestedAt);
+        Refund secondRefund = Refund.request(SECOND_ORDER_ITEM_ID, 10_000L, "상품 파손", requestedAt);
+
+        when(refundRepository.findAllById(refundIds)).thenReturn(List.of(firstRefund, secondRefund));
+        when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID, SECOND_ORDER_ITEM_ID)))
+                .thenReturn(List.of(
+                        orderItem(ORDER_ITEM_ID, OrderItemStatus.REFUND_REQUESTED),
+                        orderItem(SECOND_ORDER_ITEM_ID, OrderItemStatus.REFUND_REQUESTED)
+                ));
+
+        RefundApprovalContext context = refundService.prepareApproval(refundIds, SELLER_ID);
+        List<Refund> approved = refundService.completeApproval(
+                context,
+                new PaymentCancelView(20_000L, canceledAt)
+        );
+
+        assertThat(context.totalRefundAmount()).isEqualTo(20_000L);
+        assertThat(context.orderItemIds()).containsExactlyInAnyOrder(ORDER_ITEM_ID, SECOND_ORDER_ITEM_ID);
+        assertThat(approved)
+                .extracting(Refund::getStatus)
+                .containsOnly(RefundStatus.APPROVED);
+        assertThat(approved)
+                .extracting(Refund::getProcessedBy)
+                .containsOnly(SELLER_ID);
+        verify(orderItemRefundUseCase).markRefunded(context.orderItemIds());
+    }
+
     private OrderItemDetailView orderItem() {
         return orderItem(OrderItemStatus.ORDERED, DeliveryGroupStatus.DELIVERED);
+    }
+
+    private OrderItemDetailView orderItem(UUID orderItemId, OrderItemStatus itemStatus) {
+        return new OrderItemDetailView(
+                orderItemId,
+                ORDER_ID,
+                CUSTOMER_ID,
+                SELLER_ID,
+                DELIVERY_GROUP_ID,
+                itemStatus,
+                DeliveryGroupStatus.DELIVERED,
+                5_000L,
+                2,
+                null
+        );
     }
 
     private OrderItemDetailView orderItem(OrderItemStatus itemStatus, DeliveryGroupStatus groupStatus) {
