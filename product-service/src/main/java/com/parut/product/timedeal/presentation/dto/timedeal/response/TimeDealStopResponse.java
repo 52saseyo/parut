@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record TimeDealStopResponse(UUID timeDealId, TimeDealStatus status) {
 
-    public static TimeDealStopResponse from(TimeDealStopResult result) {
-        return new TimeDealStopResponse(result.timeDealId(), result.status());
+    public static TimeDealStopResponse from(TimeDealStopResult timeDealStopResult) {
+        return new TimeDealStopResponse(timeDealStopResult.timeDealId(), timeDealStopResult.status());
     }
 }

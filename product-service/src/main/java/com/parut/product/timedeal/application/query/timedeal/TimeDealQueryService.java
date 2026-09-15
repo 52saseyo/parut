@@ -28,18 +28,18 @@ public class TimeDealQueryService implements TimeDealQueryUseCase {
 
     @Override
     public TimeDealPublicDetailResult getPublicDetail(UUID timeDealId) {
-        TimeDealPublicDetailView view = timeDealQueryRepository.findPublicDetailById(timeDealId)
+        TimeDealPublicDetailView timeDealPublicDetailView = timeDealQueryRepository.findPublicDetailById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        ImageQueryResult image = imageQueryPort.findImage(new ImageQuery(timeDealId));
-        return TimeDealPublicDetailResult.from(view, image.imageUrl());
+        ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId));
+        return TimeDealPublicDetailResult.from(timeDealPublicDetailView, imageQueryResult.imageUrl());
     }
 
 
     @Override
     public TimeDealDetailResult getDetail(UUID timeDealId) {
-        TimeDealDetailView view = timeDealQueryRepository.findDetailById(timeDealId)
+        TimeDealDetailView timeDealDetailView = timeDealQueryRepository.findDetailById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        ImageQueryResult image = imageQueryPort.findImage(new ImageQuery(timeDealId));
-        return TimeDealDetailResult.from(view, image.imageUrl());
+        ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId));
+        return TimeDealDetailResult.from(timeDealDetailView, imageQueryResult.imageUrl());
     }
 }

@@ -35,29 +35,29 @@ public record TimeDealPublicDetailResponse(
     ) {
     }
 
-    public static TimeDealPublicDetailResponse from(TimeDealPublicDetailResult result) {
+    public static TimeDealPublicDetailResponse from(TimeDealPublicDetailResult timeDealPublicDetailResult) {
         return new TimeDealPublicDetailResponse(
-                result.timeDealId(),
-                result.productId(),
-                result.sellerId(),
-                result.imageUrl(),
-                result.name(),
-                result.description(),
-                result.productGrade(),
-                result.origin(),
-                result.harvestedDate(),
-                result.originalPrice(),
-                result.discountRate(),
-                result.dealPrice(),
-                result.startAt(),
-                result.endAt(),
-                result.maxPurchaseQuantity(),
-                result.status(),
+                timeDealPublicDetailResult.timeDealId(),
+                timeDealPublicDetailResult.productId(),
+                timeDealPublicDetailResult.sellerId(),
+                timeDealPublicDetailResult.imageUrl(),
+                timeDealPublicDetailResult.name(),
+                timeDealPublicDetailResult.description(),
+                timeDealPublicDetailResult.productGrade(),
+                timeDealPublicDetailResult.origin(),
+                timeDealPublicDetailResult.harvestedDate(),
+                timeDealPublicDetailResult.originalPrice(),
+                timeDealPublicDetailResult.discountRate(),
+                timeDealPublicDetailResult.dealPrice(),
+                timeDealPublicDetailResult.startAt(),
+                timeDealPublicDetailResult.endAt(),
+                timeDealPublicDetailResult.maxPurchaseQuantity(),
+                timeDealPublicDetailResult.status(),
                 new Stock(
-                        result.availableQuantity(),
-                        result.reservedQuantity(),
-                        result.soldQuantity(),
-                        result.lowStockThreshold()
+                        timeDealPublicDetailResult.availableQuantity(),
+                        timeDealPublicDetailResult.reservedQuantity(),
+                        timeDealPublicDetailResult.soldQuantity(),
+                        timeDealPublicDetailResult.lowStockThreshold()
                 )
         );
     }

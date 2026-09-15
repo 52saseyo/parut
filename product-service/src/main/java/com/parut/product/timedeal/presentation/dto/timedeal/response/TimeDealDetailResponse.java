@@ -23,20 +23,20 @@ public record TimeDealDetailResponse(
         String origin,
         LocalDate harvestedDate
 ) {
-    public static TimeDealDetailResponse from(TimeDealDetailResult result) {
+    public static TimeDealDetailResponse from(TimeDealDetailResult timeDealDetailResult) {
         return new TimeDealDetailResponse(
-                result.timeDealId(),
-                result.productId(),
-                result.sellerId(),
-                result.imageUrl(),
-                result.productName(),
-                result.description(),
-                result.originalPrice(),
-                result.discountRate(),
-                result.dealPrice(),
-                result.productGrade(),
-                result.origin(),
-                result.harvestedDate()
+                timeDealDetailResult.timeDealId(),
+                timeDealDetailResult.productId(),
+                timeDealDetailResult.sellerId(),
+                timeDealDetailResult.imageUrl(),
+                timeDealDetailResult.productName(),
+                timeDealDetailResult.description(),
+                timeDealDetailResult.originalPrice(),
+                timeDealDetailResult.discountRate(),
+                timeDealDetailResult.dealPrice(),
+                timeDealDetailResult.productGrade(),
+                timeDealDetailResult.origin(),
+                timeDealDetailResult.harvestedDate()
         );
     }
 }

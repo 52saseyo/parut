@@ -7,7 +7,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record TimeDealUpdateResponse(UUID timeDealId, TimeDealStatus status, Instant updatedAt) {
-    public static TimeDealUpdateResponse from(TimeDealUpdateResult result) {
-        return new TimeDealUpdateResponse(result.timeDealId(), result.status(), result.updatedAt());
+    public static TimeDealUpdateResponse from(TimeDealUpdateResult timeDealUpdateResult) {
+        return new TimeDealUpdateResponse(
+                timeDealUpdateResult.timeDealId(),
+                timeDealUpdateResult.status(),
+                timeDealUpdateResult.updatedAt());
     }
 }
