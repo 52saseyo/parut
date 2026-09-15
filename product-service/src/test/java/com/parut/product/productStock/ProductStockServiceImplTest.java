@@ -5,8 +5,9 @@ import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
-import com.parut.product.product.application.dto.stock.ProductStockItem;
-import com.parut.product.product.application.dto.stock.ProductStockReserveItem;
+import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
+import com.parut.product.product.application.stock.dto.ProductStockItem;
+import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.application.stock.service.ProductStockServiceImpl;
@@ -550,6 +551,327 @@ public class ProductStockServiceImplTest {
 
             assertThat(saved).hasSize(2);
             assertThat(saved.get(0).getExpiresAt()).isEqualTo(saved.get(1).getExpiresAt());
+        }
+    }
+
+    // 격리된 예약 조회 테스트
+    @Nested
+    @DisplayName("getIsolatedReservations()")
+    class GetIsolatedReservations {
+
+        @Test
+        @DisplayName("관리자가 요청하면 전체 격리 예약을 조회한다")
+        void getIsolatedReservations_byAdmin_returnsAll() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
+            reservation.fail(); // EXPIRATION_FAILED 상태로 만듦
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(authorizationChecker.isAdmin("ADMIN")).willReturn(true);
+            given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");
+
+            log.info("[ProductStockService.getIsolatedReservations] 관리자 전체 조회 -> 건수={}", result.size());
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).productName()).isEqualTo(product.getName());
+            assertThat(result.get(0).sellerId()).isEqualTo(sellerId);
+            verify(productReader, never()).getProductIdsBySellerId(any());
+        }
+
+        @Test
+        @DisplayName("판매자가 요청하면 본인 상품 범위로 필터링된 격리 예약만 조회한다")
+        void getIsolatedReservations_bySeller_returnsOwnedOnly() {
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
+            reservation.fail();
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(authorizationChecker.isAdmin("SELLER")).willReturn(false);
+            given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of(productId));
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
+                    .willReturn(List.of(stock));
+            given(productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, List.of(stock.getId())))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(sellerId, "SELLER");
+
+            log.info("[ProductStockService.getIsolatedReservations] 판매자 필터링 조회 -> 건수={}", result.size());
+
+            assertThat(result).hasSize(1);
+            verify(productStockReservationRepository, never()).findByStatus(any());
+        }
+
+        @Test
+        @DisplayName("판매자가 소유한 상품이 없으면 빈 목록을 반환한다")
+        void getIsolatedReservations_sellerNoOwnedProducts_returnsEmpty() {
+            given(authorizationChecker.isAdmin("SELLER")).willReturn(false);
+            given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of());
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of()))
+                    .willReturn(List.of());
+            given(productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, List.of()))
+                    .willReturn(List.of());
+
+            List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(sellerId, "SELLER");
+
+            log.info("[ProductStockService.getIsolatedReservations] 소유 상품 없음 -> 빈 목록 기대");
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("응답에 예약 정보(orderId, quantity, expiresAt)가 정확히 채워진다")
+        void getIsolatedReservations_mapsAllFieldsCorrectly() {
+            UUID stockId = UUID.randomUUID();
+            Instant expiresAt = Instant.now().plusSeconds(1800);
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 15, expiresAt);
+            reservation.fail();
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(authorizationChecker.isAdmin("ADMIN")).willReturn(true);
+            given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");
+
+            IsolatedReservationResult isolated = result.get(0);
+            log.info("[ProductStockService.getIsolatedReservations] 매핑 결과 orderId={}, quantity={}, expiresAt={}",
+                    isolated.orderId(), isolated.quantity(), isolated.expiresAt());
+
+            assertThat(isolated.orderId()).isEqualTo(orderId);
+            assertThat(isolated.quantity()).isEqualTo(15);
+            assertThat(isolated.expiresAt()).isEqualTo(expiresAt);
+            assertThat(isolated.productId()).isEqualTo(productId);
+        }
+    }
+
+
+    // 격리된 예약 복구 테스트
+    @Nested
+    @DisplayName("recoverIsolatedReservation()")
+    class RecoverIsolatedReservation {
+
+        @Test
+        @DisplayName("재고가 아직 복구 안 된 격리 예약을 복구하면 상태 전이, 재고 복구, 이벤트로그 저장이 모두 실행된다")
+        void recoverIsolatedReservation_notYetRestored_success() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail(); // EXPIRATION_FAILED
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.reserve(20);
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty()); // 아직 복구 안 됨
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+
+            productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN");
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 복구 후 reservation.status={}, stock.available={}",
+                    reservation.getStatus(), stock.getAvailableQuantity());
+
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(100);
+            verify(productStockRepository).saveAndFlush(stock);
+
+            ArgumentCaptor<ProductStockEventLog> logCaptor = ArgumentCaptor.forClass(ProductStockEventLog.class);
+            verify(productStockEventLogRepository).save(logCaptor.capture());
+            assertThat(logCaptor.getValue().getOrderItemId()).isEqualTo(orderItemId);
+            assertThat(logCaptor.getValue().getEventType()).isEqualTo(StockEventType.RESTORE);
+        }
+
+        @Test
+        @DisplayName("재고가 이미 복구된 격리 예약을 복구하면 상태 전이만 하고 재고/로그 재처리는 하지 않는다 (이중 복구 방지)")
+        void recoverIsolatedReservation_alreadyRestored_skipsStockAndLog() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESTORE))
+                    .willReturn(Optional.of(mock(ProductStockEventLog.class))); // 이미 복구됨
+
+            productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN");
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 이미 재고 복구됨 -> 상태 전이만, 재고/로그 재처리 없음 기대");
+
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
+            verify(productStockRepository, never()).findById(any());
+            verify(productStockRepository, never()).saveAndFlush(any());
+            verify(productStockEventLogRepository, never()).save(any());
+            // RESERVE 로그 역추적 자체도 필요 없으므로 호출 안 됨
+            verify(productStockEventLogRepository, never())
+                    .findByReservationIdAndEventType(reservationId, StockEventType.RESERVE);
+        }
+
+        @Test
+        @DisplayName("판매자가 요청하면 권한 오류로 거부된다")
+        void recoverIsolatedReservation_bySeller_throwsForbidden() {
+            UUID reservationId = UUID.randomUUID();
+            doThrow(new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN))
+                    .when(authorizationChecker).requireAdmin("SELLER");
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 판매자 요청 -> FORBIDDEN 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, sellerId, "SELLER"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+
+            verify(productStockReservationRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("예약을 찾을 수 없으면 예외가 발생한다")
+        void recoverIsolatedReservation_reservationNotFound_throwsException() {
+            UUID reservationId = UUID.randomUUID();
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.empty());
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 예약 없음 -> NOT_FOUND 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("격리 상태가 아닌 예약(RESERVED)을 복구하려 하면 ALREADY_PROCESSED 예외가 발생")
+        void recoverIsolatedReservation_notIsolated_throwsAlreadyProcessed() {
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(UUID.randomUUID(), orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            // fail() 호출 안 함 -> RESERVED 상태 그대로
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 격리 상태 아님(RESERVED) -> ALREADY_PROCESSED 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+
+            verify(productStockEventLogRepository, never()).findByReservationIdAndEventType(any(), any());
+        }
+
+        @Test
+        @DisplayName("이미 EXPIRED로 복구 완료된 예약을 재요청하면 ALREADY_PROCESSED 예외가 발생한다 (멱등성)")
+        void recoverIsolatedReservation_alreadyRecovered_throwsAlreadyProcessed() {
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(UUID.randomUUID(), orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+            reservation.recoverFromIsolation(); // 이미 한 번 복구되어 EXPIRED
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 이미 EXPIRED -> 재요청 시 ALREADY_PROCESSED 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+
+        @Test
+        @DisplayName("재고를 찾을 수 없으면 예외가 발생한다")
+        void recoverIsolatedReservation_stockNotFound_throwsException() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.empty());
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 재고 없음 -> NOT_FOUND 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("RESERVE 로그를 찾을 수 없으면 예외가 발생한다 (데이터 정합성 이상)")
+        void recoverIsolatedReservation_reserveLogNotFound_throwsException() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESERVE))
+                    .willReturn(Optional.empty()); // RESERVE 로그 자체가 없는 이상 상황
+
+            log.info("[ProductStockService.recoverIsolatedReservation] RESERVE 로그 없음 -> NOT_FOUND 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+
+            verify(productStockRepository, never()).findById(any());
+        }
+
+        @Test
+        @DisplayName("재고 저장 시 낙관적 락 충돌이 발생하면 CONFLICT 에러로 변환된다")
+        void recoverIsolatedReservation_stockOptimisticLockFailure_throwsConflict() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.fail();
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+
+            given(productStockReservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESTORE))
+                    .willReturn(Optional.empty());
+            given(productStockEventLogRepository.findByReservationIdAndEventType(reservationId, StockEventType.RESERVE))
+                    .willReturn(Optional.of(reserveLog));
+            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockRepository.saveAndFlush(any(ProductStock.class)))
+                    .willThrow(OptimisticLockingFailureException.class);
+
+            log.info("[ProductStockService.recoverIsolatedReservation] 재고 저장 시 낙관적 락 충돌 -> CONFLICT 예외 기대");
+
+            assertThatThrownBy(() -> productStockService.recoverIsolatedReservation(reservationId, UUID.randomUUID(), "ADMIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
         }
     }
 

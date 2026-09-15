@@ -1,4 +1,4 @@
-package com.parut.product.product.application.dto.stock;
+package com.parut.product.product.application.stock.dto;
 
 import java.util.UUID;
 

@@ -29,4 +29,10 @@ public class ProductStockAuthorizationChecker {
     public boolean isAdmin(String requesterRole) {
         return ADMIN_ROLE.equals(requesterRole);
     }
+
+    public void requireAdmin(String requesterRole) {
+        if (!isAdmin(requesterRole)) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+    }
 }
