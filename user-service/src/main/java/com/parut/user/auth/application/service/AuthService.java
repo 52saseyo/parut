@@ -3,6 +3,8 @@ package com.parut.user.auth.application.service;
 import com.parut.user.auth.application.dto.request.LoginRequest;
 import com.parut.user.auth.application.dto.request.SignupRequest;
 import com.parut.user.auth.application.dto.response.TokenResponse;
+import com.parut.user.global.common.UserRole;
+import com.parut.user.auth.infrastructure.AdminRepository;
 import com.parut.user.auth.infrastructure.JwtProvider;
 import com.parut.user.global.exception.BusinessException;
 import com.parut.user.global.exception.ErrorCode;
@@ -27,6 +29,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final SellerRepository sellerRepository;
+    private final AdminRepository adminRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
@@ -64,7 +67,7 @@ public class AuthService {
         }
 
         // 3. 토큰 생성
-        String accessToken = jwtProvider.createAccessToken(user.getId(), "CUSTOMER");
+        String accessToken = jwtProvider.createAccessToken(user.getId(), String.valueOf(UserRole.CUSTOMER));
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
         // 4. Redis에 RefreshToken 저장 로직 추가 (생략)
@@ -90,7 +93,7 @@ public class AuthService {
 
         // 3-1. 승인된 판매자 (정상 로그인)
         if (status == SellerStatus.APPROVED) {
-            String accessToken = jwtProvider.createAccessToken(seller.getId(), "SELLER");
+            String accessToken = jwtProvider.createAccessToken(seller.getId(), String.valueOf(UserRole.SELLER));
             String refreshToken = jwtProvider.createRefreshToken(seller.getId());
 
             redisTemplate.opsForValue().set("REFRESH:" + seller.getId(), refreshToken, Duration.ofHours(8));
@@ -102,7 +105,7 @@ public class AuthService {
         // PENDING 이나 REJECTED 상태인 경우
         if (status == SellerStatus.PENDING || status == SellerStatus.REJECTED) {
             // 권한을 "PENDING_SELLER" (또는 시스템에 맞는 임시 역할)로 부여
-            String limitedAccessToken = jwtProvider.createAccessToken(seller.getId(), "PENDING_SELLER");
+            String limitedAccessToken = jwtProvider.createAccessToken(seller.getId(), String.valueOf(UserRole.PENDING_SELLER));
 
             // 상태 조 페이지만 허용할 것이므로 Refresh Token은 발급하지 않거나 null 처리
             return new TokenResponse(limitedAccessToken, null);
@@ -171,14 +174,20 @@ public class AuthService {
         redisTemplate.opsForValue().set("LOGOUT:" + token, "logout", Duration.ofMillis(expiration));
     }
 
-    public TokenResponse loginAdmin() {
-        // 테스트용 고정 혹은 동적 관리자 UUID 생성
-        UUID adminId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-        String role = "ADMIN";
+    @Transactional(readOnly = true)
+    public TokenResponse loginAdmin(LoginRequest request) {
+        // 1. 관리자 계정 조회
+        Admin admin = adminRepository.findByUsernameAndDeletedAtIsNull(request.username())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ADMIN_NOT_FOUND));
 
-        // JWT Provider를 통해 ADMIN 권한이 담긴 토큰 생성
-        String accessToken = jwtProvider.createAccessToken(adminId, role);
-        String refreshToken = jwtProvider.createRefreshToken(adminId);
+        // 2. 비밀번호 검증
+        if (!passwordEncoder.matches(request.password(), admin.getPassword())) {
+            throw new BusinessException(ErrorCode.PWD_NOT_MATCH); // 비밀번호 불일치
+        }
+
+        // 3. 토큰 생성 및 반환
+        String accessToken = jwtProvider.createAccessToken(admin.getId(), admin.getRole());
+        String refreshToken = jwtProvider.createRefreshToken(admin.getId());
 
         return new TokenResponse(accessToken, refreshToken);
     }

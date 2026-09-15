@@ -1,5 +1,6 @@
 package com.parut.user.user.presentation;
 
+import com.parut.user.global.common.UserRole;
 import com.parut.user.global.exception.BusinessException;
 import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.user.application.dto.request.UserUpdateRequest;
@@ -32,7 +33,7 @@ public class UserController {
             @RequestHeader("X-User-Role") String role
     ) {
         // ADMIN 권한 체크 로직
-        if (!"ADMIN".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role)) {
             // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
@@ -63,7 +64,7 @@ public class UserController {
             @RequestHeader("X-User-Role") String role
     ) {
         // ADMIN 권한 체크 로직
-        if (!"ADMIN".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role)) {
             // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
@@ -82,12 +83,12 @@ public class UserController {
             @RequestBody UserUpdateRequest request
     ) {
         // 1. ADMIN 또는 CUSTOMER 권한 체크
-        if (!"ADMIN".equalsIgnoreCase(role) && !"CUSTOMER".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.CUSTOMER).equalsIgnoreCase(role)) {
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
 
         // 2. CUSTOMER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
-        if ("CUSTOMER".equalsIgnoreCase(role) && !id.equals(requesterId)) {
+        if (String.valueOf(UserRole.CUSTOMER).equalsIgnoreCase(role) && !id.equals(requesterId)) {
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
 
@@ -104,12 +105,12 @@ public class UserController {
             @RequestHeader("X-User-Role") String role
     ) {
         // 1. ADMIN 또는 CUSTOMER 권한 체크
-        if (!"ADMIN".equalsIgnoreCase(role) && !"CUSTOMER".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.CUSTOMER).equalsIgnoreCase(role)) {
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
 
         // 2. CUSTOMER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
-        if ("CUSTOMER".equalsIgnoreCase(role) && !id.equals(requesterId)) {
+        if (String.valueOf(UserRole.CUSTOMER).equalsIgnoreCase(role) && !id.equals(requesterId)) {
             throw new BusinessException(ErrorCode.USER_ACCESS_DENIED);
         }
 
