@@ -37,6 +37,11 @@ public class OrderDeliveryGroupQueryService implements OrderDeliveryGroupQueryUs
                 .map(this::toView);
     }
 
+    @Override
+    public boolean isOwnedByCustomer(UUID deliveryGroupId, UUID userId) {
+        return orderDeliveryGroupRepository.isOwnedByCustomer(deliveryGroupId, userId);
+    }
+
     private OrderDeliveryGroupView toView(OrderDeliveryGroup group) {
         int nonCanceledItemCount = orderItemRepository.countByDeliveryGroupIdAndItemStatus(
                 group.getId(),
