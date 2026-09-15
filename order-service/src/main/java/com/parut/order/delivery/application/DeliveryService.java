@@ -21,7 +21,7 @@ import com.parut.order.order.application.port.in.dto.OrderDeliveryGroupView;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 배송 생성과 상태 변경을 처리한다.
+ * 배송 생성, 조회와 상태 변경을 처리한다.
  *
  * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 권한 검증, 트랜잭션과
  * Order 배송 그룹 상태 동기화를 조율한다.
@@ -30,9 +30,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DeliveryService implements DeliveryCreateUseCase {
-
-    /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
-    private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
 
     private final DeliveryRepository deliveryRepository;
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
@@ -55,9 +52,12 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .forEach(this::findOrCreateDelivery);
     }
 
-    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
+    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId, String userRole) {
         if (orderId == null || sellerId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!"SELLER".equals(userRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
@@ -66,6 +66,36 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .map(deliveryRepository::findByDeliveryGroupId)
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    /** 배송 존재 여부와 Order가 소유한 구매자, 판매자 정보를 확인한다. */
+    public Delivery getDelivery(UUID deliveryId, UUID userId, String userRole) {
+        if (deliveryId == null || userId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!"CUSTOMER".equals(userRole) && !"SELLER".equals(userRole) && !"ADMIN".equals(userRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        if ("ADMIN".equals(userRole)) {
+            return delivery;
+        }
+
+        if ("CUSTOMER".equals(userRole)) {
+            if (!orderDeliveryGroupQueryUseCase.isOwnedByCustomer(delivery.getDeliveryGroupId(), userId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        } else if ("SELLER".equals(userRole)) {
+            OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase.getDeliveryGroup(delivery.getDeliveryGroupId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
+            if (!userId.equals(group.sellerId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
+        return delivery;
     }
 
     // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.
@@ -84,11 +114,15 @@ public class DeliveryService implements DeliveryCreateUseCase {
     public Delivery startDelivery(
             UUID deliveryId,
             UUID sellerId,
+            String userRole,
             String trackingNumber
     ) {
         if (deliveryId == null || sellerId == null
                 || trackingNumber == null || trackingNumber.isBlank() || trackingNumber.length() > 30) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (!"SELLER".equals(userRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findById(deliveryId)
@@ -116,22 +150,22 @@ public class DeliveryService implements DeliveryCreateUseCase {
     }
 
     /**
-     * 시작한 지 60초가 지난 배송을 완료한다.
+     * 배송 한 건과 주문 배송 그룹을 같은 트랜잭션에서 완료한다.
+     * 스케줄러가 이 메서드를 건별로 호출해 한 건의 실패가 다른 건에 영향을 주지 않는다.
      */
     @Transactional
-    public void completeEligibleDeliveries(Instant completionTime) {
-        if (completionTime == null) {
+    public void completeEligibleDelivery(UUID deliveryId, Instant completionTime, Instant completionThreshold) {
+        if (deliveryId == null || completionTime == null || completionThreshold == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                completionTime.minusSeconds(DELIVERY_COMPLETION_DELAY_SECONDS)
-        );
+        Delivery delivery = deliveryRepository.findById(deliveryId).orElse(null);
+        if (delivery == null || delivery.getStatus() != DeliveryStatus.SHIPPED
+                || delivery.getShippedAt().isAfter(completionThreshold)) {
+            return;
+        }
 
-        deliveries.forEach(delivery -> {
-            delivery.complete(completionTime);
-            orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
-        });
+        delivery.complete(completionTime);
+        orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
     }
 }
