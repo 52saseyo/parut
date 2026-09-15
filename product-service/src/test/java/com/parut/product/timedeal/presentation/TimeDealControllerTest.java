@@ -101,7 +101,7 @@ class TimeDealControllerTest {
                     .andExpect(jsonPath("$.data.productId").value(nullValue()))
                     .andExpect(jsonPath("$.data.imageId").value(nullValue()))
                     .andExpect(jsonPath("$.data.description").value(nullValue()))
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
 
         @Test
@@ -142,7 +142,7 @@ class TimeDealControllerTest {
                             .header("X-User-Id", UUID.randomUUID())
                             .header("X-User-Role", "ADMIN"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
     }
 
@@ -181,7 +181,7 @@ class TimeDealControllerTest {
                             .header("X-User-Role", "ADMIN"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.status").value("STOPPED"))
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
     }
 }

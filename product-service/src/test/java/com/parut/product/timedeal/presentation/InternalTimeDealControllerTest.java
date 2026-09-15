@@ -59,7 +59,7 @@ class InternalTimeDealControllerTest {
                     .andExpect(jsonPath("$.data.productGrade").value("NORMAL"))
                     .andExpect(jsonPath("$.data.origin").value("국내산(전남 해남)"))
                     .andExpect(jsonPath("$.data.harvestedDate").value("2026-08-20"))
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
 
         @Test

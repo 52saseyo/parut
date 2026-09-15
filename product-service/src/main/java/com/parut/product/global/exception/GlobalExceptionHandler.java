@@ -1,8 +1,7 @@
 package com.parut.product.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
-import com.parut.product.global.constant.HeaderConstants;
-import jakarta.servlet.http.HttpServletRequest;
+import com.parut.product.global.logging.TraceIdContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -21,8 +20,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(
-            BusinessException e,
-            HttpServletRequest request
+            BusinessException e
     ) {
         ErrorCode errorCode = e.getErrorCode();
 
@@ -32,79 +30,73 @@ public class GlobalExceptionHandler {
                 errorCode.getMessage()
         );
 
-        return createResponse(errorCode, request);
+        return createResponse(errorCode);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(
-            MethodArgumentNotValidException e,
-            HttpServletRequest request
+            MethodArgumentNotValidException e
     ) {
         log.warn(
                 "[MethodArgumentNotValidException] message={}",
                 e.getMessage()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE, request);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ErrorResponse> handleBindException(
-            BindException e,
-            HttpServletRequest request
+            BindException e
     ) {
         log.warn(
                 "[BindException] message={}",
                 e.getMessage()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE, request);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingServletRequestParameterException(
-            MissingServletRequestParameterException e,
-            HttpServletRequest request
+            MissingServletRequestParameterException e
     ) {
         log.warn(
                 "[MissingServletRequestParameterException] parameter={}",
                 e.getParameterName()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE, request);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     // NOTE: 필수 헤더 값이 빠졌을때 예외. 인증은 게이트웨이가 JWT를 검증해 X-User-Id로 내려주는 구조이므로, 헤더가 비어 있다는 것은 사용자의 인증 실패가 아니라 호출자가 헤더 전파를 빠뜨린 계약 위반.
     @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
-            MissingRequestHeaderException e,
-            HttpServletRequest request
+            MissingRequestHeaderException e
     ) {
         log.warn(
                 "[MissingRequestHeaderException] header={}",
                 e.getHeaderName()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE, request);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ErrorResponse> handleMissingServletRequestPartException(
-            MissingServletRequestPartException e,
-            HttpServletRequest request
+            MissingServletRequestPartException e
     ) {
         log.warn(
                 "[MissingServletRequestPartException] part={}",
                 e.getRequestPartName()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE, request);
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(
-            MethodArgumentTypeMismatchException e,
-            HttpServletRequest request
+            MethodArgumentTypeMismatchException e
     ) {
         log.warn(
                 "[MethodArgumentTypeMismatchException] name={}, value={}",
@@ -112,52 +104,48 @@ public class GlobalExceptionHandler {
                 e.getValue()
         );
 
-        return createResponse(ErrorCode.INVALID_REQUEST, request);
+        return createResponse(ErrorCode.INVALID_REQUEST);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(
-            HttpMessageNotReadableException e,
-            HttpServletRequest request
+            HttpMessageNotReadableException e
     ) {
         log.warn(
                 "[HttpMessageNotReadableException] message={}",
                 e.getMessage()
         );
 
-        return createResponse(ErrorCode.INVALID_REQUEST, request);
+        return createResponse(ErrorCode.INVALID_REQUEST);
     }
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleHttpMediaTypeNotSupportedException(
-            HttpMediaTypeNotSupportedException e,
-            HttpServletRequest request
+            HttpMediaTypeNotSupportedException e
     ) {
         log.warn(
                 "[HttpMediaTypeNotSupportedException] message={}",
                 e.getMessage()
         );
 
-        return createResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE, request);
+        return createResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgumentException(
-            IllegalArgumentException e,
-            HttpServletRequest request
+            IllegalArgumentException e
     ) {
         log.warn(
                 "[IllegalArgumentException] message={}",
                 e.getMessage()
         );
 
-        return createResponse(ErrorCode.INVALID_REQUEST, request);
+        return createResponse(ErrorCode.INVALID_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(
-            Exception e,
-            HttpServletRequest request
+            Exception e
     ) {
         log.error(
                 "[UnhandledException] type={}, message={}",
@@ -166,18 +154,16 @@ public class GlobalExceptionHandler {
                 e
         );
 
-        return createResponse(ErrorCode.INTERNAL_SERVER_ERROR, request);
+        return createResponse(ErrorCode.INTERNAL_SERVER_ERROR);
     }
 
     private ResponseEntity<ErrorResponse> createResponse(
-            ErrorCode errorCode,
-            HttpServletRequest request
+            ErrorCode errorCode
     ) {
-        String traceId = request.getHeader(HeaderConstants.TRACE_ID);
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(
-                        ErrorResponse.of(errorCode, traceId)
+                        ErrorResponse.of(errorCode, TraceIdContext.currentTraceId())
                 );
     }
 }

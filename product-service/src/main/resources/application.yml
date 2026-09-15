@@ -20,6 +20,8 @@ spring:
 logging:
   level:
     root: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [traceId=%X{traceId}] %-5level %logger - %msg%n"
 
 
 internal:
