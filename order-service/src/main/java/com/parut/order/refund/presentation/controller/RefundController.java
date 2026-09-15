@@ -60,17 +60,6 @@ public class RefundController {
         return ApiResponse.success(RefundResponse.from(refund), traceId);
     }
 
-    @PatchMapping("/refunds/{refundId}/reject")
-    public ApiResponse<RefundResponse> rejectRefund(
-            @PathVariable UUID refundId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
-            @RequestBody RejectRefundRequest request
-    ) {
-        Refund refund = refundService.rejectRefund(refundId, sellerId, request.rejectionReason());
-        return ApiResponse.success(RefundResponse.from(refund), traceId);
-    }
-
     @PatchMapping("/refunds/approve")
     public ApiResponse<List<RefundResponse>> approveRefunds(
             @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
@@ -85,5 +74,16 @@ public class RefundController {
                 .toList();
 
         return ApiResponse.success(refunds, traceId);
+    }
+
+    @PatchMapping("/refunds/{refundId}/reject")
+    public ApiResponse<RefundResponse> rejectRefund(
+            @PathVariable UUID refundId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            @RequestBody RejectRefundRequest request
+    ) {
+        Refund refund = refundService.rejectRefund(refundId, sellerId, request.rejectionReason());
+        return ApiResponse.success(RefundResponse.from(refund), traceId);
     }
 }

@@ -1,7 +1,7 @@
 package com.parut.order.refund.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,14 +59,14 @@ class RefundFacadeTest {
         );
 
         when(refundService.prepareApproval(refundIds, sellerId)).thenReturn(context);
-        when(paymentCancelUseCase.cancel(org.mockito.ArgumentMatchers.any(PaymentCancelCommand.class)))
+        when(paymentCancelUseCase.cancel(any(PaymentCancelCommand.class)))
                 .thenReturn(paymentCancel);
         when(refundService.completeApproval(context, paymentCancel)).thenReturn(approvedRefunds);
 
         List<Refund> result = refundFacade.approveRefunds(refundIds, sellerId, "refund-approval-1");
 
         ArgumentCaptor<PaymentCancelCommand> commandCaptor = ArgumentCaptor.forClass(PaymentCancelCommand.class);
-        verify(paymentCancelUseCase, times(1)).cancel(commandCaptor.capture());
+        verify(paymentCancelUseCase).cancel(commandCaptor.capture());
         assertThat(commandCaptor.getValue().orderId()).isEqualTo(orderId);
         assertThat(commandCaptor.getValue().cancelRequestId()).isEqualTo("refund-approval-1");
         assertThat(commandCaptor.getValue().cancelAmount()).isEqualTo(20_000L);

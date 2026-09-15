@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -56,17 +56,8 @@ class RefundServiceTest {
     @Mock
     private OrderItemRefundUseCase orderItemRefundUseCase;
 
+    @InjectMocks
     private RefundService refundService;
-
-    @BeforeEach
-    void setUp() {
-        refundService = new RefundService(
-                refundRepository,
-                deliveryCompletionQueryUseCase,
-                orderItemQueryUseCase,
-                orderItemRefundUseCase
-        );
-    }
 
     @Test
     @DisplayName("배송완료 후 구매확정 전 주문상품의 환불을 요청한다")

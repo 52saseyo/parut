@@ -2,7 +2,11 @@ package com.parut.order.refund.application;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,9 +30,10 @@ import com.parut.order.refund.infrastructure.persistence.RefundRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 환불 요청과 고객의 요청 취소, 판매자 거절을 처리한다.
+ * 환불 요청과 고객의 요청 취소, 판매자의 승인 및 거절을 처리한다.
  *
- * <p>주문상품 조회와 상태 변경은 Order 포트를 통해 처리한다.
+ * <p>주문상품 조회와 상태 변경은 Order 포트로, 배송 완료 시각 조회는 Delivery 포트로 처리한다.
+ * 외부 Payment 취소를 포함한 승인 순서는 {@link RefundFacade}가 조율한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,53 +44,6 @@ public class RefundService {
     private final DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
     private final OrderItemQueryUseCase orderItemQueryUseCase;
     private final OrderItemRefundUseCase orderItemRefundUseCase;
-
-    public RefundApprovalContext prepareApproval(
-            List<UUID> refundIds,
-            UUID sellerId
-    ) {
-        if (sellerId == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-
-        List<Refund> refunds = getRequestedRefunds(refundIds);
-        List<OrderItemDetailView> orderItems = getOrderItems(refunds);
-        long totalRefundAmount = validateAndCalculateRefundAmount(refunds, orderItems, sellerId);
-
-        List<UUID> orderItemIds = orderItems.stream()
-                .map(OrderItemDetailView::orderItemId)
-                .toList();
-
-        return new RefundApprovalContext(
-                orderItems.get(0).orderId(),
-                sellerId,
-                List.copyOf(refundIds),
-                orderItemIds,
-                totalRefundAmount
-        );
-    }
-
-    /** Payment 취소 성공 후 Order와 Refund의 완료 상태를 한 트랜잭션으로 반영한다. */
-    @Transactional
-    public List<Refund> completeApproval(
-            RefundApprovalContext context,
-            PaymentCancelView paymentCancel
-    ) {
-        if (context == null || paymentCancel == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-
-        if (paymentCancel.canceledAmount() != context.totalRefundAmount()) {
-            throw new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
-        }
-
-        List<Refund> refunds = getRequestedRefunds(context.refundIds());
-
-        orderItemRefundUseCase.markRefunded(context.orderItemIds());
-        refunds.forEach(refund -> refund.approve(paymentCancel.canceledAt(), context.sellerId()));
-
-        return refunds;
-    }
 
     @Transactional
     public Refund requestRefund(
@@ -147,6 +105,57 @@ public class RefundService {
         return refund;
     }
 
+    /**
+     * Payment 취소 전에 선택한 환불 요청의 판매자, 주문, 주문상품 상태와 금액을 검증한다.
+     * 이 단계에서는 상태를 변경하지 않는다.
+     */
+    public RefundApprovalContext prepareApproval(
+            List<UUID> refundIds,
+            UUID sellerId
+    ) {
+        if (sellerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        List<Refund> refunds = getRequestedRefunds(refundIds);
+        List<OrderItemDetailView> orderItems = getOrderItems(refunds);
+        long totalRefundAmount = validateAndCalculateRefundAmount(refunds, orderItems, sellerId);
+
+        List<UUID> orderItemIds = orderItems.stream()
+                .map(OrderItemDetailView::orderItemId)
+                .toList();
+
+        return new RefundApprovalContext(
+                orderItems.get(0).orderId(),
+                sellerId,
+                List.copyOf(refundIds),
+                orderItemIds,
+                totalRefundAmount
+        );
+    }
+
+    /** Payment 취소 성공 후 Order 주문상품과 Refund의 완료 상태를 한 트랜잭션으로 반영한다. */
+    @Transactional
+    public List<Refund> completeApproval(
+            RefundApprovalContext context,
+            PaymentCancelView paymentCancel
+    ) {
+        if (context == null || paymentCancel == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        if (paymentCancel.canceledAmount() != context.totalRefundAmount()) {
+            throw new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
+        }
+
+        List<Refund> refunds = getRequestedRefunds(context.refundIds());
+
+        orderItemRefundUseCase.markRefunded(context.orderItemIds());
+        refunds.forEach(refund -> refund.approve(paymentCancel.canceledAt(), context.sellerId()));
+
+        return refunds;
+    }
+
     @Transactional
     public Refund rejectRefund(
             UUID refundId,
@@ -172,6 +181,15 @@ public class RefundService {
         orderItemRefundUseCase.confirmRejectedRefund(refund.getOrderItemId());
         refund.reject(rejectionReason, Instant.now(), sellerId);
         return refund;
+    }
+
+    private OrderItemDetailView getOrderItem(UUID orderItemId) {
+        return orderItemQueryUseCase
+                .getOrderItems(List.of(orderItemId))
+                .stream()
+                .filter(item -> orderItemId.equals(item.orderItemId()))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_ITEM_NOT_FOUND));
     }
 
     private List<Refund> getRequestedRefunds(List<UUID> refundIds) {
@@ -259,15 +277,6 @@ public class RefundService {
         }
 
         return totalRefundAmount;
-    }
-
-    private OrderItemDetailView getOrderItem(UUID orderItemId) {
-        return orderItemQueryUseCase
-                .getOrderItems(List.of(orderItemId))
-                .stream()
-                .filter(item -> orderItemId.equals(item.orderItemId()))
-                .findFirst()
-                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_ITEM_NOT_FOUND));
     }
 
 }

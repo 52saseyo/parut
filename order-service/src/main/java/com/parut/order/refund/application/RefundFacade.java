@@ -15,7 +15,12 @@ import com.parut.order.refund.domain.Refund;
 
 import lombok.RequiredArgsConstructor;
 
-/** 환불 승인에 필요한 Refund 검증, Payment 취소와 완료 반영 순서를 조율한다. */
+/**
+ * 환불 승인에 필요한 검증, Payment 취소와 완료 상태 반영 순서를 조율한다.
+ *
+ * <p>Payment 취소는 Refund의 DB 트랜잭션 밖에서 실행한다. PG 취소 후 상태 반영에 실패하면
+ * 같은 취소 요청 ID로 전체 흐름을 재호출하고, Payment가 기존 취소 결과를 반환해야 한다.
+ */
 @Component
 @RequiredArgsConstructor
 public class RefundFacade {
