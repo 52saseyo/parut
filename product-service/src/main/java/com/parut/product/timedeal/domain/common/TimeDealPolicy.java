@@ -14,7 +14,7 @@ import java.util.UUID;
 
 // NOTE: 타임딜 컨텍스트의 애그리거트 간 조율을 담당하는 도메인 서비스. 진입점마다 순서를 다시 쓰면
 // 한 곳만 놓쳐도 그 경로의 불변식이 깨지므로 조율을 여기 한 곳에 모은다.
-// NOTE: 금지 규약 — Application Service는 도메인 메서드를 직접 호출하지 않고 전부 이 클래스를 경유한다.
+// NOTE: 여러 애그리거트의 조율은 이 클래스를 경유한다. 단일 타임딜의 기간 갱신은 엔티티가 담당한다.
 @Component
 public class TimeDealPolicy {
 
@@ -151,8 +151,7 @@ public class TimeDealPolicy {
         return timeDealStock;
     }
 
-    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이
-    // 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
+    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
     public void delete(TimeDeal timeDeal, TimeDealStock stock, String deletedBy) {
         validateRequiredFields(timeDeal, stock);
         stock.validateBelongsToTimeDeal(timeDeal.getId());
@@ -162,18 +161,6 @@ public class TimeDealPolicy {
 
         timeDeal.softDelete(deletedBy);
         stock.softDelete(deletedBy);
-    }
-
-    // NOTE: 판매 기간 경과로 종료한다(배치 경로). end()에 없는 시간 가드를 여기서 세운다.
-    // 운영자의 임의 중단은 end()가 아니라 stop()이며 이 클래스를 경유하지 않는다.
-    public void endBySalePeriodEnd(TimeDeal timeDeal, Instant now) {
-        if (timeDeal == null || now == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (now.isBefore(timeDeal.getEndAt())) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_NOT_ENDED);
-        }
-        timeDeal.end();
     }
 
     private static void validateRequiredFields(Object first, Object second) {

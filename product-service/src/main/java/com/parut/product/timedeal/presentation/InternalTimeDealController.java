@@ -2,7 +2,8 @@ package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.common.ApiResponse;
 import com.parut.product.global.constant.HeaderConstants;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.global.logging.TraceIdContext;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
@@ -32,9 +33,10 @@ public class InternalTimeDealController {
     public ResponseEntity<ApiResponse<TimeDealDetailResponse>> getDetail(
             @PathVariable UUID timeDealId
     ) {
-        TimeDealDetailView timeDealDetailView = timeDealQueryUseCase.getDetail(timeDealId);
+        TimeDealDetailResult timeDealDetailResult = timeDealQueryUseCase.getDetail(timeDealId);
         return ResponseEntity.ok(
-                ApiResponse.success(TimeDealDetailResponse.from(timeDealDetailView), null));
+                ApiResponse.success(
+                        TimeDealDetailResponse.from(timeDealDetailResult), TraceIdContext.currentTraceId()));
     }
 
 

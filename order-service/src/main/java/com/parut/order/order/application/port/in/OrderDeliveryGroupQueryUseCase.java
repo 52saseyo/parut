@@ -12,4 +12,10 @@ public interface OrderDeliveryGroupQueryUseCase {
     List<OrderDeliveryGroupView> getDeliveryGroups(UUID orderId);
 
     Optional<OrderDeliveryGroupView> getDeliveryGroup(UUID deliveryGroupId);
+
+    /**
+     * 배송 단건 조회에서 구매자 소유권을 확인한다.
+     * 구매자 ID는 Delivery가 아닌 Order에 저장되므로 Order가 직접 비교한다.
+     */
+    boolean isOwnedByCustomer(UUID deliveryGroupId, UUID userId);
 }

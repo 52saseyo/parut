@@ -20,7 +20,13 @@ spring:
 logging:
   level:
     root: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [traceId=%X{traceId}] %-5level %logger - %msg%n"
 
 
 internal:
   service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
+
+parut:
+  time-deal:
+    sale-period-interval: ${TIME_DEAL_SALE_PERIOD_INTERVAL:1m}

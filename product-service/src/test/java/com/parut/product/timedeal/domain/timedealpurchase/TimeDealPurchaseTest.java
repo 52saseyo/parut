@@ -34,7 +34,7 @@ class TimeDealPurchaseTest {
 
     private static TimeDeal timeDeal() {
         return TimeDeal.create(
-                UUID.randomUUID(), UUID.randomUUID(), null,
+                UUID.randomUUID(), UUID.randomUUID(),
                 "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);
