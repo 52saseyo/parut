@@ -9,7 +9,6 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailR
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
-import com.parut.product.global.interceptor.ServiceKeyInterceptor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.math.BigDecimal;
@@ -20,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
@@ -32,8 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = TimeDealController.class, properties = "internal.service-key=test-service-key")
-@Import(ServiceKeyInterceptor.class)
+@WebMvcTest(controllers = TimeDealController.class)
 class TimeDealControllerTest {
     @MockitoBean
     private TimeDealCommandUseCase useCase;

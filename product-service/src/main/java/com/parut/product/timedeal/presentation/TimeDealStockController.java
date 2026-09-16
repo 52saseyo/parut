@@ -17,7 +17,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/time-deals")
 @RequiredArgsConstructor
-public class TimeDealStockQueryController {
+public class TimeDealStockController {
 
     private final TimeDealStockQueryUseCase timeDealStockQueryUseCase;
 
