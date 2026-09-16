@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -122,16 +123,8 @@ public class ProductStockServiceImpl implements ProductStockService{
     public void reserve(UUID orderId, List<ProductStockReserveItem> items) {
         Instant expiresAt = Instant.now().plus(reservationTtl);
         // 1. 멱등성 체크 - IN절 한 번
-        List<UUID> orderItemIds = items.stream().map(ProductStockReserveItem::orderItemId).toList();
-        Set<UUID> alreadyProcessed = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(orderItemIds, StockEventType.RESERVE)
-                .stream()
-                .map(ProductStockEventLog::getOrderItemId)
-                .collect(Collectors.toSet());
-
-        List<ProductStockReserveItem> targetItems = items.stream()
-                .filter(item -> !alreadyProcessed.contains(item.orderItemId()))
-                .toList();
+        List<ProductStockReserveItem> targetItems =
+                filterUnprocessed(items, ProductStockReserveItem::orderItemId, StockEventType.RESERVE);
         if (targetItems.isEmpty()) {
             return; // 전부 이미 처리됨 - 멱등 반환
         }
@@ -175,62 +168,22 @@ public class ProductStockServiceImpl implements ProductStockService{
             ));
         }
         // 6. 이벤트로그 저장 - 유니크 제약 위반만 별도로 좁게 catch
-        try {
-            productStockEventLogRepository.saveAllAndFlush(eventLogsToSave);
-        } catch (DataIntegrityViolationException e) {
-            log.warn("[reserve] 이벤트로그 유니크 제약 위반 (동시 요청) - orderId={}", orderId);
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-        }
+        saveEventLogsSafely(eventLogsToSave, "reserve", orderId);
     }
     @Override
     public void confirm(UUID orderId, List<ProductStockItem> items) {
         // 1. 멱등성 체크 - IN절 한 번
-        List<UUID> orderItemIds = items.stream().map(ProductStockItem::orderItemId).toList();
-        Set<UUID> alreadyProcessed = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(orderItemIds, StockEventType.CONFIRM)
-                .stream()
-                .map(ProductStockEventLog::getOrderItemId)
-                .collect(Collectors.toSet());
-
-        List<ProductStockItem> targetItems = items.stream()
-                .filter(item -> !alreadyProcessed.contains(item.orderItemId()))
-                .toList();
+        List<ProductStockItem> targetItems =
+                filterUnprocessed(items, ProductStockItem::orderItemId, StockEventType.CONFIRM);
         if (targetItems.isEmpty()) {
             return;
         }
 
-        // 2. RESERVE 로그 조회 - IN절 한 번
+        // 2. RESERVE 로그 조회 + 예약 조회 - IN절 두 번 (존재 검증 포함, loadValidatedReservations)
         List<UUID> targetOrderItemIds = targetItems.stream().map(ProductStockItem::orderItemId).toList();
-        List<ProductStockEventLog> reserveLogs = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(targetOrderItemIds, StockEventType.RESERVE);
+        Map<UUID, ProductStockReservation> reservationByOrderItemId = loadValidatedReservations(targetOrderItemIds);
 
-        // 검증: reserveLogs 리스트에 존재하는지로 확인 (Map 생성 전)
-        for (UUID orderItemId : targetOrderItemIds) {
-            boolean found = reserveLogs.stream().anyMatch(l -> l.getOrderItemId().equals(orderItemId));
-            if (!found) {
-                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
-            }
-        }
-
-        // 3. 예약 조회 - IN절 한 번
-        Map<UUID, UUID> reservationIdByOrderItemId = reserveLogs.stream()
-                .collect(Collectors.toMap(ProductStockEventLog::getOrderItemId, ProductStockEventLog::getReservationId));
-
-        // HashMap.values()는 순서를 보장하지 않으므로, 순서가 보장된 targetOrderItemIds 기준으로 만들어 IN절 인자 순서를 결정적으로 유지
-        List<UUID> reservationIds = targetOrderItemIds.stream()
-                .map(reservationIdByOrderItemId::get)
-                .distinct()
-                .toList();
-        Map<UUID, ProductStockReservation> reservationById = productStockReservationRepository
-                .findAllById(reservationIds)
-                .stream()
-                .collect(Collectors.toMap(ProductStockReservation::getId, r -> r));
-
-        Map<UUID, ProductStockReservation> reservationByOrderItemId = new HashMap<>();
-        reservationIdByOrderItemId.forEach((orderItemId, reservationId) ->
-                reservationByOrderItemId.put(orderItemId, reservationById.get(reservationId)));
-
-        // 4. reservation 검증(null/orderId 불일치) + confirm() 도메인 로직 - stockIds 계산보다 먼저 해야 안전함
+        // 3. reservation 검증(null/orderId 불일치) + confirm() 도메인 로직 - stockIds 계산보다 먼저 해야 안전함
         for (ProductStockItem item : targetItems) {
             ProductStockReservation reservation = reservationByOrderItemId.get(item.orderItemId());
             if (reservation == null || !reservation.getOrderId().equals(orderId)) {
@@ -239,7 +192,7 @@ public class ProductStockServiceImpl implements ProductStockService{
             reservation.confirm();
         }
 
-        // 5. 재고 조회 - IN절 한 번 (4번에서 reservation 검증이 끝난 뒤라 안전하게 조회 가능)
+        // 4. 재고 조회 - IN절 한 번 (3번에서 reservation 검증이 끝난 뒤라 안전하게 조회 가능)
         List<UUID> stockIds = targetItems.stream()
                 .map(item -> reservationByOrderItemId.get(item.orderItemId()).getStockId())
                 .distinct()
@@ -249,7 +202,7 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
 
-        // 6. stock 검증 + 도메인 로직 + 이벤트로그 준비
+        // 5. stock 검증 + 도메인 로직 + 이벤트로그 준비
         List<ProductStockEventLog> eventLogsToSave = new ArrayList<>();
         Set<UUID> soldOutProductIds = new HashSet<>();
 
@@ -269,74 +222,37 @@ public class ProductStockServiceImpl implements ProductStockService{
             eventLogsToSave.add(ProductStockEventLog.create(reservation.getId(), item.orderItemId(), StockEventType.CONFIRM));
         }
 
-        // 7. 저장 - 배치로 한 번에
+        // 6. 저장 - 배치로 한 번에
         try {
-            productStockReservationRepository.saveAllAndFlush(reservationById.values());
+            // orderItemId : reservation = 1:1 (reserve()가 orderItemId당 예약을 하나씩만 만듦)
+            productStockReservationRepository.saveAllAndFlush(reservationByOrderItemId.values());
             productStockRepository.saveAllAndFlush(stockById.values());
         } catch (OptimisticLockingFailureException e) {
             log.warn("[confirm] 낙관적 락 충돌 - orderId={}", orderId);
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
 
-        try {
-            productStockEventLogRepository.saveAllAndFlush(eventLogsToSave);
-        } catch (DataIntegrityViolationException e) {
-            log.warn("[confirm] 이벤트로그 유니크 제약 위반 (동시 요청) - orderId={}", orderId);
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-        }
+        saveEventLogsSafely(eventLogsToSave, "confirm", orderId);
 
-        // 8. 품절 알림 - 배치 처리 후 한 번에
+        // 7. 품절 알림 - 배치 처리 후 한 번에
         soldOutProductIds.forEach(this::notifySoldOut);
     }
 
     @Override
     public void restore(UUID orderId, List<ProductStockItem> items) {
         // 1. 멱등성 체크 - IN절 한 번
-        List<UUID> orderItemIds = items.stream().map(ProductStockItem::orderItemId).toList();
-        Set<UUID> alreadyProcessed = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(orderItemIds, StockEventType.RESTORE)
-                .stream()
-                .map(ProductStockEventLog::getOrderItemId)
-                .collect(Collectors.toSet());
+        List<ProductStockItem> targetItems =
+                filterUnprocessed(items, ProductStockItem::orderItemId, StockEventType.RESTORE);
 
-        List<ProductStockItem> targetItems = items.stream()
-                .filter(item -> !alreadyProcessed.contains(item.orderItemId()))
-                .toList();
         if (targetItems.isEmpty()) {
             return;
         }
 
-        // 2. RESERVE 로그 조회 - IN절 한 번, 전부 존재하는지 검증
+        // 2. RESERVE 로그 조회 + 예약 조회 - IN절 두 번 (존재 검증 포함, loadValidatedReservations)
         List<UUID> targetOrderItemIds = targetItems.stream().map(ProductStockItem::orderItemId).toList();
-        List<ProductStockEventLog> reserveLogs = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(targetOrderItemIds, StockEventType.RESERVE);
+        Map<UUID, ProductStockReservation> reservationByOrderItemId = loadValidatedReservations(targetOrderItemIds);
 
-        for (UUID orderItemId : targetOrderItemIds) {
-            boolean found = reserveLogs.stream().anyMatch(l -> l.getOrderItemId().equals(orderItemId));
-            if (!found) {
-                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
-            }
-        }
-
-        // 3. 예약 조회 - IN절 한 번
-        Map<UUID, UUID> reservationIdByOrderItemId = reserveLogs.stream()
-                .collect(Collectors.toMap(ProductStockEventLog::getOrderItemId, ProductStockEventLog::getReservationId));
-
-        // HashMap.values()는 순서를 보장하지 않으므로, 순서가 보장된 targetOrderItemIds 기준으로 만들어 IN절 인자 순서를 결정적으로 유지
-        List<UUID> reservationIds = targetOrderItemIds.stream()
-                .map(reservationIdByOrderItemId::get)
-                .distinct()
-                .toList();
-        Map<UUID, ProductStockReservation> reservationById = productStockReservationRepository
-                .findAllById(reservationIds)
-                .stream()
-                .collect(Collectors.toMap(ProductStockReservation::getId, r -> r));
-
-        Map<UUID, ProductStockReservation> reservationByOrderItemId = new HashMap<>();
-        reservationIdByOrderItemId.forEach((orderItemId, reservationId) ->
-                reservationByOrderItemId.put(orderItemId, reservationById.get(reservationId)));
-
-        // 4. reservation 검증(null/orderId 불일치) + 상태별 분기
+        // 3. reservation 검증(null/orderId 불일치) + 상태별 분기
         //    EXPIRED -> 이미 스케줄러가 처리 완료, 멱등 스킵 / EXPIRATION_FAILED -> 격리 상태, 즉시 예외
         //    나머지(RESERVED)만 실제 복구 대상(actuallyRestoreItems)으로 확정
         List<ProductStockItem> actuallyRestoreItems = new ArrayList<>();
@@ -361,7 +277,7 @@ public class ProductStockServiceImpl implements ProductStockService{
             return;
         }
 
-        // 5. 재고 조회 - IN절 한 번 (4번에서 reservation 검증/분류가 끝난 뒤라 안전하게 조회 가능)
+        // 4. 재고 조회 - IN절 한 번 (3번에서 reservation 검증/분류가 끝난 뒤라 안전하게 조회 가능)
         List<UUID> stockIds = actuallyRestoreItems.stream()
                 .map(item -> reservationByOrderItemId.get(item.orderItemId()).getStockId())
                 .distinct()
@@ -371,7 +287,7 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
 
-        // 6. stock 검증 + 도메인 로직 + 이벤트로그 준비
+        // 5. stock 검증 + 도메인 로직 + 이벤트로그 준비
         List<ProductStockEventLog> eventLogsToSave = new ArrayList<>();
         List<ProductStockReservation> reservationsToSave = new ArrayList<>();
         for (ProductStockItem item : actuallyRestoreItems) {
@@ -388,7 +304,7 @@ public class ProductStockServiceImpl implements ProductStockService{
             eventLogsToSave.add(ProductStockEventLog.create(reservation.getId(), item.orderItemId(), StockEventType.RESTORE));
         }
 
-        // 7. 저장 - 배치로 한 번에
+        // 6. 저장 - 배치로 한 번에
         try {
             productStockReservationRepository.saveAllAndFlush(reservationsToSave);
             productStockRepository.saveAllAndFlush(stockById.values());
@@ -397,12 +313,7 @@ public class ProductStockServiceImpl implements ProductStockService{
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
 
-        try {
-            productStockEventLogRepository.saveAllAndFlush(eventLogsToSave);
-        } catch (DataIntegrityViolationException e) {
-            log.warn("[restore] 이벤트로그 유니크 제약 위반 (동시 요청) - orderId={}", orderId);
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
-        }
+        saveEventLogsSafely(eventLogsToSave, "restore", orderId);
     }
 
     @Override
@@ -494,6 +405,65 @@ public class ProductStockServiceImpl implements ProductStockService{
                     && e.getErrorCode() != ErrorCode.PRODUCT_IMAGE_REQUIRED) {
                 throw e;
             }
+        }
+    }
+
+    // 멱등성 체크 - 이미 처리된 orderItemId 제외 (IN절 한 번)
+    private <T> List<T> filterUnprocessed(
+            List<T> items,
+            Function<T, UUID> orderItemIdExtractor,
+            StockEventType eventType
+    ) {
+        List<UUID> orderItemIds = items.stream().map(orderItemIdExtractor).toList();
+        Set<UUID> alreadyProcessed = productStockEventLogRepository
+                .findByOrderItemIdInAndEventType(orderItemIds, eventType)
+                .stream()
+                .map(ProductStockEventLog::getOrderItemId)
+                .collect(Collectors.toSet());
+
+        return items.stream()
+                .filter(item -> !alreadyProcessed.contains(orderItemIdExtractor.apply(item)))
+                .toList();
+    }
+
+    // RESERVE 로그 조회 + 예약 조회 - 존재 검증 포함 (IN절 두 번)
+    private Map<UUID, ProductStockReservation> loadValidatedReservations(List<UUID> targetOrderItemIds) {
+        List<ProductStockEventLog> reserveLogs = productStockEventLogRepository
+                .findByOrderItemIdInAndEventType(targetOrderItemIds, StockEventType.RESERVE);
+
+        for (UUID orderItemId : targetOrderItemIds) {
+            boolean found = reserveLogs.stream().anyMatch(l -> l.getOrderItemId().equals(orderItemId));
+            if (!found) {
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+            }
+        }
+
+        Map<UUID, UUID> reservationIdByOrderItemId = reserveLogs.stream()
+                .collect(Collectors.toMap(ProductStockEventLog::getOrderItemId, ProductStockEventLog::getReservationId));
+
+        // HashMap.values()는 순서를 보장하지 않으므로, 순서가 보장된 targetOrderItemIds 기준으로 만들어 IN절 인자 순서를 결정적으로 유지
+        List<UUID> reservationIds = targetOrderItemIds.stream()
+                .map(reservationIdByOrderItemId::get)
+                .distinct()
+                .toList();
+        Map<UUID, ProductStockReservation> reservationById = productStockReservationRepository
+                .findAllById(reservationIds)
+                .stream()
+                .collect(Collectors.toMap(ProductStockReservation::getId, r -> r));
+
+        Map<UUID, ProductStockReservation> reservationByOrderItemId = new HashMap<>();
+        reservationIdByOrderItemId.forEach((orderItemId, reservationId) ->
+                reservationByOrderItemId.put(orderItemId, reservationById.get(reservationId)));
+        return reservationByOrderItemId;
+    }
+
+    // 이벤트로그 저장 - 유니크 제약 위반만 별도로 좁게 catch
+    private void saveEventLogsSafely(List<ProductStockEventLog> eventLogs, String actionName, UUID orderId) {
+        try {
+            productStockEventLogRepository.saveAllAndFlush(eventLogs);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[{}] 이벤트로그 유니크 제약 위반 (동시 요청) - orderId={}", actionName, orderId);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
 }
