@@ -12,6 +12,7 @@ import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
@@ -52,11 +53,11 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .forEach(this::findOrCreateDelivery);
     }
 
-    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId, String userRole) {
+    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId, UserRole userRole) {
         if (orderId == null || sellerId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (!"SELLER".equals(userRole)) {
+        if (userRole != UserRole.SELLER) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
@@ -69,26 +70,26 @@ public class DeliveryService implements DeliveryCreateUseCase {
     }
 
     /** 배송 존재 여부와 Order가 소유한 구매자, 판매자 정보를 확인한다. */
-    public Delivery getDelivery(UUID deliveryId, UUID userId, String userRole) {
+    public Delivery getDelivery(UUID deliveryId, UUID userId, UserRole userRole) {
         if (deliveryId == null || userId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (!"CUSTOMER".equals(userRole) && !"SELLER".equals(userRole) && !"ADMIN".equals(userRole)) {
+        if (userRole != UserRole.CUSTOMER && userRole != UserRole.SELLER && userRole != UserRole.ADMIN) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
-        if ("ADMIN".equals(userRole)) {
+        if (userRole == UserRole.ADMIN) {
             return delivery;
         }
 
-        if ("CUSTOMER".equals(userRole)) {
+        if (userRole == UserRole.CUSTOMER) {
             if (!orderDeliveryGroupQueryUseCase.isOwnedByCustomer(delivery.getDeliveryGroupId(), userId)) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
             }
-        } else if ("SELLER".equals(userRole)) {
+        } else if (userRole == UserRole.SELLER) {
             OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase.getDeliveryGroup(delivery.getDeliveryGroupId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
             if (!userId.equals(group.sellerId())) {
@@ -114,14 +115,14 @@ public class DeliveryService implements DeliveryCreateUseCase {
     public Delivery startDelivery(
             UUID deliveryId,
             UUID sellerId,
-            String userRole,
+            UserRole userRole,
             String trackingNumber
     ) {
         if (deliveryId == null || sellerId == null
                 || trackingNumber == null || trackingNumber.isBlank() || trackingNumber.length() > 30) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        if (!"SELLER".equals(userRole)) {
+        if (userRole != UserRole.SELLER) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
