@@ -453,6 +453,14 @@
                     "method": "GET",
                     "header": [
                       {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
                         "key": "X-Trace-Id",
                         "value": "{{timeDealTraceId}}"
                       }
@@ -470,7 +478,7 @@
                         "stock"
                       ]
                     },
-                    "description": "사용자 ID·역할 헤더 없이 타임딜 재고만 조회한다. 성공 200 OK: data에 timeDealId, availableQuantity, reservedQuantity, soldQuantity, lowStockThreshold를 반환한다. 삭제되었거나 존재하지 않는 타임딜·재고는 404다."
+                    "description": "판매자 본인 또는 ADMIN만 타임딜 재고를 조회한다. userId는 실제 요청자 UUID이며 userRole 미설정 시 SELLER를 사용한다. 성공 200 OK: data에 timeDealId, availableQuantity, reservedQuantity, soldQuantity, lowStockThreshold를 반환한다. 권한이 없으면 403, 삭제되었거나 존재하지 않는 타임딜·재고는 404다."
                   },
                   "event": [
                     {
@@ -478,6 +486,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');",
                           "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}'));"
                         ]
                       }

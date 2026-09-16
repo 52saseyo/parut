@@ -6,5 +6,5 @@ import java.util.UUID;
 
 public interface TimeDealStockQueryUseCase {
 
-    TimeDealStockQueryResult getStock(UUID timeDealId);
+    TimeDealStockQueryResult getStock(UUID timeDealId, UUID requesterId, String requesterRole);
 }
