@@ -102,12 +102,14 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository
                 .findByOrderId(timeDealPurchaseConfirmCommand.orderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
+        TimeDeal timeDeal = timeDealRepository.findById(timeDealPurchase.getTimeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
         TimeDealStock timeDealStock = timeDealStockRepository
                 .findByTimeDealId(timeDealPurchase.getTimeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
         TimeDealPurchaseConfirmResult timeDealPurchaseConfirmResult =
-                timeDealPolicy.confirmSale(timeDealPurchase, timeDealStock, now);
+                timeDealPolicy.confirmSale(timeDeal, timeDealPurchase, timeDealStock, now);
 
         // NOTE: 이 예외만 noRollbackFor에 지정되어 있어, 위 정리는 커밋되고 응답은 409가 나간다.
         if (timeDealPurchaseConfirmResult == TimeDealPurchaseConfirmResult.CANCELLED) {
