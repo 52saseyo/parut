@@ -51,7 +51,15 @@ public enum ErrorCode {
             HttpStatus.FORBIDDEN,
             "판매자 관리 권한이 없습니다."
     ),
+
     // E: SELLER
+
+    // S: ADMIN
+    ADMIN_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "존재하지 않는 관리자 계정입니다."
+    ),
+    // E: ADMIN
 
     // S: AUTH
     INVALID_TOKEN(

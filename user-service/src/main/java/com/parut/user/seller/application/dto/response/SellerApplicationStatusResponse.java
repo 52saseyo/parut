@@ -7,13 +7,13 @@ import java.time.ZonedDateTime;
 public record SellerApplicationStatusResponse(
         SellerStatus status,
         String rejectReason,
-        ZonedDateTime approvedAt
+        ZonedDateTime processedAt
 ) {
     public static SellerApplicationStatusResponse from(Seller seller) {
         return new SellerApplicationStatusResponse(
                 seller.getStatus(),
                 seller.getRejectReason(),
-                seller.getApprovedAt()
+                seller.getProcessedAt()
         );
     }
 }

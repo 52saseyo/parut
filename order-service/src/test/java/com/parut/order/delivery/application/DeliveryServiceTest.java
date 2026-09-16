@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupStatusUseCase;
@@ -112,7 +113,7 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(delivery));
 
-        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID, "SELLER");
+        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.SELLER);
 
         assertThat(result).containsExactly(delivery);
         verify(deliveryRepository, never()).findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID);
@@ -121,11 +122,11 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("판매자가 아니면 배송 목록 조회와 배송 시작을 거부한다")
     void 판매자_전용_배송_API_권한_없음() {
-        assertThatThrownBy(() -> deliveryService.getDeliveries(ORDER_ID, SELLER_ID, "CUSTOMER"))
+        assertThatThrownBy(() -> deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.CUSTOMER))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         assertThatThrownBy(() -> deliveryService.startDelivery(
-                UUID.randomUUID(), SELLER_ID, "CUSTOMER", "1234567890"))
+                UUID.randomUUID(), SELLER_ID, UserRole.CUSTOMER, "1234567890"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
@@ -141,9 +142,9 @@ class DeliveryServiceTest {
         when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
 
-        assertThat(deliveryService.getDelivery(deliveryId, userId, "CUSTOMER")).isSameAs(delivery);
-        assertThat(deliveryService.getDelivery(deliveryId, SELLER_ID, "SELLER")).isSameAs(delivery);
-        assertThat(deliveryService.getDelivery(deliveryId, UUID.randomUUID(), "ADMIN")).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, userId, UserRole.CUSTOMER)).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, SELLER_ID, UserRole.SELLER)).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, UUID.randomUUID(), UserRole.ADMIN)).isSameAs(delivery);
     }
 
     @Test
@@ -155,13 +156,13 @@ class DeliveryServiceTest {
         when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
 
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "CUSTOMER"))
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.CUSTOMER))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "SELLER"))
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SELLER))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, "UNKNOWN"))
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SYSTEM))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
@@ -169,7 +170,7 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("없는 배송의 단건 조회는 DELIVERY_NOT_FOUND를 반환한다")
     void 배송_단건_조회_대상_없음() {
-        assertThatThrownBy(() -> deliveryService.getDelivery(UUID.randomUUID(), SELLER_ID, "SELLER"))
+        assertThatThrownBy(() -> deliveryService.getDelivery(UUID.randomUUID(), SELLER_ID, UserRole.SELLER))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
     }
