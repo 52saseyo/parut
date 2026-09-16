@@ -7,10 +7,7 @@ import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.product.service.ProductService;
-import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
-import com.parut.product.product.presentation.product.dto.request.SellerProductSearchRequest;
-import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
-import com.parut.product.product.presentation.product.dto.request.UpdateProductStatusRequest;
+import com.parut.product.product.presentation.product.dto.request.*;
 import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.ProductResponse;
 import com.parut.product.product.presentation.product.dto.response.SellerProductListResponse;
@@ -146,4 +143,19 @@ public class SellerProductController {
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
+
+    @PostMapping("/{productId}/images")
+    public ResponseEntity<ApiResponse<Void>> registerImage(
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @PathVariable UUID productId,
+            @Valid @RequestBody RegisterProductImageRequest request
+    ) {
+        productService.registerImage(
+                sellerId,
+                productId,
+                request.imageId()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null, null));
+    }
 }

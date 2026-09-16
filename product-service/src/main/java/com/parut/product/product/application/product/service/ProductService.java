@@ -3,6 +3,8 @@ package com.parut.product.product.application.product.service;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.product.port.out.ProductImagePort;
+import com.parut.product.product.application.product.port.out.dto.ProductImageResult;
 import com.parut.product.product.application.product.query.ProductQueryRepository;
 import com.parut.product.product.application.product.query.condition.PublicProductSearchCondition;
 import com.parut.product.product.application.product.query.condition.SellerProductSearchCondition;
@@ -39,6 +41,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductStockService productStockService;
     private final ProductQueryRepository productQueryRepository;
+    private final ProductImagePort productImagePort;
 
     /**
      * 상품을 생성하고 같은 트랜잭션 안에서 초기 재고를 생성한다.
@@ -134,7 +137,12 @@ public class ProductService {
                 .findByIdAndStatusInAndDeletedAtIsNull(productId, VISIBLE_STATUSES)
                 .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
-        return ProductDetailResponse.from(product);
+        ProductImageResult image = productImagePort.findImage(productId)
+                .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED));
+
+        String imageUrl = image.imageUrl();
+
+        return ProductDetailResponse.from(product, imageUrl);
     }
 
     /**
@@ -145,9 +153,22 @@ public class ProductService {
     public ProductDetailResponse getMyProduct(UUID sellerId, UUID productId) {
         Product product = productRepository
                 .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        return ProductDetailResponse.from(product);
+                .orElseThrow(() ->
+                        new BusinessException(ErrorCode.PRODUCT_NOT_FOUND)
+                );
+
+        ProductImageResult image = productImagePort.findImage(productId)
+                .orElse(null);
+
+        if ((product.getStatus() == ProductStatus.ON_SALE
+                || product.getStatus() == ProductStatus.SOLD_OUT)
+                && image == null) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
+        }
+
+        return ProductDetailResponse.from(product, image == null ? null : image.imageUrl());
     }
+
 
 
     /**
@@ -183,8 +204,22 @@ public class ProductService {
     }
 
 
+    @Transactional
+    public void registerImage(UUID sellerId, UUID productId, UUID imageId) {
+        productRepository
+                .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        productImagePort.save(sellerId, productId, imageId);
+    }
 
 
+
+    private void validateImageForSale(UUID productId){
+        if(!productImagePort.hasImage(productId)) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
+        }
+    }
     /**
      * 판매 시작 또는 판매 재개 요청을 처리한다.
      * 판매 가능한 재고가 있는지 확인한 뒤 도메인 상태를 변경한다.
@@ -192,11 +227,13 @@ public class ProductService {
     private void changeToOnSale(Product product) {
         if(product.getStatus() == ProductStatus.DRAFT) {
             validateStockAvailableForSale(product.getId());
+            validateImageForSale(product.getId());
             product.startSale();
             return;
         }
         if(product.getStatus() == ProductStatus.SUSPENDED) {
             validateStockAvailableForSale(product.getId());
+            validateImageForSale(product.getId());
             product.resumeSale();
             return;
         }
@@ -257,9 +294,5 @@ public class ProductService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }
-
-
-
-
 
 }
