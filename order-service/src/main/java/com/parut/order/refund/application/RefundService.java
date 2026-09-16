@@ -18,7 +18,7 @@ import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderItemQueryUseCase;
 import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
-import com.parut.order.order.application.port.in.dto.OrderItemDetailView;
+import com.parut.order.order.application.port.in.dto.OrderItemView;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
@@ -56,7 +56,7 @@ public class RefundService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        OrderItemDetailView orderItem = getOrderItem(orderItemId);
+        OrderItemView orderItem = getOrderItem(orderItemId);
         if (!customerId.equals(orderItem.buyerId())
                 || orderItem.itemStatus() != OrderItemStatus.ORDERED
                 || orderItem.groupStatus() != DeliveryGroupStatus.DELIVERED) {
@@ -79,7 +79,7 @@ public class RefundService {
 
         long refundAmount = Math.multiplyExact(orderItem.unitPrice(), orderItem.quantity());
 
-        orderItemRefundUseCase.markRefundRequested(orderItemId);
+        orderItemRefundUseCase.requestRefund(List.of(orderItemId));
         return refundRepository.save(Refund.request(orderItemId, refundAmount, reason, now));
     }
 
@@ -95,12 +95,12 @@ public class RefundService {
         Refund refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_NOT_FOUND));
 
-        OrderItemDetailView orderItem = getOrderItem(refund.getOrderItemId());
+        OrderItemView orderItem = getOrderItem(refund.getOrderItemId());
         if (!customerId.equals(orderItem.buyerId()) || refund.getStatus() != RefundStatus.REQUESTED) {
             throw new BusinessException(ErrorCode.REFUND_CANCEL_NOT_ALLOWED);
         }
 
-        orderItemRefundUseCase.cancelRefundRequest(refund.getOrderItemId());
+        orderItemRefundUseCase.withdrawRefundRequest(List.of(refund.getOrderItemId()));
         refund.cancel(Instant.now());
         return refund;
     }
@@ -118,11 +118,11 @@ public class RefundService {
         }
 
         List<Refund> refunds = getRequestedRefunds(refundIds);
-        List<OrderItemDetailView> orderItems = getOrderItems(refunds);
+        List<OrderItemView> orderItems = getOrderItems(refunds);
         long totalRefundAmount = validateAndCalculateRefundAmount(refunds, orderItems, sellerId);
 
         List<UUID> orderItemIds = orderItems.stream()
-                .map(OrderItemDetailView::orderItemId)
+                .map(OrderItemView::orderItemId)
                 .toList();
 
         return new RefundApprovalContext(
@@ -150,7 +150,7 @@ public class RefundService {
 
         List<Refund> refunds = getRequestedRefunds(context.refundIds());
 
-        orderItemRefundUseCase.markRefunded(context.orderItemIds());
+        orderItemRefundUseCase.applyRefundCompletion(context.orderItemIds());
         refunds.forEach(refund -> refund.approve(paymentCancel.canceledAt(), context.sellerId()));
 
         return refunds;
@@ -178,12 +178,12 @@ public class RefundService {
             throw new BusinessException(ErrorCode.REFUND_ALREADY_PROCESSED);
         }
 
-        orderItemRefundUseCase.confirmRejectedRefund(refund.getOrderItemId());
+        orderItemRefundUseCase.rejectRefund(List.of(refund.getOrderItemId()));
         refund.reject(rejectionReason, Instant.now(), sellerId);
         return refund;
     }
 
-    private OrderItemDetailView getOrderItem(UUID orderItemId) {
+    private OrderItemView getOrderItem(UUID orderItemId) {
         return orderItemQueryUseCase
                 .getOrderItems(List.of(orderItemId))
                 .stream()
@@ -212,15 +212,15 @@ public class RefundService {
         return refunds;
     }
 
-    private List<OrderItemDetailView> getOrderItems(List<Refund> refunds) {
+    private List<OrderItemView> getOrderItems(List<Refund> refunds) {
         List<UUID> orderItemIds = refunds.stream()
                 .map(Refund::getOrderItemId)
                 .toList();
 
-        List<OrderItemDetailView> orderItems = orderItemQueryUseCase.getOrderItems(orderItemIds);
+        List<OrderItemView> orderItems = orderItemQueryUseCase.getOrderItems(orderItemIds);
 
         Set<UUID> returnedOrderItemIds = orderItems.stream()
-                .map(OrderItemDetailView::orderItemId)
+                .map(OrderItemView::orderItemId)
                 .collect(Collectors.toSet());
 
         if (orderItems.size() != orderItemIds.size()
@@ -233,7 +233,7 @@ public class RefundService {
 
     private long validateAndCalculateRefundAmount(
             List<Refund> refunds,
-            List<OrderItemDetailView> orderItems,
+            List<OrderItemView> orderItems,
             UUID sellerId
     ) {
         UUID orderId = orderItems.get(0).orderId();
@@ -246,7 +246,7 @@ public class RefundService {
 
         long totalRefundAmount = 0L;
 
-        for (OrderItemDetailView orderItem : orderItems) {
+        for (OrderItemView orderItem : orderItems) {
             if (!sellerId.equals(orderItem.sellerId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
             }

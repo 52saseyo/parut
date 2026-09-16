@@ -25,7 +25,7 @@ import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderItemQueryUseCase;
 import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
-import com.parut.order.order.application.port.in.dto.OrderItemDetailView;
+import com.parut.order.order.application.port.in.dto.OrderItemView;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
@@ -71,7 +71,7 @@ class RefundServiceTest {
 
         assertThat(refund.getStatus()).isEqualTo(RefundStatus.REQUESTED);
         assertThat(refund.getRefundAmount()).isEqualTo(10_000L);
-        verify(orderItemRefundUseCase).markRefundRequested(ORDER_ITEM_ID);
+        verify(orderItemRefundUseCase).requestRefund(List.of(ORDER_ITEM_ID));
         verify(refundRepository).save(refund);
     }
 
@@ -127,7 +127,7 @@ class RefundServiceTest {
 
         assertThat(canceled.getStatus()).isEqualTo(RefundStatus.CANCELED);
         assertThat(canceled.getCanceledAt()).isNotNull();
-        verify(orderItemRefundUseCase).cancelRefundRequest(ORDER_ITEM_ID);
+        verify(orderItemRefundUseCase).withdrawRefundRequest(List.of(ORDER_ITEM_ID));
     }
 
     @Test
@@ -146,7 +146,7 @@ class RefundServiceTest {
         assertThat(rejected.getRejectionReason()).isEqualTo("환불 거절 사유");
         assertThat(rejected.getProcessedAt()).isNotNull();
         assertThat(rejected.getProcessedBy()).isEqualTo(SELLER_ID);
-        verify(orderItemRefundUseCase).confirmRejectedRefund(ORDER_ITEM_ID);
+        verify(orderItemRefundUseCase).rejectRefund(List.of(ORDER_ITEM_ID));
     }
 
     @Test
@@ -200,15 +200,15 @@ class RefundServiceTest {
         assertThat(approved)
                 .extracting(Refund::getProcessedBy)
                 .containsOnly(SELLER_ID);
-        verify(orderItemRefundUseCase).markRefunded(context.orderItemIds());
+        verify(orderItemRefundUseCase).applyRefundCompletion(context.orderItemIds());
     }
 
-    private OrderItemDetailView orderItem() {
+    private OrderItemView orderItem() {
         return orderItem(OrderItemStatus.ORDERED, DeliveryGroupStatus.DELIVERED);
     }
 
-    private OrderItemDetailView orderItem(UUID orderItemId, OrderItemStatus itemStatus) {
-        return new OrderItemDetailView(
+    private OrderItemView orderItem(UUID orderItemId, OrderItemStatus itemStatus) {
+        return new OrderItemView(
                 orderItemId,
                 ORDER_ID,
                 CUSTOMER_ID,
@@ -222,8 +222,8 @@ class RefundServiceTest {
         );
     }
 
-    private OrderItemDetailView orderItem(OrderItemStatus itemStatus, DeliveryGroupStatus groupStatus) {
-        return new OrderItemDetailView(
+    private OrderItemView orderItem(OrderItemStatus itemStatus, DeliveryGroupStatus groupStatus) {
+        return new OrderItemView(
                 ORDER_ITEM_ID,
                 ORDER_ID,
                 CUSTOMER_ID,
