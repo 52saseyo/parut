@@ -131,6 +131,11 @@ public class TimeDealPolicy {
         stock.adjustAvailableQuantity(delta);
     }
 
+    // NOTE: 일반 상품과 타임딜 사이의 재고 이동 중 타임딜 재고 변경을 조율한다.
+    public void transferStock(TimeDeal timeDeal, TimeDealStock stock, Integer quantity) {
+        adjustStock(timeDeal, stock, quantity);
+    }
+
     // NOTE: 저장된 TimeDeal에 재고를 할당한다 — 저장 전이면 getId()가 null이라 걸러진다.
     // maxPurchaseQuantity <= 초기 재고 검증이 여기 있는 이유는 두 값이 다른 애그리거트에 있기 때문이다.
     public TimeDealStock allocateStock(

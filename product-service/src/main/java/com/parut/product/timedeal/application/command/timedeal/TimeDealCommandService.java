@@ -16,7 +16,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
-import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
+import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
@@ -42,7 +42,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private final TimeDealRepository timeDealRepository;
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
-    private final ProductStockAllocationPort productStockAllocationPort;
+    private final ProductStockPort productStockPort;
     private final TimeDealAuthorizationChecker authorizationChecker;
 
     @Override
@@ -195,7 +195,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
 
         ProductStockAllocateCommand productStockAllocateCommand = timeDealConvertCommand.toAllocateCommand();
         ProductStockAllocateResult productStockAllocateResult =
-                productStockAllocationPort.allocate(productStockAllocateCommand);
+                productStockPort.allocate(productStockAllocateCommand);
         TimeDeal timeDeal = TimeDeal.create(
                 productStockAllocateResult.sellerId(),
                 productStockAllocateResult.productId(),

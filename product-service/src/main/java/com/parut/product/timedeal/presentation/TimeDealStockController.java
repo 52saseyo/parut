@@ -4,9 +4,12 @@ import com.parut.product.global.common.ApiResponse;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockAdjustResult;
+import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockTransferResult;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockCommandUseCase;
 import com.parut.product.timedeal.presentation.dto.timedealstock.request.TimeDealStockAdjustRequest;
+import com.parut.product.timedeal.presentation.dto.timedealstock.request.TimeDealStockTransferRequest;
 import com.parut.product.timedeal.presentation.dto.timedealstock.response.TimeDealStockAdjustResponse;
+import com.parut.product.timedeal.presentation.dto.timedealstock.response.TimeDealStockTransferResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -43,10 +46,17 @@ public class TimeDealStockController {
     }
 
     @PostMapping("/{timeDealId}/stock/transfer")
-    public ResponseEntity<ApiResponse<Void>> transferStock(
-            @PathVariable UUID timeDealId
+    public ResponseEntity<ApiResponse<TimeDealStockTransferResponse>> transferStock(
+            @PathVariable UUID timeDealId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @Valid @RequestBody TimeDealStockTransferRequest timeDealStockTransferRequest
     ) {
-        timeDealStockCommandUseCase.transferStock();
-        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
+        TimeDealStockTransferResult timeDealStockTransferResult = timeDealStockCommandUseCase.transferStock(
+                timeDealStockTransferRequest.toCommand(timeDealId, requesterId, requesterRole));
+        TimeDealStockTransferResponse timeDealStockTransferResponse =
+                TimeDealStockTransferResponse.from(timeDealStockTransferResult);
+        return ResponseEntity.ok(ApiResponse.success(
+                timeDealStockTransferResponse, TraceIdContext.currentTraceId()));
     }
 }
