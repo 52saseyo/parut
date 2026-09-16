@@ -538,4 +538,25 @@ public class ProductStockServiceImpl implements ProductStockService{
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
+
+    // 낙관적 락 검증 (예약)
+    private void saveReservationSafely(ProductStockReservation reservation, ErrorCode conflictErrorCode) {
+        try {
+            productStockReservationRepository.saveAndFlush(reservation);
+        } catch (OptimisticLockingFailureException e) {
+            throw new BusinessException(conflictErrorCode);
+        }
+    }
+
+    // 이벤트로그 단건 저장 - 유니크 제약 위반만 별도로 좁게 catch
+    private void saveEventLog(UUID reservationId, UUID orderItemId, StockEventType eventType) {
+        ProductStockEventLog eventLog = ProductStockEventLog.create(reservationId, orderItemId, eventType);
+        try {
+            productStockEventLogRepository.saveAndFlush(eventLog);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("[recoverIsolatedReservation] 이벤트로그 유니크 제약 위반 - reservationId={}, orderItemId={}",
+                    reservationId, orderItemId);
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+    }
 }

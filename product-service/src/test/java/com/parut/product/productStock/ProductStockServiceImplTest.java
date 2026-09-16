@@ -697,7 +697,7 @@ public class ProductStockServiceImplTest {
             verify(productStockRepository).saveAndFlush(stock);
 
             ArgumentCaptor<ProductStockEventLog> logCaptor = ArgumentCaptor.forClass(ProductStockEventLog.class);
-            verify(productStockEventLogRepository).save(logCaptor.capture());
+            verify(productStockEventLogRepository).saveAndFlush(logCaptor.capture());
             assertThat(logCaptor.getValue().getOrderItemId()).isEqualTo(orderItemId);
             assertThat(logCaptor.getValue().getEventType()).isEqualTo(StockEventType.RESTORE);
         }
