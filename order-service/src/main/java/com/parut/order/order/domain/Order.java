@@ -1,19 +1,13 @@
 package com.parut.order.order.domain;
 
-import java.time.Instant;
-import java.util.UUID;
-
 import com.parut.order.global.common.entity.UpdatableEntity;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "p_orders")
@@ -218,22 +212,26 @@ public class Order extends UpdatableEntity {
         this.orderStatus = OrderStatus.STOCK_RESERVED;
     }
 
-    public void cancel() {
+    // 결제에 도달하지 못하고 끝난 주문의 상태 전이
+    // 주문 취소, 환불은 orderStatus가 아닌 orderItemStatus로 표현
+    public void abort() {
         if (orderStatus != OrderStatus.CREATED
                 && orderStatus != OrderStatus.STOCK_RESERVED
-                && orderStatus != OrderStatus.PAYMENT_PENDING
-                && orderStatus != OrderStatus.PAID) {
-            throw new IllegalStateException("취소할 수 없는 주문 상태입니다.");
+                && orderStatus != OrderStatus.PAYMENT_PENDING) {
+            throw new IllegalStateException("결제 전 주문만 중단할 수 있습니다.");
         }
 
-        this.orderStatus = OrderStatus.CANCELED;
+        this.orderStatus = OrderStatus.ABORTED;
     }
 
-    public void confirm() {
-        if (orderStatus != OrderStatus.PAID) {
-            throw new IllegalStateException("결제 완료 상태에서만 구매확정으로 전이할 수 있습니다.");
+    public void applyCancellation(long cancelAmount) {
+        if (cancelAmount < 0) {
+            throw new IllegalArgumentException("취소 금액은 0 이상이어야 합니다.");
+        }
+        if (canceledAmount + cancelAmount > totalPaymentAmount) {
+            throw new IllegalArgumentException("취소 금액 합계는 총결제금액을 넘을 수 없습니다.");
         }
 
-        this.orderStatus = OrderStatus.CONFIRMED;
+        this.canceledAmount += cancelAmount;
     }
 }
