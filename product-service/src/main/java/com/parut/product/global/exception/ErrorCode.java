@@ -63,7 +63,7 @@ public enum ErrorCode {
     TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다."),
     TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다."),
     TIME_DEAL_INVALID_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "초기 재고는 1개 이상이어야 합니다."),
-    TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 수량은 0일 수 없습니다."),
+    TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 후 판매 가능 재고는 1개 이상이어야 합니다."),
     TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED(HttpStatus.CONFLICT, "종료되거나 중단된 타임딜의 재고는 조정할 수 없습니다."),
     TIME_DEAL_MAX_PURCHASE_QUANTITY_EXCEEDS_STOCK(HttpStatus.BAD_REQUEST, "1인당 최대 구매 수량은 초기 재고 수량을 넘을 수 없습니다."),
     TIME_DEAL_STOCK_MISMATCH(HttpStatus.CONFLICT, "다른 타임딜의 재고 또는 구매 이력입니다."),

@@ -480,7 +480,7 @@ class TimeDealPolicyTest {
             assertThatThrownBy(() -> timeDealPolicy.adjustStock(timeDeal, stock, -6))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
     }
 
