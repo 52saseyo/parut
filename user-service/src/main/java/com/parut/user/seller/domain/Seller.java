@@ -55,11 +55,11 @@ public class Seller {
     @Column(nullable = false, length = 20)
     private SellerStatus status;
 
-    @Column(name = "approved_by", length = 30)
-    private String approvedBy;
+    @Column(name = "processed_by", length = 30)
+    private String processedBy;
 
-    @Column(name = "approved_at")
-    private ZonedDateTime approvedAt;
+    @Column(name = "processed_at")
+    private ZonedDateTime processedAt;
 
     @Column(name = "reject_reason", length = 255)
     private String rejectReason;
@@ -118,8 +118,8 @@ public class Seller {
 
     public void approve(String adminName, String rejectReason) {
         this.status = SellerStatus.APPROVED;
-        this.approvedBy = adminName;
-        this.approvedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        this.processedBy = adminName;
+        this.processedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.rejectReason = rejectReason;
         this.updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.updatedBy = adminName;
@@ -127,8 +127,8 @@ public class Seller {
 
     public void reject(String adminName, String rejectReason) {
         this.status = SellerStatus.REJECTED;
-        this.approvedBy = adminName;
-        this.approvedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        this.processedBy = adminName;
+        this.processedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.rejectReason = rejectReason;
         this.updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.updatedBy = adminName;
