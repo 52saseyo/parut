@@ -10,6 +10,7 @@ import com.parut.product.product.domain.stock.entity.ProductStock;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,5 +41,5 @@ public interface ProductStockService {
 
     void deallocate(ProductStockAllocateCommand command);
 
-    ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole);
+    ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole, String cursor, int size);
 }

@@ -30,6 +30,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,47 +126,74 @@ public class ProductStockServiceImpl implements ProductStockService{
     // 재고 이력 조회
     @Override
     @Transactional(readOnly = true)
-    public ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole) {
+    public ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole, String cursor, int size) {
+
+        HistoryCursor parsedCursor = HistoryCursor.decode(cursor);
+        Instant eventLogCursorCreatedAt = parsedCursor.eventLogCreatedAt();
+        UUID eventLogCursorId = parsedCursor.eventLogId();
+        Instant allocationCursorCreatedAt = parsedCursor.allocationCreatedAt();
+        UUID allocationCursorId = parsedCursor.allocationId();
+
         UUID sellerId = productReader.getSellerId(productId);
         authorizationChecker.requireOwnerOrAdmin(requesterId, requesterRole, sellerId);
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
-        // RESERVE/CONFIRM/RESTORE: stockId → 예약 목록 → reservationId → 이벤트로그
-        List<ProductStockReservation> reservations =
-                productStockReservationRepository.findByStockIdIn(List.of(stock.getId()));
-        Map<UUID, Integer> quantityByReservationId = reservations.stream()
+        Pageable pageable = PageRequest.of(0, size);
+
+        // RESERVE/CONFIRM/RESTORE: ProductStockReservation과 조인해서 stockId로 바로 거름(size만큼만 조회, 예약 전체 조회 없음)
+        List<ProductStockEventLog> eventLogs = (eventLogCursorCreatedAt == null)
+                ? productStockEventLogRepository.findFirstHistoryBatch(stock.getId(), pageable)
+                : productStockEventLogRepository.findNextHistoryBatchByCursor(
+                stock.getId(), eventLogCursorCreatedAt, eventLogCursorId, pageable);
+
+        // 위에서 뽑힌 이벤트로그가 참조하는 예약만(최대 size개) 조회해서 quantity 매핑
+        List<UUID> pageReservationIds = eventLogs.stream()
+                .map(ProductStockEventLog::getReservationId)
+                .distinct()
+                .toList();
+        Map<UUID, Integer> quantityByReservationId = productStockReservationRepository.findAllById(pageReservationIds)
+                .stream()
                 .collect(Collectors.toMap(ProductStockReservation::getId, ProductStockReservation::getQuantity));
-        List<UUID> reservationIds = reservations.stream().map(ProductStockReservation::getId).toList();
 
-        List<ProductStockEventLog> eventLogs =
-                productStockEventLogRepository.findByReservationIdIn(reservationIds);
-        List<ProductStockHistoryItem> orderEvents = eventLogs.stream()
-                .map(log -> new ProductStockHistoryItem(
-                        log.getEventType().name(),
-                        quantityByReservationId.get(log.getReservationId()),
-                        log.getCreatedAt(),
-                        log.getCreatedBy()
-                ))
-                .toList();
+        List<ProductStockAllocationLog> allocationLogs = (allocationCursorCreatedAt == null)
+                ? productStockAllocationLogRepository.findFirstHistoryBatch(List.of(stock.getId()), pageable)
+                : productStockAllocationLogRepository.findNextHistoryBatchByCursor(
+                List.of(stock.getId()), allocationCursorCreatedAt, allocationCursorId, pageable);
 
-        // ALLOCATE/DEALLOCATE: stockId로 바로 조회
-        List<ProductStockHistoryItem> allocationEvents = productStockAllocationLogRepository
-                .findByStockIdIn(List.of(stock.getId())).stream()
-                .map(log -> new ProductStockHistoryItem(
-                        log.getEventType().name(),
-                        log.getQuantity(),
-                        log.getCreatedAt(),
-                        log.getCreatedBy()
-                ))
-                .toList();
-        // 두 소스 합쳐서 최신순 정렬
-        List<ProductStockHistoryItem> items = Stream.concat(orderEvents.stream(), allocationEvents.stream())
+        List<ProductStockHistoryItem> items = Stream.concat(
+                        eventLogs.stream().map(log -> new ProductStockHistoryItem(
+                                log.getId(), "EVENT_LOG", log.getEventType().name(),
+                                quantityByReservationId.get(log.getReservationId()),
+                                log.getCreatedAt(), log.getCreatedBy())),
+                        allocationLogs.stream().map(log -> new ProductStockHistoryItem(
+                                log.getId(), "ALLOCATION_LOG", log.getEventType().name(), log.getQuantity(),
+                                log.getCreatedAt(), log.getCreatedBy()))
+                )
                 .sorted(Comparator.comparing(ProductStockHistoryItem::occurredAt).reversed())
+                .limit(size)
                 .toList();
+
+        // 핵심: 이번 페이지에 실제로 "포함된" 항목 중, 그 소스의 마지막 것으로만 다음 커서를 잡는다.
+        // 그 소스에서 하나도 안 뽑혔으면 커서를 그대로 유지(다음 페이지에서 같은 지점부터 다시 시도).
+        ProductStockHistoryItem lastEventLogItem = items.stream()
+                .filter(i -> i.source().equals("EVENT_LOG"))
+                .reduce((first, second) -> second).orElse(null);
+        ProductStockHistoryItem lastAllocationItem = items.stream()
+                .filter(i -> i.source().equals("ALLOCATION_LOG"))
+                .reduce((first, second) -> second).orElse(null);
+
+        Instant nextEventLogCursorCreatedAt = lastEventLogItem != null ? lastEventLogItem.occurredAt() : eventLogCursorCreatedAt;
+        UUID nextEventLogCursorId = lastEventLogItem != null ? lastEventLogItem.id() : eventLogCursorId;
+        Instant nextAllocationCursorCreatedAt = lastAllocationItem != null ? lastAllocationItem.occurredAt() : allocationCursorCreatedAt;
+        UUID nextAllocationCursorId = lastAllocationItem != null ? lastAllocationItem.id() : allocationCursorId;
 
         Product product = productReader.getProduct(productId);
-        return new ProductStockHistoryResult(product.getName(), items);
+        String nextCursor = new HistoryCursor(
+                nextEventLogCursorCreatedAt, nextEventLogCursorId,
+                nextAllocationCursorCreatedAt, nextAllocationCursorId
+        ).encode();
+        return new ProductStockHistoryResult(product.getName(), items, nextCursor);
     }
 
     // 격리된 재고 조회

@@ -23,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -117,9 +118,15 @@ public class ProductStockController {
     public ResponseEntity<ApiResponse<ProductStockHistoryResponse>> getStockHistory(
             @PathVariable UUID productId,
             @RequestHeader("X-User-Id") UUID requesterId,
-            @RequestHeader("X-User-Role") String requesterRole
+            @RequestHeader("X-User-Role") String requesterRole,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        ProductStockHistoryResult result = productStockService.getStockHistory(productId, requesterId, requesterRole);
+        if (size < 1) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PAGE_INVALID_SIZE);
+        }
+        ProductStockHistoryResult result = productStockService.getStockHistory(
+                productId, requesterId, requesterRole, cursor, size);
         return ResponseEntity.ok(ApiResponse.success(ProductStockHistoryResponse.from(result), null));
     }
 }

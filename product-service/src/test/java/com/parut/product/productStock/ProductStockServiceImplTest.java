@@ -6,6 +6,7 @@ import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
+import com.parut.product.product.application.stock.dto.HistoryCursor;
 import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
 import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.dto.ProductStockItem;
@@ -329,15 +330,61 @@ public class ProductStockServiceImplTest {
 
             given(productReader.getSellerId(productId)).willReturn(sellerId);
             given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
-            given(productStockReservationRepository.findByStockIdIn(List.of(stockId))).willReturn(List.of(reservation));
-            given(productStockEventLogRepository.findByReservationIdIn(List.of(reservationId))).willReturn(List.of(confirmLog));
-            given(productStockAllocationLogRepository.findByStockIdIn(List.of(stockId))).willReturn(List.of(allocationLog));
+            given(productStockEventLogRepository.findFirstHistoryBatch(eq(stockId), any(Pageable.class)))
+                    .willReturn(List.of(confirmLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId))).willReturn(List.of(reservation));
+            given(productStockAllocationLogRepository.findFirstHistoryBatch(eq(List.of(stockId)), any(Pageable.class)))
+                    .willReturn(List.of(allocationLog));
             given(productReader.getProduct(productId)).willReturn(product);
 
-            ProductStockHistoryResult result = productStockService.getStockHistory(productId, sellerId, "SELLER");
+            ProductStockHistoryResult result = productStockService.getStockHistory(productId, sellerId, "SELLER", null, 20);
 
             assertThat(result.items()).hasSize(2);
             // sorted(reversed) - occurredAt 기준 최신이 먼저
+        }
+
+        @Test
+        @DisplayName("커서가 있으면 findNextHistoryBatchByCursor로 다음 페이지를 조회한다")
+        void getStockHistory_withCursor_queriesNextBatch() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+
+            Product product = createOnSaleProduct(sellerId, 5000L);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+
+            ProductStockReservation reservation = ProductStockReservation.create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+
+            // 이전 페이지에서 클라이언트가 받아온 커서를 직접 만들어서 흉내
+            Instant eventLogCursorCreatedAt = Instant.now().minusSeconds(120);
+            UUID eventLogCursorId = UUID.randomUUID();
+            Instant allocationCursorCreatedAt = Instant.now().minusSeconds(100);
+            UUID allocationCursorId = UUID.randomUUID();
+            String cursor = new HistoryCursor(
+                    eventLogCursorCreatedAt, eventLogCursorId,
+                    allocationCursorCreatedAt, allocationCursorId
+            ).encode();
+
+            ProductStockEventLog confirmLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.CONFIRM);
+            ReflectionTestUtils.setField(confirmLog, "createdAt", Instant.now().minusSeconds(60));
+
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productStockEventLogRepository.findNextHistoryBatchByCursor(
+                    eq(stockId), eq(eventLogCursorCreatedAt), eq(eventLogCursorId), any(Pageable.class)))
+                    .willReturn(List.of(confirmLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId))).willReturn(List.of(reservation));
+            given(productStockAllocationLogRepository.findNextHistoryBatchByCursor(
+                    eq(List.of(stockId)), eq(allocationCursorCreatedAt), eq(allocationCursorId), any(Pageable.class)))
+                    .willReturn(List.of());
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockHistoryResult result = productStockService.getStockHistory(productId, sellerId, "SELLER", cursor, 20);
+
+            assertThat(result.items()).hasSize(1);
+            verify(productStockEventLogRepository, never()).findFirstHistoryBatch(any(), any());
+            verify(productStockAllocationLogRepository, never()).findFirstHistoryBatch(any(), any());
         }
     }
 

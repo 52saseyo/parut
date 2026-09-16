@@ -45,6 +45,4 @@ public interface ProductStockReservationRepository extends JpaRepository<Product
 
     // 격리 예약 조회 - SELLER용 (본인 상품 범위로 제한)
     List<ProductStockReservation> findByStatusAndStockIdIn(ReservationStatus status, List<UUID> stockIds);
-
-    List<ProductStockReservation> findByStockIdIn(List<UUID> stockIds);
 }
