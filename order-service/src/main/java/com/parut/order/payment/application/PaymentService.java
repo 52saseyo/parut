@@ -90,6 +90,13 @@ public class PaymentService {
             throw new BusinessException(ErrorCode.INVALID_PAYMENT_STATUS);
         }
 
+        // 결제창 진행 중 취소된 주문이 PG 승인까지 가지 않도록 승인 호출 전에 차단
+        OrderSnapshotView order = orderSnapshotQueryUseCase.getOrderSnapshot(payment.getOrderId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+        if (order.orderStatus() != OrderStatus.PAYMENT_PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+
         // ToDo: bulk 도입 시 수정 예정
         OrderItemSnapshotView item = orderSnapshotQueryUseCase.getFirstOrderItemSnapshot(payment.getOrderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
