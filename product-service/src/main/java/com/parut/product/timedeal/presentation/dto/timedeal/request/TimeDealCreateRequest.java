@@ -13,8 +13,6 @@ import java.util.UUID;
 // NOTE: 필수값 존재만 본다 — 가격 하한, 할인율 범위, 기간 역전 같은 규칙은 도메인이 지킨다(양쪽에 두면 갈린다).
 public record TimeDealCreateRequest(
 
-        UUID imageId,
-
         @NotNull(message = "타임딜 상품명은 필수입니다.")
         String name,
 
@@ -56,7 +54,6 @@ public record TimeDealCreateRequest(
         return new TimeDealCreateCommand(
                 sellerId,
                 requesterRole,
-                imageId,
                 name,
                 description,
                 productGrade,

@@ -5,6 +5,7 @@ import com.parut.user.auth.application.dto.request.LoginRequest;
 import com.parut.user.auth.application.dto.request.SignupRequest;
 import com.parut.user.auth.application.dto.response.TokenResponse;
 import com.parut.user.global.common.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -51,10 +52,10 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 
-    // 6. 관리자 계정 자동 생성
+    // 6. 관리자 로그인
     @PostMapping("/login/admin")
-    public ResponseEntity<ApiResponse<TokenResponse>> loginAdmin() {
-        TokenResponse response = authService.loginAdmin();
-        return ResponseEntity.ok(ApiResponse.success(response, "관리자 임시 토큰이 발급되었습니다."));
+    public ResponseEntity<ApiResponse<TokenResponse>> loginAdmin(@Valid @RequestBody LoginRequest request) {
+        TokenResponse response = authService.loginAdmin(request);
+        return ResponseEntity.ok(ApiResponse.success(response, "관리자 로그인이 완료되었습니다."));
     }
 }

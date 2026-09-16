@@ -42,7 +42,6 @@ class TimeDealTest {
         return TimeDeal.create(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
                 "산지직송 사과 5kg",
                 "당일 수확한 사과입니다.",
                 TimeDealProductGrade.NORMAL,
@@ -68,7 +67,6 @@ class TimeDealTest {
         return TimeDeal.create(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
-                null,
                 name,
                 description,
                 productGrade,
@@ -93,7 +91,7 @@ class TimeDealTest {
             Instant now
     ) {
         timeDeal.update(
-                null, null, null, null, null, null,
+                null, null, null, null, null,
                 originalPrice, discountRate, startAt, endAt, maxPurchaseQuantity, now
         );
     }
@@ -102,6 +100,62 @@ class TimeDealTest {
         TimeDeal timeDeal = scheduledTimeDeal();
         timeDeal.activate(IN_WINDOW);
         return timeDeal;
+    }
+
+    @Test
+    void 판매시작_직전에는_예정상태를_유지한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(START_AT.minusNanos(1));
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.SCHEDULED);
+    }
+
+    @Test
+    void 시작시각에_활성화하고_중복실행은_무시한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(START_AT);
+        timeDeal.updateSaleStatus(START_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+    }
+
+    @Test
+    void 오픈을_놓쳤어도_종료시각이면_바로_종료한다() {
+        TimeDeal timeDeal = scheduledTimeDeal();
+        timeDeal.updateSaleStatus(END_AT);
+        timeDeal.updateSaleStatus(END_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
+    }
+
+    @Test
+    void 진행중인_타임딜도_종료시각에_종료한다() {
+        TimeDeal timeDeal = activeTimeDeal();
+        timeDeal.updateSaleStatus(END_AT);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
+    }
+
+    @Test
+    void 중단되거나_삭제된_타임딜은_활성화하지_않는다() {
+        TimeDeal stoppedTimeDeal = activeTimeDeal();
+        stoppedTimeDeal.stop();
+        TimeDeal deletedTimeDeal = scheduledTimeDeal();
+        deletedTimeDeal.softDelete("seller");
+        stoppedTimeDeal.updateSaleStatus(START_AT);
+        deletedTimeDeal.updateSaleStatus(START_AT);
+        assertThat(stoppedTimeDeal.getStatus()).isEqualTo(TimeDealStatus.STOPPED);
+        assertThat(deletedTimeDeal.getStatus()).isEqualTo(TimeDealStatus.SCHEDULED);
+    }
+
+    @Test
+    void 판매기간중에는_활성상태를_유지한다() {
+        TimeDeal timeDeal = activeTimeDeal();
+        timeDeal.updateSaleStatus(IN_WINDOW);
+        assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+    }
+
+    @Test
+    void 상태갱신_기준시각은_필수다() {
+        assertThatThrownBy(() -> scheduledTimeDeal().updateSaleStatus(null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }
 
     @Nested
@@ -210,7 +264,7 @@ class TimeDealTest {
         @DisplayName("직접 등록이면 productId 없이도 생성된다")
         void 직접_등록() {
             TimeDeal timeDeal = TimeDeal.create(
-                    UUID.randomUUID(), null, null,
+                    UUID.randomUUID(), null,
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT);
 
@@ -231,7 +285,7 @@ class TimeDealTest {
         @DisplayName("판매자가 없으면 예외")
         void 판매자_null() {
             assertThatThrownBy(() -> TimeDeal.create(
-                    null, UUID.randomUUID(), null,
+                    null, UUID.randomUUID(),
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30), START_AT, END_AT, 5, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
@@ -368,13 +422,10 @@ class TimeDealTest {
         @DisplayName("표시용 스냅샷도 부분 수정된다")
         void 스냅샷_부분_수정() {
             TimeDeal timeDeal = scheduledTimeDeal();
-            UUID newImageId = UUID.randomUUID();
-
             timeDeal.update(
-                    newImageId, "못난이 사과 5kg", null, TimeDealProductGrade.UGLY, null, null,
+                    "못난이 사과 5kg", null, TimeDealProductGrade.UGLY, null, null,
                     null, null, null, null, null, CREATED_AT);
 
-            assertThat(timeDeal.getImageId()).isEqualTo(newImageId);
             assertThat(timeDeal.getName()).isEqualTo("못난이 사과 5kg");
             assertThat(timeDeal.getProductGrade()).isEqualTo(TimeDealProductGrade.UGLY);
             assertThat(timeDeal.getOrigin()).isEqualTo("경북 안동");
@@ -387,7 +438,7 @@ class TimeDealTest {
             TimeDeal timeDeal = scheduledTimeDeal();
 
             assertThatThrownBy(() -> timeDeal.update(
-                    null, "   ", null, null, null, null,
+                    "   ", null, null, null, null,
                     null, null, null, null, null, CREATED_AT))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
@@ -537,6 +588,17 @@ class TimeDealTest {
     @Nested
     @DisplayName("구매 가능 여부 검증")
     class ValidatePurchasable {
+        @Test
+        void 시작시각은_허용하고_종료시각은_거절한다() {
+            TimeDeal timeDeal = scheduledTimeDeal();
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(START_AT.minusNanos(1)))
+                    .isInstanceOf(BusinessException.class);
+            timeDeal.validatePurchasable(END_AT.minusNanos(1));
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(END_AT))
+                    .isInstanceOf(BusinessException.class);
+            timeDeal.validatePurchasable(START_AT);
+        }
+
 
         @Test
         @DisplayName("배치가 활성화를 못 돌려 SCHEDULED여도 판매 기간 안이면 구매할 수 있다 — 지연 평가")
@@ -547,11 +609,14 @@ class TimeDealTest {
         }
 
         @Test
-        @DisplayName("종료 시각 정각은 아직 구매할 수 있다")
-        void 종료_경계_통과() {
+        @DisplayName("종료 시각 정각부터 구매할 수 없다")
+        void 종료_경계_불가() {
             TimeDeal timeDeal = activeTimeDeal();
 
-            timeDeal.validatePurchasable(END_AT);
+            assertThatThrownBy(() -> timeDeal.validatePurchasable(END_AT))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
         }
 
         @Test

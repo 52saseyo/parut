@@ -2,10 +2,15 @@ package com.parut.product.timedeal.application.query.timedeal;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.global.dto.ImageQuery;
+import com.parut.product.global.dto.ImageQueryResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealQueryRepository;
+import com.parut.product.timedeal.application.port.out.image.ImageQueryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,17 +24,22 @@ import java.util.UUID;
 public class TimeDealQueryService implements TimeDealQueryUseCase {
 
     private final TimeDealQueryRepository timeDealQueryRepository;
+    private final ImageQueryPort imageQueryPort;
 
     @Override
-    public TimeDealPublicDetailView getPublicDetail(UUID timeDealId) {
-        return timeDealQueryRepository.findPublicDetailById(timeDealId)
+    public TimeDealPublicDetailResult getPublicDetail(UUID timeDealId) {
+        TimeDealPublicDetailView timeDealPublicDetailView = timeDealQueryRepository.findPublicDetailById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId));
+        return TimeDealPublicDetailResult.from(timeDealPublicDetailView, imageQueryResult.imageUrl());
     }
 
 
     @Override
-    public TimeDealDetailView getDetail(UUID timeDealId) {
-        return timeDealQueryRepository.findDetailById(timeDealId)
+    public TimeDealDetailResult getDetail(UUID timeDealId) {
+        TimeDealDetailView timeDealDetailView = timeDealQueryRepository.findDetailById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId));
+        return TimeDealDetailResult.from(timeDealDetailView, imageQueryResult.imageUrl());
     }
 }

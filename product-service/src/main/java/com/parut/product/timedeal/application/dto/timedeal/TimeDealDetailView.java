@@ -13,7 +13,6 @@ public record TimeDealDetailView(
         UUID timeDealId,
         UUID productId,
         UUID sellerId,
-        UUID imageId,
         String productName,
         String description,
         Long originalPrice,

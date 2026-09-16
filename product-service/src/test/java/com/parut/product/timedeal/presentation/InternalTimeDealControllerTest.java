@@ -1,7 +1,7 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.interceptor.ServiceKeyInterceptor;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
@@ -42,7 +42,7 @@ class InternalTimeDealControllerTest {
         void 설명과_할인율을_포함한_상품정보를_반환한다() throws Exception {
             UUID timeDealId = UUID.randomUUID();
             when(timeDealQueryUseCase.getDetail(timeDealId)).thenReturn(
-                    new TimeDealDetailView(timeDealId, UUID.randomUUID(), UUID.randomUUID(), null,
+                    new TimeDealDetailResult(timeDealId, UUID.randomUUID(), UUID.randomUUID(), null,
                             "산지직송 감자 3kg", "테스트용 타임딜입니다.", 15000L,
                             new BigDecimal("20.00"), 12000L, TimeDealProductGrade.NORMAL,
                             "국내산(전남 해남)", LocalDate.of(2026, 8, 20)));
@@ -59,14 +59,14 @@ class InternalTimeDealControllerTest {
                     .andExpect(jsonPath("$.data.productGrade").value("NORMAL"))
                     .andExpect(jsonPath("$.data.origin").value("국내산(전남 해남)"))
                     .andExpect(jsonPath("$.data.harvestedDate").value("2026-08-20"))
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
 
         @Test
         void 설명이_없으면_null이며_추적_ID를_그대로_반환한다() throws Exception {
             UUID timeDealId = UUID.randomUUID();
             when(timeDealQueryUseCase.getDetail(timeDealId)).thenReturn(
-                    new TimeDealDetailView(timeDealId, null, UUID.randomUUID(), null,
+                    new TimeDealDetailResult(timeDealId, null, UUID.randomUUID(), null,
                             "감자", null, 15000L, BigDecimal.ZERO, 15000L,
                             TimeDealProductGrade.NORMAL, "국내산", LocalDate.of(2026, 8, 20)));
             mvc.perform(get("/api/v1/internal/time-deals/{id}", timeDealId)

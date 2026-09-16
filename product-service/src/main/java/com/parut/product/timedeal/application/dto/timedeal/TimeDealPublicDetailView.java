@@ -12,7 +12,6 @@ public record TimeDealPublicDetailView(
         UUID timeDealId,
         UUID productId,
         UUID sellerId,
-        UUID imageId,
         String name,
         String description,
         TimeDealProductGrade productGrade,

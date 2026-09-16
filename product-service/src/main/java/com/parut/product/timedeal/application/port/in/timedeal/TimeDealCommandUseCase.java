@@ -6,10 +6,18 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 
 public interface TimeDealCommandUseCase {
 
+    void endTimeDeals();
+
+    void activateTimeDeals();
+
     void delete(TimeDealDeleteCommand command);
+
+    TimeDealStopResult stop(TimeDealStopCommand command);
 
     TimeDealUpdateResult update(TimeDealUpdateCommand command);
 

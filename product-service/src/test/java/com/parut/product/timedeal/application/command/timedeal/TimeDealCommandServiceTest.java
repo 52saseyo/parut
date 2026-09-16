@@ -9,6 +9,8 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertComman
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
@@ -69,6 +71,7 @@ class TimeDealCommandServiceTest {
     @BeforeEach
     void setUp() {
         timeDealCommandService = new TimeDealCommandService(
+                org.mockito.Mockito.mock(TimeDealSalePeriodProcessor.class),
                 timeDealRepository,
                 timeDealStockRepository,
                 new TimeDealPolicy(),
@@ -83,13 +86,13 @@ class TimeDealCommandServiceTest {
         private final UUID id = UUID.randomUUID();
 
         private TimeDeal existingTimeDeal() {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
 
             ReflectionTestUtils.setField(timeDeal, "id", id);
 
-            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
             return timeDeal;
         }
 
@@ -144,7 +147,7 @@ class TimeDealCommandServiceTest {
 
         @Test
         void 타임딜이_없으면_404다() {
-            when(timeDealRepository.findById(id)).thenReturn(Optional.empty());
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
             assertThatThrownBy(() -> timeDealCommandService.delete(
                     new TimeDealDeleteCommand(id, SELLER_ID, "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_FOUND);
@@ -190,6 +193,72 @@ class TimeDealCommandServiceTest {
     }
 
     @Nested
+    @DisplayName("타임딜 강제 종료")
+    class Stop {
+        private final UUID id = UUID.randomUUID();
+
+        private TimeDeal activeTimeDeal() {
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
+                    TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
+                    BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
+            ReflectionTestUtils.setField(timeDeal, "id", id);
+            timeDeal.activate(START_AT);
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
+            return timeDeal;
+        }
+
+        @Test
+        void 판매자_본인은_ACTIVE_타임딜을_STOPPED로_변경한다() {
+            TimeDeal timeDeal = activeTimeDeal();
+            when(timeDealRepository.save(timeDeal)).thenReturn(timeDeal);
+
+            TimeDealStopResult result = timeDealCommandService.stop(
+                    new TimeDealStopCommand(id, SELLER_ID, "SELLER"));
+
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.STOPPED);
+            assertThat(result).isEqualTo(new TimeDealStopResult(id, TimeDealStatus.STOPPED));
+            verify(timeDealRepository).save(timeDeal);
+        }
+
+        @Test
+        void 관리자는_타인의_ACTIVE_타임딜을_강제_종료할_수_있다() {
+            TimeDeal timeDeal = activeTimeDeal();
+            when(timeDealRepository.save(timeDeal)).thenReturn(timeDeal);
+
+            TimeDealStopResult result = timeDealCommandService.stop(
+                    new TimeDealStopCommand(id, UUID.randomUUID(), "ADMIN"));
+
+            assertThat(result.status()).isEqualTo(TimeDealStatus.STOPPED);
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.STOPPED);
+        }
+
+        @Test
+        void 다른_판매자는_강제_종료할_수_없다() {
+            TimeDeal timeDeal = activeTimeDeal();
+
+            assertThatThrownBy(() -> timeDealCommandService.stop(
+                    new TimeDealStopCommand(id, UUID.randomUUID(), "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+            verify(timeDealRepository, never()).save(any());
+        }
+
+        @Test
+        void SCHEDULED_타임딜은_강제_종료할_수_없다() {
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, UUID.randomUUID(), "사과", "설명",
+                    TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
+                    BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
+            ReflectionTestUtils.setField(timeDeal, "id", id);
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
+
+            assertThatThrownBy(() -> timeDealCommandService.stop(
+                    new TimeDealStopCommand(id, SELLER_ID, "SELLER")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_ACTIVE);
+            verify(timeDealRepository, never()).save(any());
+        }
+    }
+
+    @Nested
     @DisplayName("직접 등록")
     class Create {
 
@@ -201,7 +270,6 @@ class TimeDealCommandServiceTest {
             return new TimeDealCreateCommand(
                     SELLER_ID,
                     role,
-                    null,
                     "산지직송 사과 5kg",
                     "당일 수확한 사과입니다.",
                     TimeDealProductGrade.UGLY,
@@ -343,19 +411,19 @@ class TimeDealCommandServiceTest {
     class Update {
 
         private TimeDeal existingTimeDeal(UUID id) {
-            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, null, null, "사과", "설명",
+            TimeDeal timeDeal = TimeDeal.create(SELLER_ID, null, "사과", "설명",
                     TimeDealProductGrade.UGLY, "안동", HARVESTED_DATE, 10_000L,
                     BigDecimal.valueOf(30), START_AT, END_AT, 10, CREATED_AT);
 
             ReflectionTestUtils.setField(timeDeal, "id", id);
 
-            when(timeDealRepository.findById(id)).thenReturn(Optional.of(timeDeal));
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.of(timeDeal));
             return timeDeal;
         }
 
         private TimeDealUpdateCommand updateCommand(UUID id, UUID requesterId, String role) {
             return new TimeDealUpdateCommand(id, requesterId, role,
-                    null, "수정 사과", null, null, null, null, null,
+                    "수정 사과", null, null, null, null, null,
                     BigDecimal.valueOf(20), null, null, null);
         }
 
@@ -417,7 +485,7 @@ class TimeDealCommandServiceTest {
         @Test
         void 수정_대상이_없으면_찾을수없음_오류다() {
             UUID id = UUID.randomUUID();
-            when(timeDealRepository.findById(id)).thenReturn(Optional.empty());
+            when(timeDealRepository.findByIdForUpdate(id)).thenReturn(Optional.empty());
             assertThatThrownBy(() -> timeDealCommandService.update(updateCommand(id, SELLER_ID, "SELLER")))
                     .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_NOT_FOUND);
             verify(timeDealRepository, never()).saveAndFlush(any());
