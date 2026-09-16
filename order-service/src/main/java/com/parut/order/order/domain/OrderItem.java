@@ -211,8 +211,8 @@ public class OrderItem extends UpdatableEntity {
     }
 
     public void confirm(Instant confirmedAt) {
-        if (itemStatus != OrderItemStatus.ORDERED) {
-            throw new IllegalStateException("주문 상태에서만 구매확정으로 전이할 수 있습니다.");
+        if (itemStatus != OrderItemStatus.ORDERED && itemStatus != OrderItemStatus.REFUND_REQUESTED) {
+            throw new IllegalStateException("주문 상태 또는 환불 요청 상태에서만 구매확정으로 전이할 수 있습니다.");
         }
         if (confirmedAt == null) {
             throw new IllegalArgumentException("구매확정 시각은 필수입니다.");
