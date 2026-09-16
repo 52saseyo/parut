@@ -25,7 +25,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class ProductStockReservationExpirationProcessor {
-
+    private static final int MAX_RETRY_COUNT = 3;
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockRepository productStockRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
@@ -88,7 +88,10 @@ public class ProductStockReservationExpirationProcessor {
                 if (reservation.getStatus() != ReservationStatus.RESERVED) {
                     return;
                 }
-                reservation.fail();
+                reservation.incrementFailureCount();
+                if (reservation.getFailureCount() >= MAX_RETRY_COUNT) {
+                    reservation.fail();
+                }
                 productStockReservationRepository.saveAndFlush(reservation);
             });
         } catch (Exception e) {

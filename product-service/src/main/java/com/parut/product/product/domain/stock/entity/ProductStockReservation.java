@@ -40,6 +40,9 @@ public class ProductStockReservation extends DeletableEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    @Column(name = "failure_count", nullable = false)
+    private int failureCount;
+
     public static ProductStockReservation create(UUID stockId, UUID orderId,
                                                  int quantity, Instant expiresAt) {
         ProductStockReservation reservation = new ProductStockReservation();
@@ -50,7 +53,6 @@ public class ProductStockReservation extends DeletableEntity {
         reservation.expiresAt = expiresAt;
         return reservation;
     }
-
 
     public void confirm() {
         validateReserved();
@@ -72,6 +74,11 @@ public class ProductStockReservation extends DeletableEntity {
     public void fail() {
         validateReserved();
         this.status = ReservationStatus.EXPIRATION_FAILED;
+    }
+
+    // 재시도 횟수 증가
+    public void incrementFailureCount() {
+        this.failureCount++;
     }
 
     private void validateReserved() {

@@ -186,10 +186,20 @@ public class ProductStockServiceImpl implements ProductStockService{
             reservations = productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, stockIds);
         }
 
+        List<UUID> stockIds = reservations.stream()
+                .map(ProductStockReservation::getStockId)
+                .distinct()
+                .toList();
+        Map<UUID, ProductStock> stockById = productStockRepository.findAllById(stockIds)
+                .stream()
+                .collect(Collectors.toMap(ProductStock::getId, s -> s));
+
         List<IsolatedReservationResult> result = new ArrayList<>();
         for (ProductStockReservation reservation : reservations) {
-            ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+            ProductStock stock = stockById.get(reservation.getStockId());
+            if (stock == null) {
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+            }
             Product product = productReader.getProduct(stock.getProductId());
 
             result.add(new IsolatedReservationResult(

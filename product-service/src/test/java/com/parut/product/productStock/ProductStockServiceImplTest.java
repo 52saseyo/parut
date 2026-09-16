@@ -609,12 +609,13 @@ public class ProductStockServiceImplTest {
                     .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
             reservation.fail(); // EXPIRATION_FAILED 상태로 만듦
             ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
             Product product = createOnSaleProduct(sellerId, 5000L);
 
             given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
             given(productReader.getProduct(productId)).willReturn(product);
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");
@@ -644,7 +645,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(stock));
             given(productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, List.of(stock.getId())))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
             given(productReader.getProduct(productId)).willReturn(product);
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(sellerId, "SELLER");
@@ -681,12 +682,13 @@ public class ProductStockServiceImplTest {
                     .create(stockId, orderId, 15, expiresAt);
             reservation.fail();
             ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
             Product product = createOnSaleProduct(sellerId, 5000L);
 
             given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findById(stockId)).willReturn(Optional.of(stock));
+            given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
             given(productReader.getProduct(productId)).willReturn(product);
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");

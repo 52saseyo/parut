@@ -7,6 +7,7 @@ import com.parut.product.product.application.stock.scheduler.ProductStockReserva
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
@@ -31,7 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-
+import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @ExtendWith(MockitoExtension.class)
 public class ProductStockReservationExpirationProcessorTest {
@@ -177,4 +178,70 @@ public class ProductStockReservationExpirationProcessorTest {
         }
     }
 
+    @Nested
+    @DisplayName("expirationFailed()")
+    class ExpirationFailed {
+
+        @Test
+        @DisplayName("MAX_RETRY_COUNT 미달이면 격리 안 하고 failureCount만 증가, RESERVED 유지")
+        void expirationFailed_belowMaxRetry_incrementsOnly() {
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(UUID.randomUUID(), UUID.randomUUID(), 10, Instant.now().minusSeconds(60));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            // failureCount는 기본 0에서 시작
+
+            given(productStockReservationRepository.findById(reservationId))
+                    .willReturn(Optional.of(reservation));
+
+            processor.expirationFailed(reservationId);
+
+            log.info("[Processor.expirationFailed] failureCount={}, status={}",
+                    reservation.getFailureCount(), reservation.getStatus());
+
+            assertThat(reservation.getFailureCount()).isEqualTo(1);
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+            verify(productStockReservationRepository).saveAndFlush(reservation);
+        }
+
+        @Test
+        @DisplayName("MAX_RETRY_COUNT에 도달하면 EXPIRATION_FAILED로 격리")
+        void expirationFailed_reachesMaxRetry_isolates() {
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(UUID.randomUUID(), UUID.randomUUID(), 10, Instant.now().minusSeconds(60));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            ReflectionTestUtils.setField(reservation, "failureCount", 2); // 이미 2번 실패한 상태
+
+            given(productStockReservationRepository.findById(reservationId))
+                    .willReturn(Optional.of(reservation));
+
+            processor.expirationFailed(reservationId); // 3번째 실패 -> MAX_RETRY_COUNT 도달
+
+            log.info("[Processor.expirationFailed] 3번째 실패 -> status={}", reservation.getStatus());
+
+            assertThat(reservation.getFailureCount()).isEqualTo(3);
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRATION_FAILED);
+        }
+
+        @Test
+        @DisplayName("이미 RESERVED가 아니면(다른 경로로 처리됨) 아무 작업도 하지 않음")
+        void expirationFailed_notReserved_doesNothing() {
+            UUID reservationId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(UUID.randomUUID(), UUID.randomUUID(), 10, Instant.now().minusSeconds(60));
+            reservation.expire(); // 이미 다른 경로(예: 정상 만료)로 EXPIRED 처리됨
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+
+            given(productStockReservationRepository.findById(reservationId))
+                    .willReturn(Optional.of(reservation));
+
+            processor.expirationFailed(reservationId);
+
+            log.info("[Processor.expirationFailed] 이미 EXPIRED -> failureCount 증가/저장 없어야 함");
+
+            assertThat(reservation.getFailureCount()).isZero();
+            verify(productStockReservationRepository, never()).saveAndFlush(any());
+        }
+    }
 }
