@@ -29,3 +29,5 @@ app:
 logging:
   level:
     root: info
+  pattern:
+    level: "%5p [%X{traceId:-}]"

@@ -1,5 +1,7 @@
 package com.parut.product.timedeal.application.command.timedeal;
 
+import com.parut.product.global.common.AuditorContext;
+import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
 import com.parut.product.global.exception.BusinessException;
@@ -8,6 +10,11 @@ import com.parut.product.timedeal.application.authorization.TimeDealAuthorizatio
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealConvertCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -16,26 +23,119 @@ import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Instant;
-import java.util.Locale;
-
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TimeDealCommandService implements TimeDealCommandUseCase {
 
+    private final TimeDealSalePeriodProcessor timeDealSalePeriodProcessor;
     private final TimeDealRepository timeDealRepository;
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockAllocationPort productStockAllocationPort;
     private final TimeDealAuthorizationChecker authorizationChecker;
+
+    @Override
+    public void endTimeDeals() {
+        Instant now = Instant.now();
+        UUID afterId = null;
+        while (true) {
+            List<UUID> ids = timeDealRepository.findTimeDealsToEnd(now, afterId, 100);
+            if (ids.isEmpty()) {
+                return;
+            }
+            processTimeDeals(ids);
+            afterId = ids.getLast();
+        }
+    }
+
+    @Override
+    public void activateTimeDeals() {
+        Instant now = Instant.now();
+        UUID afterId = null;
+        while (true) {
+            List<UUID> ids = timeDealRepository.findTimeDealsToActivate(now, afterId, 100);
+            if (ids.isEmpty()) {
+                return;
+            }
+            processTimeDeals(ids);
+            afterId = ids.getLast();
+        }
+    }
+
+    private void processTimeDeals(List<UUID> ids) {
+        for (UUID id : ids) {
+            try {
+                AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
+                // 대상 조회 이후 시간이 흐르거나 판매 조건이 바뀔 수 있어 처리 시점에 재판정한다.
+                timeDealSalePeriodProcessor.synchronize(id);
+            } catch (Exception e) {
+                log.error("[TimeDeal] 판매 기간 상태 변경 실패: timeDealId={}", id, e);
+            } finally {
+                AuditorContext.clear();
+            }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void delete(TimeDealDeleteCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+        TimeDealStock stock = timeDealStockRepository.findByTimeDealId(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
+
+        // NOTE: 타임딜과 재고를 함께 soft delete한다. 일반 상품 재고 반환은 별도 유스케이스다.
+        timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
+        timeDealRepository.save(timeDeal);
+        timeDealStockRepository.save(stock);
+    }
+
+    @Override
+    @Transactional
+    public TimeDealStopResult stop(TimeDealStopCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+
+        // NOTE: ACTIVE 타임딜만 STOPPED로 전이한다. 상태 전이 규칙은 도메인이 담당한다.
+        timeDeal.stop();
+        TimeDeal savedTimeDeal = timeDealRepository.save(timeDeal);
+        return TimeDealStopResult.from(savedTimeDeal);
+    }
+
+    @Override
+    @Transactional
+    public TimeDealUpdateResult update(TimeDealUpdateCommand command) {
+        TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(
+                command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
+
+        Instant now = Instant.now();
+        // NOTE: 단일 애그리거트 수정이므로 TimeDealPolicy의 조율 없이 도메인에 위임한다.
+        timeDeal.update(
+                command.name(), command.description(), command.productGrade(),
+                command.origin(), command.harvestedDate(), command.originalPrice(), command.discountRate(),
+                command.startAt(), command.endAt(), command.maxPurchaseQuantity(), now
+        );
+        // NOTE: flush 시 갱신되는 감사 필드 updatedAt을 응답에 반영한다.
+        TimeDeal savedTimeDeal = timeDealRepository.saveAndFlush(timeDeal);
+        return TimeDealUpdateResult.from(savedTimeDeal);
+    }
 
 
     // NOTE: 직접 등록이라 productId는 null이다 — 표시 정보는 판매자가 입력한 값이 그대로 스냅샷이 된다.
@@ -49,7 +149,6 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         TimeDeal timeDeal = TimeDeal.create(
                 timeDealCreateCommand.sellerId(),
                 null,
-                timeDealCreateCommand.imageId(),
                 timeDealCreateCommand.name(),
                 timeDealCreateCommand.description(),
                 timeDealCreateCommand.productGrade(),
@@ -74,6 +173,10 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         );
         timeDealStockRepository.save(timeDealStock);
 
+        // TODO: timedeal_image 테이블과 이미지 연결 입력 계약이 생기면,
+        //       TimeDealImageCommandPort를 통해 이미지 연결을 저장한다.
+        //       같은 애플리케이션·DB 안의 저장소라면 이 유즈케이스 트랜잭션에 함께 참여시킨다.
+
         log.info(
                 "[TimeDeal] 직접 등록 완료. timeDealId={}, sellerId={}, initialQuantity={}",
                 savedTimeDeal.getId(),
@@ -91,18 +194,17 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         Instant now = Instant.now();
 
         ProductStockAllocateCommand productStockAllocateCommand = timeDealConvertCommand.toAllocateCommand();
-        ProductStockAllocateResult allocatedResult = productStockAllocationPort.allocate(productStockAllocateCommand);
-
+        ProductStockAllocateResult productStockAllocateResult =
+                productStockAllocationPort.allocate(productStockAllocateCommand);
         TimeDeal timeDeal = TimeDeal.create(
-                allocatedResult.sellerId(),
-                allocatedResult.productId(),
-                allocatedResult.imageId(),
-                allocatedResult.productName(),
-                allocatedResult.productDescription(),
-                toProductGrade(allocatedResult.appearanceType()),
-                allocatedResult.productOrigin(),
-                allocatedResult.productHarvestedDate(),
-                allocatedResult.price(),
+                productStockAllocateResult.sellerId(),
+                productStockAllocateResult.productId(),
+                productStockAllocateResult.productName(),
+                productStockAllocateResult.productDescription(),
+                toProductGrade(productStockAllocateResult.appearanceType()),
+                productStockAllocateResult.productOrigin(),
+                productStockAllocateResult.productHarvestedDate(),
+                productStockAllocateResult.price(),
                 timeDealConvertCommand.discountRate(),
                 timeDealConvertCommand.startAt(),
                 timeDealConvertCommand.endAt(),
@@ -118,16 +220,17 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
             throw new BusinessException(ErrorCode.TIME_DEAL_CONVERSION_ALREADY_EXISTS);
         }
 
-        TimeDealStock timeDealStock = timeDealPolicy.allocateStock(savedTimeDeal, allocatedResult.quantity(), timeDealConvertCommand.lowStockThreshold());
+        TimeDealStock timeDealStock = timeDealPolicy.allocateStock(
+                savedTimeDeal, productStockAllocateResult.quantity(), timeDealConvertCommand.lowStockThreshold());
 
         timeDealStockRepository.save(timeDealStock);
 
         log.info(
                 "[TimeDeal] 일반 상품 전환 완료. timeDealId={}, productId={}, sellerId={}, quantity={}",
                 savedTimeDeal.getId(),
-                allocatedResult.productId(),
-                allocatedResult.sellerId(),
-                allocatedResult.quantity()
+                productStockAllocateResult.productId(),
+                productStockAllocateResult.sellerId(),
+                productStockAllocateResult.quantity()
         );
         return TimeDealCreateResult.from(savedTimeDeal);
     }

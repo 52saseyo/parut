@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupStatusUseCase;
@@ -36,6 +37,7 @@ class DeliveryServiceTest {
     private static final UUID DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
     private static final UUID SECOND_DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b9");
     private static final UUID ORDER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
+    private static final UUID DELIVERY_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bd");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bb");
     private static final Instant COMPLETION_TIME = Instant.parse("2026-09-05T07:00:00Z");
     private static final Instant COMPLETION_THRESHOLD = Instant.parse("2026-09-05T06:59:00Z");
@@ -111,42 +113,92 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(delivery));
 
-        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID);
+        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.SELLER);
 
         assertThat(result).containsExactly(delivery);
         verify(deliveryRepository, never()).findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID);
     }
 
     @Test
-    @DisplayName("배송 시작 60초가 지난 배송을 완료 대상으로 조회한다")
-    void 배송_완료_기준_시각_계산() {
-        when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        )).thenReturn(List.of());
-
-        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
-
-        verify(deliveryRepository).findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        );
+    @DisplayName("판매자가 아니면 배송 목록 조회와 배송 시작을 거부한다")
+    void 판매자_전용_배송_API_권한_없음() {
+        assertThatThrownBy(() -> deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.CUSTOMER))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> deliveryService.startDelivery(
+                UUID.randomUUID(), SELLER_ID, UserRole.CUSTOMER, "1234567890"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
-    @DisplayName("완료 대상 배송의 상태를 변경하고 Order 배송 그룹 상태를 동기화한다")
+    @DisplayName("구매자와 판매자는 본인 배송을, 관리자는 모든 배송을 단건 조회한다")
+    void 배송_단건_조회() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
+        when(orderDeliveryGroupQueryUseCase.isOwnedByCustomer(DELIVERY_GROUP_ID, userId)).thenReturn(true);
+        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
+                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
+
+        assertThat(deliveryService.getDelivery(deliveryId, userId, UserRole.CUSTOMER)).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, SELLER_ID, UserRole.SELLER)).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, UUID.randomUUID(), UserRole.ADMIN)).isSameAs(delivery);
+    }
+
+    @Test
+    @DisplayName("다른 사람의 배송이나 허용되지 않은 역할의 단건 조회를 거부한다")
+    void 배송_단건_조회_권한_없음() {
+        UUID deliveryId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(Delivery.create(DELIVERY_GROUP_ID)));
+        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
+                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
+
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.CUSTOMER))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SELLER))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SYSTEM))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("없는 배송의 단건 조회는 DELIVERY_NOT_FOUND를 반환한다")
+    void 배송_단건_조회_대상_없음() {
+        assertThatThrownBy(() -> deliveryService.getDelivery(UUID.randomUUID(), SELLER_ID, UserRole.SELLER))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("완료 대상 배송과 주문 배송 그룹을 함께 완료한다")
     void 배송_자동_완료() {
         Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
         delivery.ship("1234567890", COMPLETION_THRESHOLD);
-        when(deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                COMPLETION_THRESHOLD
-        )).thenReturn(List.of(delivery));
+        when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
 
-        deliveryService.completeEligibleDeliveries(COMPLETION_TIME);
+        deliveryService.completeEligibleDelivery(DELIVERY_ID, COMPLETION_TIME, COMPLETION_THRESHOLD);
 
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(delivery.getDeliveredAt()).isEqualTo(COMPLETION_TIME);
         verify(orderDeliveryGroupStatusUseCase).markDelivered(DELIVERY_GROUP_ID);
+    }
+
+    @Test
+    @DisplayName("완료 기준보다 늦게 시작한 배송은 건너뛴다")
+    void 완료_대상_재확인() {
+        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        delivery.ship("1234567890", COMPLETION_THRESHOLD.plusSeconds(1));
+        when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
+
+        deliveryService.completeEligibleDelivery(DELIVERY_ID, COMPLETION_TIME, COMPLETION_THRESHOLD);
+
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+        verify(orderDeliveryGroupStatusUseCase, never()).markDelivered(DELIVERY_GROUP_ID);
     }
 }

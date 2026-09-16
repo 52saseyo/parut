@@ -1,5 +1,8 @@
 package com.parut.order.payment.presentation.controller;
 
+import com.parut.order.global.auth.RequireRole;
+import com.parut.order.global.auth.UserContext;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.common.ApiResponse;
 import com.parut.order.global.constant.HeaderConstants;
 import com.parut.order.payment.application.PaymentFacade;
@@ -14,8 +17,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
@@ -25,26 +26,24 @@ public class PaymentController {
     private final PaymentFacade paymentFacade;
 
     @PostMapping("/ready")
+    @RequireRole(UserRole.CUSTOMER)
     public ApiResponse<PaymentReadyResponse> ready(
-            // TODO: 공통 인터셉터 개발시, userId, traceId 부분 수정 예정
-            @RequestHeader(HeaderConstants.USER_ID) UUID userId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            UserContext userContext,
             @Valid @RequestBody PaymentReadyRequest request
     ) {
-        PaymentReadyResult result = paymentService.ready(request.toCommand(userId));
+        PaymentReadyResult result = paymentService.ready(request.toCommand(userContext.userId()));
 
-        return ApiResponse.success(PaymentReadyResponse.from(result), traceId);
+        return ApiResponse.success(PaymentReadyResponse.from(result));
     }
 
     @PostMapping("/confirm")
+    @RequireRole(UserRole.CUSTOMER)
     public ApiResponse<PaymentConfirmResponse> confirm(
-            // TODO: 공통 인터셉터 개발시, traceId 부분 수정 예정
             @RequestHeader(HeaderConstants.IDEMPOTENCY_KEY) String idempotencyKey,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
             @Valid @RequestBody PaymentConfirmRequest request
     ) {
         PaymentConfirmResult result = paymentFacade.confirm(request.toCommand(idempotencyKey));
 
-        return ApiResponse.success(PaymentConfirmResponse.from(result), traceId);
+        return ApiResponse.success(PaymentConfirmResponse.from(result));
     }
 }
