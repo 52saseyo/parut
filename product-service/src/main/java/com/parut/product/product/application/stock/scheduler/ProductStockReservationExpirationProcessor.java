@@ -56,7 +56,11 @@ public class ProductStockReservationExpirationProcessor {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
         stock.restore(reservation.getQuantity());
-        productStockRepository.saveAndFlush(stock);
+        try {
+            productStockRepository.saveAndFlush(stock);
+        } catch (OptimisticLockingFailureException e) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
 
         ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
         try {
