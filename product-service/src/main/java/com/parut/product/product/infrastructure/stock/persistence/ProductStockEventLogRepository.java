@@ -12,4 +12,5 @@ public interface ProductStockEventLogRepository extends JpaRepository<ProductSto
     Optional<ProductStockEventLog> findByOrderItemIdAndEventType(UUID orderItemId, StockEventType eventType );
     Optional<ProductStockEventLog> findByReservationIdAndEventType(UUID reservationId, StockEventType eventType);
     List<ProductStockEventLog> findByOrderItemIdInAndEventType(List<UUID> orderItemIds, StockEventType eventType);
+    List<ProductStockEventLog> findByReservationIdIn(List<UUID> reservationIds);
 }

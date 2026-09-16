@@ -7,6 +7,7 @@ import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
 import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
+import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.dto.ProductStockItem;
 import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
 import com.parut.product.product.application.product.manager.ProductStateManager;
@@ -17,10 +18,13 @@ import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductCategory;
 import com.parut.product.product.domain.product.SaleUnit;
 import com.parut.product.product.domain.stock.entity.ProductStock;
+import com.parut.product.product.domain.stock.entity.ProductStockAllocationLog;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.AllocationEventType;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
+import com.parut.product.product.infrastructure.stock.persistence.ProductStockAllocationLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
@@ -76,7 +80,8 @@ public class ProductStockServiceImplTest {
     private ProductStockServiceImpl productStockService;
     @Mock
     private ProductStockAuthorizationChecker authorizationChecker;
-
+    @Mock
+    private ProductStockAllocationLogRepository productStockAllocationLogRepository;
     // NOTE: @Value 필드는 Mockito가 주입하지 않으므로 테스트에서 직접 넣어준다.
     private static final Duration RESERVATION_TTL = Duration.ofMinutes(5);
 
@@ -300,6 +305,42 @@ public class ProductStockServiceImplTest {
             verify(productReader, never()).getProductIdsBySellerId(any());
         }
     }
+
+    // 일반상품 재고 조회 테스트
+    @Nested
+    @DisplayName("getStockHistory()")
+    class GetStockHistory {
+        @Test
+        void getStockHistory_mixedEvents_sortedByOccurredAtDesc() {
+            UUID stockId = UUID.randomUUID();
+            UUID reservationId = UUID.randomUUID();
+
+            Product product = createOnSaleProduct(sellerId, 5000L);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+
+            ProductStockReservation reservation = ProductStockReservation.create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+
+            ProductStockEventLog confirmLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.CONFIRM);
+            ReflectionTestUtils.setField(confirmLog, "createdAt", Instant.now().minusSeconds(60));
+            ProductStockAllocationLog allocationLog = ProductStockAllocationLog.create(stockId, AllocationEventType.ALLOCATE, 5);
+            ReflectionTestUtils.setField(allocationLog, "createdAt", Instant.now());
+
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productStockReservationRepository.findByStockIdIn(List.of(stockId))).willReturn(List.of(reservation));
+            given(productStockEventLogRepository.findByReservationIdIn(List.of(reservationId))).willReturn(List.of(confirmLog));
+            given(productStockAllocationLogRepository.findByStockIdIn(List.of(stockId))).willReturn(List.of(allocationLog));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockHistoryResult result = productStockService.getStockHistory(productId, sellerId, "SELLER");
+
+            assertThat(result.items()).hasSize(2);
+            // sorted(reversed) - occurredAt 기준 최신이 먼저
+        }
+    }
+
 
     @Nested
     @DisplayName("updateStock()")

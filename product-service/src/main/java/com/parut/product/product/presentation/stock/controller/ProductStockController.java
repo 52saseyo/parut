@@ -7,10 +7,12 @@ import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
+import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockUpdateRequest;
 import com.parut.product.product.presentation.stock.dto.response.IsolatedReservationResponse;
+import com.parut.product.product.presentation.stock.dto.response.ProductStockHistoryResponse;
 import com.parut.product.product.presentation.stock.dto.response.ProductStockResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -109,5 +111,15 @@ public class ProductStockController {
     ) {
         productStockService.recoverIsolatedReservation(reservationId, requesterId, requesterRole);
         return ResponseEntity.ok(ApiResponse.success(null, null));
+    }
+
+    @GetMapping("/{productId}/histories")
+    public ResponseEntity<ApiResponse<ProductStockHistoryResponse>> getStockHistory(
+            @PathVariable UUID productId,
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole
+    ) {
+        ProductStockHistoryResult result = productStockService.getStockHistory(productId, requesterId, requesterRole);
+        return ResponseEntity.ok(ApiResponse.success(ProductStockHistoryResponse.from(result), null));
     }
 }
