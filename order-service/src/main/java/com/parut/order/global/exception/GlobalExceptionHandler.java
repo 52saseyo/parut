@@ -1,5 +1,6 @@
 package com.parut.order.global.exception;
 
+import com.parut.order.global.filter.TraceIdFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -199,7 +200,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(
-                        ErrorResponse.of(errorCode, null) // TODO tracing 연동 후 traceId 전달
+                        ErrorResponse.of(errorCode, TraceIdFilter.currentTraceId())
                 );
     }
 }
