@@ -172,8 +172,12 @@ public class Payment extends UpdatableEntity {
         this.paymentStatus = PaymentStatus.IN_PROGRESS;
     }
 
+    public boolean isPaid() {
+        return paymentStatus == PaymentStatus.DONE || paymentStatus == PaymentStatus.PARTIAL_CANCELED;
+    }
+
     public void applyCancellation(long cancelAmount, Instant canceledAt) {
-        if (paymentStatus != PaymentStatus.DONE && paymentStatus != PaymentStatus.PARTIAL_CANCELED) {
+        if (!isPaid()) {
             throw new IllegalStateException("결제 완료·부분 취소 상태에서만 취소를 반영할 수 있습니다.");
         }
         if (cancelAmount <= 0 || cancelAmount > balanceAmount) {
