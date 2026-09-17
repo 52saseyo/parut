@@ -3,6 +3,7 @@ package com.parut.product.product.application.product.service;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.authorization.product.ProductAuthorizationChecker;
 import com.parut.product.product.application.product.port.out.ProductImagePort;
 import com.parut.product.product.application.product.port.out.dto.ProductImageResult;
 import com.parut.product.product.application.product.query.ProductQueryRepository;
@@ -56,6 +57,7 @@ class ProductServiceTest {
     private static final UUID IMAGE_ID = UUID.fromString("30000000-0000-0000-0000-000000000001");
     private static final String IMAGE_URL = "https://example.com/images/apple.jpg";
     private static final UUID PRODUCT_ID_2 = UUID.fromString("20000000-0000-0000-0000-000000000002");
+    private static final String SELLER_ROLE = "SELLER";
 
     @Mock
     private ProductRepository productRepository;
@@ -68,6 +70,9 @@ class ProductServiceTest {
 
     @Mock
     private ProductImagePort productImagePort;
+
+    @Mock
+    private ProductAuthorizationChecker authorizationChecker;
 
     @InjectMocks
     private ProductService productService;
@@ -93,11 +98,12 @@ class ProductServiceTest {
             return product;
         });
 
-        ProductResponse response = productService.createProduct(SELLER_ID, request);
+        ProductResponse response = productService.createProduct(SELLER_ID, SELLER_ROLE, request);
 
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.DRAFT);
         verify(productStockService).createStock(PRODUCT_ID, 100, 10);
+        verify(authorizationChecker).requireSeller(SELLER_ROLE);
     }
 
     @Test
@@ -114,16 +120,17 @@ class ProductServiceTest {
                 null,
                 null
         );
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
 
-        ProductResponse response = productService.updateProduct(PRODUCT_ID, SELLER_ID, request);
+        ProductResponse response = productService.updateProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE, request);
 
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(product.getName()).isEqualTo("수정 상품");
         assertThat(product.getCategory()).isEqualTo(ProductCategory.VEGETABLE);
         assertThat(product.getPrice()).isEqualTo(5_000L);
         assertThat(product.getOrigin()).isEqualTo("제주");
+        verify(authorizationChecker).requireSellerOwner(SELLER_ID, SELLER_ROLE, SELLER_ID);
     }
 
     @Test
@@ -131,11 +138,11 @@ class ProductServiceTest {
         UpdateProductRequest request = new UpdateProductRequest(
                 null, "수정 상품", null, null, null, null, null, null, null
         );
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.empty());
 
         assertBusinessException(
-                () -> productService.updateProduct(PRODUCT_ID, SELLER_ID, request),
+                () -> productService.updateProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE, request),
                 ErrorCode.PRODUCT_NOT_FOUND
         );
     }
@@ -143,10 +150,10 @@ class ProductServiceTest {
     @Test
     void 상품과_재고를_소프트_삭제한다() {
         Product product = product();
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
 
-        productService.deleteProduct(PRODUCT_ID, SELLER_ID);
+        productService.deleteProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE);
 
         verify(productStockService).deleteStock(PRODUCT_ID, SELLER_ID.toString());
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DELETED);
@@ -157,7 +164,7 @@ class ProductServiceTest {
     void 재고와_이미지가_있으면_판매를_시작한다() {
         Product product = product();
         ProductStock stock = ProductStock.create(PRODUCT_ID, 100, 10);
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
         given(productStockService.getStock(PRODUCT_ID)).willReturn(stock);
         given(productImagePort.hasImage(PRODUCT_ID)).willReturn(true);
@@ -165,6 +172,7 @@ class ProductServiceTest {
         ProductResponse response = productService.updateProductStatus(
                 PRODUCT_ID,
                 SELLER_ID,
+                SELLER_ROLE,
                 ProductStatus.ON_SALE
         );
 
@@ -177,12 +185,12 @@ class ProductServiceTest {
     void 재고가_있어도_이미지가_없으면_판매를_시작할_수_없다() {
         Product product = product();
         ProductStock stock = ProductStock.create(PRODUCT_ID, 100, 10);
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
         given(productStockService.getStock(PRODUCT_ID)).willReturn(stock);
 
         assertBusinessException(
-                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, ProductStatus.ON_SALE),
+                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, SELLER_ROLE, ProductStatus.ON_SALE),
                 ErrorCode.PRODUCT_IMAGE_REQUIRED
         );
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
@@ -194,12 +202,12 @@ class ProductServiceTest {
         Product product = product();
         ProductStock stock = ProductStock.create(PRODUCT_ID, 10, 1);
         stock.reserve(10);
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
         given(productStockService.getStock(PRODUCT_ID)).willReturn(stock);
 
         assertBusinessException(
-                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, ProductStatus.ON_SALE),
+                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, SELLER_ROLE, ProductStatus.ON_SALE),
                 ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE
         );
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
@@ -208,11 +216,11 @@ class ProductServiceTest {
     @Test
     void 직접_변경할_수_없는_상품_상태는_거부한다() {
         Product product = product();
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
 
         assertBusinessException(
-                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, ProductStatus.SOLD_OUT),
+                () -> productService.updateProductStatus(PRODUCT_ID, SELLER_ID, SELLER_ROLE, ProductStatus.SOLD_OUT),
                 ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED
         );
         verify(productStockService, never()).getStock(PRODUCT_ID);
@@ -221,10 +229,7 @@ class ProductServiceTest {
     @Test
     void 공개_상태인_상품_상세를_조회한다() {
         Product product = onSaleProduct();
-        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
-                PRODUCT_ID,
-                List.of(ProductStatus.ON_SALE, ProductStatus.SOLD_OUT)
-        )).willReturn(Optional.of(product));
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
         given(productImagePort.findImage(PRODUCT_ID))
                 .willReturn(Optional.of(new ProductImageResult(IMAGE_ID, IMAGE_URL)));
 
@@ -238,19 +243,14 @@ class ProductServiceTest {
     @Test
     void 공개_상품에_이미지가_없으면_상세_조회를_거부한다() {
         Product product = onSaleProduct();
-        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
-                PRODUCT_ID, List.of(ProductStatus.ON_SALE, ProductStatus.SOLD_OUT)
-        )).willReturn(Optional.of(product));
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
 
         assertBusinessException(() -> productService.getProduct(PRODUCT_ID), ErrorCode.PRODUCT_IMAGE_REQUIRED);
     }
 
     @Test
-    void 공개되지_않은_상품_상세는_조회할_수_없다() {
-        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
-                PRODUCT_ID,
-                List.of(ProductStatus.ON_SALE, ProductStatus.SOLD_OUT)
-        )).willReturn(Optional.empty());
+    void 존재하지_않는_상품_상세는_조회할_수_없다() {
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.empty());
 
         assertBusinessException(
                 () -> productService.getProduct(PRODUCT_ID),
@@ -261,10 +261,10 @@ class ProductServiceTest {
     @Test
     void 판매자가_본인_상품_상세를_조회한다() {
         Product product = product();
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
 
-        ProductDetailResponse response = productService.getMyProduct(SELLER_ID, PRODUCT_ID);
+        ProductDetailResponse response = productService.getMyProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE);
 
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.DRAFT);
@@ -274,21 +274,21 @@ class ProductServiceTest {
     @Test
     void 판매중인_본인_상품에_이미지가_없으면_상세_조회를_거부한다() {
         Product product = onSaleProduct();
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
 
         assertBusinessException(
-                () -> productService.getMyProduct(SELLER_ID, PRODUCT_ID),
+                () -> productService.getMyProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE),
                 ErrorCode.PRODUCT_IMAGE_REQUIRED
         );
     }
 
     @Test
     void 본인_상품에_이미지를_연결한다() {
-        given(productRepository.findByIdAndSellerIdAndDeletedAtIsNull(PRODUCT_ID, SELLER_ID))
+        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product()));
 
-        productService.registerImage(SELLER_ID, PRODUCT_ID, IMAGE_ID);
+        productService.registerImage(PRODUCT_ID, SELLER_ID, SELLER_ROLE, IMAGE_ID);
 
         verify(productImagePort).save(SELLER_ID, PRODUCT_ID, IMAGE_ID);
     }
@@ -296,7 +296,7 @@ class ProductServiceTest {
     @Test
     void 없는_상품에는_이미지를_연결할_수_없다() {
         assertBusinessException(
-                () -> productService.registerImage(SELLER_ID, PRODUCT_ID, IMAGE_ID),
+                () -> productService.registerImage(PRODUCT_ID, SELLER_ID, SELLER_ROLE, IMAGE_ID),
                 ErrorCode.PRODUCT_NOT_FOUND
         );
         verify(productImagePort, never()).save(any(), any(), any());
@@ -463,10 +463,11 @@ class ProductServiceTest {
                 .willReturn(expected);
 
         Page<SellerProductQueryResult> result =
-                productService.searchSellerProducts(SELLER_ID, condition, pageable);
+                productService.searchSellerProducts(SELLER_ID, SELLER_ROLE, condition, pageable);
 
         assertThat(result).isSameAs(expected);
         verify(productQueryRepository).searchSellerProducts(SELLER_ID, condition, pageable);
+        verify(authorizationChecker).requireSeller(SELLER_ROLE);
     }
 
     private Product product() {
@@ -506,7 +507,6 @@ class ProductServiceTest {
                 new BigDecimal("1.00")
         );
         setId(product, productId);
-        product.addImage(UUID.randomUUID());
         product.startSale();
         return product;
     }

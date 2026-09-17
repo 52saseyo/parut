@@ -3,6 +3,7 @@ package com.parut.product.product.application.product.service;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.authorization.product.ProductAuthorizationChecker;
 import com.parut.product.product.application.product.port.out.ProductImagePort;
 import com.parut.product.product.application.product.port.out.dto.ProductImageResult;
 import com.parut.product.product.application.product.query.ProductQueryRepository;
@@ -45,14 +46,21 @@ public class ProductService {
     private final ProductStockService productStockService;
     private final ProductQueryRepository productQueryRepository;
     private final ProductImagePort productImagePort;
+    private final ProductAuthorizationChecker authorizationChecker;
 
     /**
      * 상품을 생성하고 같은 트랜잭션 안에서 초기 재고를 생성한다.
      */
     @Transactional
-    public ProductResponse createProduct(UUID sellerId, CreateProductRequest request) {
+    public ProductResponse createProduct(
+            UUID requesterId,
+            String requesterRole,
+            CreateProductRequest request
+    ) {
+        authorizationChecker.requireSeller(requesterRole);
+
         Product product = Product.create(
-                sellerId,
+                requesterId,
                 request.category(),
                 request.name(),
                 request.description(),
@@ -80,11 +88,19 @@ public class ProductService {
      * 판매자 소유 상품의 기본 정보를 수정한다.
      */
     @Transactional
-    public ProductResponse updateProduct(UUID productId, UUID sellerId, UpdateProductRequest request) {
-        Product product = productRepository
-                .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
-                .orElseThrow( () -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+    public ProductResponse updateProduct(
+            UUID productId,
+            UUID requesterId,
+            String requesterRole,
+            UpdateProductRequest request
+    ) {
+        Product product = findProduct(productId);
 
+        authorizationChecker.requireSellerOwner(
+                requesterId,
+                requesterRole,
+                product.getSellerId()
+        );
         product.update(
                 request.category(),
                 request.name(),
@@ -103,12 +119,20 @@ public class ProductService {
      * 판매자 소유 상품과 연결된 재고, 이미지를 소프트 삭제한다.
      */
     @Transactional
-    public void deleteProduct(UUID productId, UUID sellerId) {
-        Product product = productRepository
-                .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+    public void deleteProduct(
+            UUID productId,
+            UUID requesterId,
+            String requesterRole
+    ) {
+        Product product = findProduct(productId);
 
-        String deletedBy = sellerId.toString();
+        authorizationChecker.requireSellerOwner(
+                requesterId,
+                requesterRole,
+                product.getSellerId()
+        );
+
+        String deletedBy = requesterId.toString();
         productStockService.deleteStock(productId, deletedBy);
         product.delete(deletedBy);
     }
@@ -119,12 +143,19 @@ public class ProductService {
      * 직접 변경 가능한 상태는 판매 중과 판매 중지 상태로 제한한다.
      */
     @Transactional
-    public ProductResponse updateProductStatus(UUID productId, UUID sellerId, ProductStatus targetStatus) {
-        Product product = productRepository
-                .findByIdAndSellerIdAndDeletedAtIsNull(
-                        productId,
-                        sellerId
-                ).orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+    public ProductResponse updateProductStatus(
+            UUID productId,
+            UUID requesterId,
+            String requesterRole,
+            ProductStatus targetStatus
+    ) {
+        Product product = findProduct(productId);
+
+        authorizationChecker.requireSellerOwner(
+                requesterId,
+                requesterRole,
+                product.getSellerId()
+        );
 
         changeStatus(product, targetStatus);
 
@@ -136,9 +167,7 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(UUID productId) {
-        Product product = productRepository
-                .findByIdAndStatusInAndDeletedAtIsNull(productId, VISIBLE_STATUSES)
-                .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+        Product product = findProduct(productId);
 
         ProductImageResult image = productImagePort.findImage(productId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED));
@@ -153,12 +182,18 @@ public class ProductService {
      * 공개 상품 여부와 무관하게 삭제되지 않은 본인 상품이면 조회할 수 있다.
      */
     @Transactional(readOnly = true)
-    public ProductDetailResponse getMyProduct(UUID sellerId, UUID productId) {
-        Product product = productRepository
-                .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
-                .orElseThrow(() ->
-                        new BusinessException(ErrorCode.PRODUCT_NOT_FOUND)
-                );
+    public ProductDetailResponse getMyProduct(
+            UUID productId,
+            UUID requesterId,
+            String requesterRole
+    ) {
+        Product product = findProduct(productId);
+
+        authorizationChecker.requireSellerOwner(
+                requesterId,
+                requesterRole,
+                product.getSellerId()
+        );
 
         ProductImageResult image = productImagePort.findImage(productId)
                 .orElse(null);
@@ -208,12 +243,21 @@ public class ProductService {
 
 
     @Transactional
-    public void registerImage(UUID sellerId, UUID productId, UUID imageId) {
-        productRepository
-                .findByIdAndSellerIdAndDeletedAtIsNull(productId, sellerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+    public void registerImage(
+            UUID productId,
+            UUID requesterId,
+            String requesterRole,
+            UUID imageId
+    ) {
+        Product product = findProduct(productId);
 
-        productImagePort.save(sellerId, productId, imageId);
+        authorizationChecker.requireSellerOwner(
+                requesterId,
+                requesterRole,
+                product.getSellerId()
+        );
+
+        productImagePort.save(requesterId, productId, imageId);
     }
 
 
@@ -278,9 +322,11 @@ public class ProductService {
     @Transactional(readOnly = true)
     public Page<SellerProductQueryResult> searchSellerProducts(
             UUID sellerId,
+            String requesterRole,
             SellerProductSearchCondition condition,
             Pageable pageable
     ){
+        authorizationChecker.requireSeller(requesterRole);
         return productQueryRepository.searchSellerProducts(
                 sellerId,
                 condition,
@@ -365,6 +411,20 @@ public class ProductService {
         }
     }
 
+    /**
+     * 삭제되지 않은 상품을 조회한다.
+     *
+     * @throws BusinessException 상품이 존재하지 않는 경우
+     */
+    private Product findProduct(UUID productId) {
+        return productRepository
+                .findByIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() ->
+                        new BusinessException(
+                                ErrorCode.PRODUCT_NOT_FOUND
+                        )
+                );
+    }
 
 
 }

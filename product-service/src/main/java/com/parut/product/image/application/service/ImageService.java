@@ -2,6 +2,7 @@ package com.parut.product.image.application.service;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.image.application.authorization.ImageAuthorizationChecker;
 import com.parut.product.image.application.dto.ImageUploadUrlResult;
 import com.parut.product.image.application.dto.UploadedImage;
 import com.parut.product.image.domain.image.Image;
@@ -20,23 +21,35 @@ import java.util.UUID;
 public class ImageService {
     private final ImageRepository imageRepository;
     private final S3ImageService  s3ImageService;
+    private final ImageAuthorizationChecker authorizationChecker;
 
 
-    public ImageUploadUrlResult createUploadUrl(UUID uploaderId, ImageUploadUrlRequest request) {
-        return s3ImageService.createUploadUrl(uploaderId, request.contentType(), request.fileSize());
+    public ImageUploadUrlResult createUploadUrl(
+            UUID requesterId,
+            String requesterRole,
+            ImageUploadUrlRequest request
+    ) {
+        authorizationChecker.requireUploaderRole(requesterRole);
+        return s3ImageService.createUploadUrl(requesterId, request.contentType(), request.fileSize());
     }
 
 
     @Transactional
-    public ImageResponse completeUpload(UUID uploaderId, ImageUploadCompleteRequest request) {
+    public ImageResponse completeUpload(
+            UUID requesterId,
+            String requesterRole,
+            ImageUploadCompleteRequest request
+    ) {
+        authorizationChecker.requireUploaderRole(requesterRole);
+
         if(imageRepository.existsByImageKey(request.imageKey())){
-            throw new BusinessException(ErrorCode.IMAGE_ALREADY_EXISTS);
+            throw new BusinessException(ErrorCode.IMAGE_KEY_ALREADY_EXISTS);
         }
 
-        UploadedImage uploaded = s3ImageService.checkS3UploadedImage(uploaderId, request.imageKey());
+        UploadedImage uploaded = s3ImageService.checkS3UploadedImage(requesterId, request.imageKey());
 
         Image image = Image.create(
-                uploaderId,
+                requesterId,
                 uploaded.imageKey(),
                 uploaded.imageUrl(),
                 request.originalName(),

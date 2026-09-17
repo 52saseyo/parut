@@ -92,6 +92,7 @@ public enum ErrorCode {
     PRODUCT_INVALID_SALE_UNIT(HttpStatus.BAD_REQUEST, "판매 단위는 필수입니다."),
     PRODUCT_INVALID_UNIT_QUANTITY(HttpStatus.BAD_REQUEST, "판매 단위 수량은 0보다 커야 합니다."),
     PRODUCT_IMAGE_REQUIRED(HttpStatus.CONFLICT, "이미지가 등록된 상품만 판매할 수 있습니다."),
+    PRODUCT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 상품에 대한 권한이 없습니다."),
 
 
 
@@ -100,11 +101,12 @@ public enum ErrorCode {
     IMAGE_INVALID_ORIGINAL_NAME(HttpStatus.BAD_REQUEST, "이미지 원본 파일명이 올바르지 않습니다."),
     IMAGE_INVALID_CONTENT_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 이미지 형식입니다."),
     IMAGE_INVALID_FILE_SIZE(HttpStatus.BAD_REQUEST, "이미지 크기는 0바이트보다 크고 10MB 이하여야 합니다."),
-    IMAGE_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 이미지입니다."),
+    IMAGE_KEY_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미지 키가 이미 등록되어 있습니다."),
     IMAGE_INVALID_UPLOADER_ID(HttpStatus.BAD_REQUEST, "이미지 업로더 ID는 필수입니다."),
     IMAGE_INVALID_URL(HttpStatus.BAD_REQUEST, "이미지 URL이 올바르지 않습니다."),
     IMAGE_UPLOAD_NOT_FOUND(HttpStatus.NOT_FOUND, "S3에 업로드된 이미지 파일을 찾을 수 없습니다."),
     IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "이미지를 찾을 수 없습니다."),
+    IMAGE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 이미지 작업에 대한 권한이 없습니다."),
 
 
     //product_image

@@ -24,21 +24,30 @@ public class ImageController {
 
     @PostMapping("/presigned-url")
     public ResponseEntity<ApiResponse<ImageUploadUrlResponse>> createPresignedUrl(
-            @RequestHeader(HeaderConstants.USER_ID) UUID uploaderId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody ImageUploadUrlRequest request
     ) {
-        ImageUploadUrlResult result = imageService.createUploadUrl(uploaderId, request);
+        ImageUploadUrlResult result = imageService.createUploadUrl(
+                requesterId,
+                requesterRole,
+                request
+        );
         ImageUploadUrlResponse response = ImageUploadUrlResponse.from(result);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
     @PostMapping("/complete")
     public ResponseEntity<ApiResponse<ImageResponse>> completeUpload(
-            @RequestHeader(HeaderConstants.USER_ID) UUID uploaderId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody ImageUploadCompleteRequest request
     ){
-        ImageResponse response = imageService.completeUpload(uploaderId, request);
-
+        ImageResponse response = imageService.completeUpload(
+                requesterId,
+                requesterRole,
+                request
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response, null));
     }
 }

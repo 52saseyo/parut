@@ -2,6 +2,7 @@ package com.parut.product.image.application.service;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.image.application.authorization.ImageAuthorizationChecker;
 import com.parut.product.image.application.dto.ImageUploadUrlResult;
 import com.parut.product.image.application.dto.UploadedImage;
 import com.parut.product.image.domain.image.Image;
@@ -33,9 +34,11 @@ class ImageServiceTest {
     private static final UUID IMAGE_ID = UUID.randomUUID();
     private static final String IMAGE_KEY = "images/" + UPLOADER_ID + "/image.jpg";
     private static final String IMAGE_URL = "https://example.com/" + IMAGE_KEY;
+    private static final String SELLER_ROLE = "SELLER";
 
     @Mock ImageRepository imageRepository;
     @Mock S3ImageService s3ImageService;
+    @Mock ImageAuthorizationChecker authorizationChecker;
     @InjectMocks ImageService imageService;
 
     @Test
@@ -44,7 +47,8 @@ class ImageServiceTest {
         ImageUploadUrlResult expected = new ImageUploadUrlResult(IMAGE_KEY, "https://upload.example.com");
         given(s3ImageService.createUploadUrl(UPLOADER_ID, "image/jpeg", 1_024L)).willReturn(expected);
 
-        assertThat(imageService.createUploadUrl(UPLOADER_ID, request)).isSameAs(expected);
+        assertThat(imageService.createUploadUrl(UPLOADER_ID, SELLER_ROLE, request)).isSameAs(expected);
+        verify(authorizationChecker).requireUploaderRole(SELLER_ROLE);
     }
 
     @Test
@@ -59,7 +63,7 @@ class ImageServiceTest {
                     return image;
                 });
 
-        ImageResponse response = imageService.completeUpload(UPLOADER_ID, request);
+        ImageResponse response = imageService.completeUpload(UPLOADER_ID, SELLER_ROLE, request);
 
         assertThat(response.imageId()).isEqualTo(IMAGE_ID);
         assertThat(response.imageUrl()).isEqualTo(IMAGE_URL);
@@ -67,6 +71,7 @@ class ImageServiceTest {
         verify(imageRepository).save(captor.capture());
         assertThat(captor.getValue().getUploaderId()).isEqualTo(UPLOADER_ID);
         assertThat(captor.getValue().getOriginalName()).isEqualTo("apple.jpg");
+        verify(authorizationChecker).requireUploaderRole(SELLER_ROLE);
     }
 
     @Test
@@ -75,9 +80,11 @@ class ImageServiceTest {
 
         assertBusinessException(
                 () -> imageService.completeUpload(
-                        UPLOADER_ID, new ImageUploadCompleteRequest(IMAGE_KEY, "apple.jpg")
+                        UPLOADER_ID,
+                        SELLER_ROLE,
+                        new ImageUploadCompleteRequest(IMAGE_KEY, "apple.jpg")
                 ),
-                ErrorCode.IMAGE_ALREADY_EXISTS
+                ErrorCode.IMAGE_KEY_ALREADY_EXISTS
         );
         verify(s3ImageService, never()).checkS3UploadedImage(UPLOADER_ID, IMAGE_KEY);
     }
