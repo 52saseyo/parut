@@ -43,10 +43,10 @@ public class OrderDeliveryGroupQueryService implements OrderDeliveryGroupQueryUs
     }
 
     private OrderDeliveryGroupView toView(OrderDeliveryGroup group) {
-        int nonCanceledItemCount = orderItemRepository.countByDeliveryGroupIdAndItemStatus(
+        int shippableItemCount = orderItemRepository.countByDeliveryGroupIdAndItemStatus(
                 group.getId(),
                 OrderItemStatus.ORDERED
         );
-        return new OrderDeliveryGroupView(group.getId(), group.getSellerId(), nonCanceledItemCount);
+        return new OrderDeliveryGroupView(group.getId(), group.getSellerId(), shippableItemCount);
     }
 }
