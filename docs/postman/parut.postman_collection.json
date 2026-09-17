@@ -448,6 +448,65 @@
                   ]
                 },
                 {
+                  "name": "타임딜 재고 단건 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals",
+                        "{{timeDealId}}",
+                        "stock"
+                      ]
+                    },
+                    "description": "판매자 본인 또는 ADMIN만 타임딜 재고를 조회한다. userId는 실제 요청자 UUID이며 userRole 미설정 시 SELLER를 사용한다. 성공 200 OK: data에 timeDealId, availableQuantity, reservedQuantity, soldQuantity, lowStockThreshold를 반환한다. 권한이 없으면 403, 삭제되었거나 존재하지 않는 타임딜·재고는 404다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');",
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 응답과 traceId가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.traceId).to.eql(pm.variables.get('timeDealTraceId')); pm.expect(body.timestamp).to.be.a('string'); });",
+                          "pm.test('타임딜 재고 정보가 반환된다', () => { pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); ['availableQuantity', 'reservedQuantity', 'soldQuantity', 'lowStockThreshold'].forEach(key => pm.expect(body.data[key]).to.be.a('number')); });"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
                   "name": "타임딜 상품 수정",
                   "request": {
                     "method": "PATCH",
