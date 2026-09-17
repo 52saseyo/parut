@@ -5,6 +5,7 @@ import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.image.domain.image.Image;
 import com.parut.product.image.domain.timeDealImage.TimeDealImage;
+import com.parut.product.image.infrastructure.persistence.ImageRepository;
 import com.parut.product.image.infrastructure.persistence.TimeDealImageRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,7 @@ class TimeDealImageServiceTest {
     private static final String IMAGE_URL = "https://example.com/image.jpg";
 
     @Mock ImageService imageService;
+    @Mock ImageRepository imageRepository;
     @Mock TimeDealImageRepository timeDealImageRepository;
     @InjectMocks TimeDealImageService timeDealImageService;
 
@@ -59,22 +61,68 @@ class TimeDealImageServiceTest {
     }
 
     @Test
+    void 상품_이미지를_조회하여_타임딜에_연결한다() {
+        Image image = image();
+        given(imageRepository.findById(IMAGE_ID)).willReturn(Optional.of(image));
+
+        timeDealImageService.copyFromProductImage(TIME_DEAL_ID, IMAGE_ID);
+
+        ArgumentCaptor<TimeDealImage> captor = ArgumentCaptor.forClass(TimeDealImage.class);
+        verify(timeDealImageRepository).save(captor.capture());
+        assertThat(captor.getValue().getTimeDealId()).isEqualTo(TIME_DEAL_ID);
+        assertThat(captor.getValue().getImageId()).isEqualTo(IMAGE_ID);
+        assertThat(captor.getValue().getImageUrl()).isEqualTo(IMAGE_URL);
+    }
+
+    @Test
+    void 복사할_상품_이미지가_없으면_예외가_발생한다() {
+        given(imageRepository.findById(IMAGE_ID)).willReturn(Optional.empty());
+
+        assertBusinessException(
+                () -> timeDealImageService.copyFromProductImage(TIME_DEAL_ID, IMAGE_ID),
+                ErrorCode.IMAGE_NOT_FOUND
+        );
+
+        verify(timeDealImageRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 타임딜에_이미지가_있으면_상품_이미지를_복사하지_않는다() {
+        given(timeDealImageRepository.existsByTimeDealIdAndDeletedAtIsNull(TIME_DEAL_ID))
+                .willReturn(true);
+
+        assertBusinessException(
+                () -> timeDealImageService.copyFromProductImage(TIME_DEAL_ID, IMAGE_ID),
+                ErrorCode.TIME_DEAL_IMAGE_ALREADY_EXISTS
+        );
+
+        verify(imageRepository, never()).findById(IMAGE_ID);
+    }
+
+    @Test
     void 타임딜_이미지_정보를_반환한다() {
         given(timeDealImageRepository.findByTimeDealIdAndDeletedAtIsNull(TIME_DEAL_ID))
                 .willReturn(Optional.of(TimeDealImage.create(TIME_DEAL_ID, IMAGE_ID, IMAGE_URL)));
 
-        ImageQueryResult result = timeDealImageService.getImageInfo(TIME_DEAL_ID);
+        Optional<ImageQueryResult> result = timeDealImageService.getImageInfo(TIME_DEAL_ID);
 
-        assertThat(result.imageId()).isEqualTo(IMAGE_ID);
-        assertThat(result.imageUrl()).isEqualTo(IMAGE_URL);
+        assertThat(result)
+                .isPresent()
+                .get()
+                .satisfies(image -> {
+                    assertThat(image.imageId()).isEqualTo(IMAGE_ID);
+                    assertThat(image.imageUrl()).isEqualTo(IMAGE_URL);
+                });
     }
 
     @Test
-    void 타임딜_이미지가_없으면_예외가_발생한다() {
-        assertBusinessException(
-                () -> timeDealImageService.getImageInfo(TIME_DEAL_ID),
-                ErrorCode.TIME_DEAL_IMAGE_NOT_FOUND
-        );
+    void 타임딜_이미지가_없으면_빈_값을_반환한다() {
+        given(timeDealImageRepository.findByTimeDealIdAndDeletedAtIsNull(TIME_DEAL_ID))
+                .willReturn(Optional.empty());
+
+        Optional<ImageQueryResult> result = timeDealImageService.getImageInfo(TIME_DEAL_ID);
+
+        assertThat(result).isEmpty();
     }
 
     private Image image() {

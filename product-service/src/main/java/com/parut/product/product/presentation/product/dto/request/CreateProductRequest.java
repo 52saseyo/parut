@@ -6,6 +6,7 @@ import com.parut.product.product.domain.product.SaleUnit;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record CreateProductRequest(
         @NotNull(message = "카테고리는 필수입니다.")
@@ -53,6 +54,8 @@ public record CreateProductRequest(
 
         @NotNull(message = "재고 부족 기준 수량은 필수입니다.")
         @PositiveOrZero(message = "재고 부족 기준 수량은 0 이상이어야 합니다.")
-        Integer lowStockThreshold
+        Integer lowStockThreshold,
+
+        UUID imageId
 ) {
 }

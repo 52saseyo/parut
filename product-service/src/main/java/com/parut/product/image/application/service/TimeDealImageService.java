@@ -5,10 +5,13 @@ import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.image.domain.image.Image;
 import com.parut.product.image.domain.timeDealImage.TimeDealImage;
+import com.parut.product.image.infrastructure.persistence.ImageRepository;
 import com.parut.product.image.infrastructure.persistence.TimeDealImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -16,6 +19,7 @@ import java.util.UUID;
 public class TimeDealImageService {
     private final ImageService imageService;
     private final TimeDealImageRepository timeDealImageRepository;
+    private final ImageRepository imageRepository;
 
 
     @Transactional
@@ -34,26 +38,28 @@ public class TimeDealImageService {
         timeDealImageRepository.save(timeDealImage);
     }
 
-
     @Transactional
-    public void inheritProductImage(UUID timeDealId, UUID imageId, String imageUrl){
+    public void copyFromProductImage(UUID timeDealId, UUID imageId){
         if(timeDealImageRepository.existsByTimeDealIdAndDeletedAtIsNull(timeDealId)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_IMAGE_ALREADY_EXISTS);
         }
+        Image image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
 
-        TimeDealImage timeDealImage = TimeDealImage.create(timeDealId, imageId, imageUrl);
+        TimeDealImage timeDealImage = TimeDealImage.create(timeDealId, image.getId(), image.getImageUrl());
 
         timeDealImageRepository.save(timeDealImage);
     }
 
 
     @Transactional(readOnly = true)
-    public ImageQueryResult getImageInfo(UUID timeDealId){
-        TimeDealImage image = timeDealImageRepository
-                .findByTimeDealIdAndDeletedAtIsNull(timeDealId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_IMAGE_NOT_FOUND));
-
-        return new ImageQueryResult(image.getImageId(), image.getImageUrl());
+    public Optional<ImageQueryResult> getImageInfo(UUID timeDealId){
+       return timeDealImageRepository
+               .findByTimeDealIdAndDeletedAtIsNull(timeDealId)
+               .map(image -> new ImageQueryResult(
+                       image.getImageId(),
+                       image.getImageUrl()
+               ));
     }
 
 }
