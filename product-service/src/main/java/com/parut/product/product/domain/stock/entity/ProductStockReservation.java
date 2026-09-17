@@ -76,6 +76,14 @@ public class ProductStockReservation extends DeletableEntity {
         this.status = ReservationStatus.EXPIRATION_FAILED;
     }
 
+    // CONFIRMED 취소
+    public void cancelConfirmed() {
+        if (this.status != ReservationStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+        this.status = ReservationStatus.CANCELLED;
+    }
+
     // 재시도 횟수 증가
     public void incrementFailureCount() {
         this.failureCount++;

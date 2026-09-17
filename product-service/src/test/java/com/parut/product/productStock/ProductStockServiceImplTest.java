@@ -17,6 +17,7 @@ import com.parut.product.product.application.stock.service.ProductStockServiceIm
 import com.parut.product.product.domain.product.AppearanceType;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductCategory;
+import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.product.SaleUnit;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.domain.stock.entity.ProductStockAllocationLog;
@@ -488,8 +489,8 @@ public class ProductStockServiceImplTest {
             ProductStockEventLog alreadyProcessedLog =
                     ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of(alreadyProcessedLog)); // orderItemId만 이미 처리됨
 
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId2)))
@@ -523,8 +524,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock1 = ProductStock.create(productId, 100, 10);
             ProductStock stock2 = ProductStock.create(productId2, 50, 5);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
                     .willReturn(List.of(stock1, stock2));
@@ -562,8 +563,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock1 = ProductStock.create(productId, 100, 10);
             ProductStock stock2 = ProductStock.create(productId2, 5, 1); // 재고 부족 유발
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2, orderItemId3), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(
                     List.of(productId, productId2, productId3)))
@@ -589,8 +590,8 @@ public class ProductStockServiceImplTest {
         @DisplayName("낙관적 락 충돌 시 CONFLICT 예외")
         void reserve_optimisticLockFailure_throwsConflict() {
             ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
                     .willReturn(List.of(stock));
@@ -618,8 +619,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock1 = ProductStock.create(productId, 100, 10);
             ProductStock stock2 = ProductStock.create(productId2, 50, 5);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
                     .willReturn(List.of(stock1, stock2));
@@ -982,8 +983,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 100, 10);
             ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1026,8 +1027,8 @@ public class ProductStockServiceImplTest {
             ProductStockEventLog alreadyConfirmedLog =
                     ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.CONFIRM);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of(alreadyConfirmedLog)); // orderItemId만 이미 처리됨
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId2), StockEventType.RESERVE))
@@ -1068,8 +1069,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(otherProductId, 100, 10);
             ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1100,8 +1101,8 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(reservation, "id", reservationId);
             ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1131,8 +1132,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 100, 10);
             ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1165,8 +1166,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 20, 5);
             ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.CONFIRM))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.CONFIRM)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1192,8 +1193,8 @@ public class ProductStockServiceImplTest {
         void restore_alreadyProcessed_doesNothing() {
             ProductStockEventLog alreadyRestoredLog =
                     ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESTORE);
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of(alreadyRestoredLog));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1223,8 +1224,8 @@ public class ProductStockServiceImplTest {
             ProductStockEventLog alreadyRestoredLog =
                     ProductStockEventLog.create(UUID.randomUUID(), orderItemId, StockEventType.RESTORE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of(alreadyRestoredLog)); // orderItemId만 이미 처리됨
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId2), StockEventType.RESERVE))
@@ -1263,8 +1264,8 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(stock, "id", stockId);
             stock.reserve(20);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1300,8 +1301,8 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(otherProductId, 100, 10);
             ReflectionTestUtils.setField(stock, "id", stockId);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1332,8 +1333,8 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(reservation, "id", reservationId);
             ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1364,8 +1365,8 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(stock, "id", stockId);
             stock.reserve(20);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1397,8 +1398,8 @@ public class ProductStockServiceImplTest {
             reservation.expire();
             ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1427,8 +1428,8 @@ public class ProductStockServiceImplTest {
             reservation.fail();
             ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId), StockEventType.RESERVE))
@@ -1472,8 +1473,8 @@ public class ProductStockServiceImplTest {
             ReflectionTestUtils.setField(reservation3, "id", reservationId3);
             ProductStockEventLog reserveLog3 = ProductStockEventLog.create(reservationId3, orderItemId3, StockEventType.RESERVE);
 
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESTORE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2, orderItemId3), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
                     .willReturn(List.of());
             given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
                     List.of(orderItemId, orderItemId2, orderItemId3), StockEventType.RESERVE))
@@ -1498,6 +1499,141 @@ public class ProductStockServiceImplTest {
             // 격리 상태에서 예외가 터지므로 재고 조회 자체가 실행되지 않아야 함
             verify(productStockRepository, never()).findAllById(any());
         }
+
+        @Test
+        @DisplayName("CONFIRMED 예약을 복구 요청하면 환불 처리(예약 취소+재고 환원+REFUND 로그)가 실행된다")
+        void restore_confirmedReservation_refundsStockAndCancelsReservation() {
+            UUID reservationId = UUID.randomUUID();
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 20, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.confirm(); // RESERVED -> CONFIRMED (환불 대상)
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+            stock.reserve(20);
+            stock.confirm(20); // total=80, available=80 (SOLD_OUT 아님)
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            productStockService.restore(orderId, items);
+
+            log.info("[ProductStockService.restore] CONFIRMED 예약 환불 후 reservation.status={}, stock.total={}, stock.available={}",
+                    reservation.getStatus(), stock.getTotalQuantity(), stock.getAvailableQuantity());
+
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            assertThat(stock.getTotalQuantity()).isEqualTo(100);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(100);
+
+            ArgumentCaptor<Collection<ProductStockEventLog>> logCaptor = ArgumentCaptor.forClass(Collection.class);
+            verify(productStockEventLogRepository).saveAllAndFlush(logCaptor.capture());
+            assertThat(logCaptor.getValue()).hasSize(1);
+            assertThat(logCaptor.getValue().iterator().next().getEventType()).isEqualTo(StockEventType.REFUND);
+
+            // SOLD_OUT 상태였던 적이 없으므로 품절 해제 알림은 호출되지 않아야 함
+            verify(productStateManager, never()).resumeSaleAfterRestock(any());
+        }
+
+        @Test
+        @DisplayName("환불로 SOLD_OUT 재고가 다시 판매 가능해지면 품절 해제 알림이 호출된다")
+        void restore_confirmedRefund_reachesAvailable_notifiesRestocked() {
+            UUID reservationId = UUID.randomUUID();
+            UUID stockId = UUID.randomUUID();
+            ProductStockReservation reservation = ProductStockReservation
+                    .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation, "id", reservationId);
+            reservation.confirm();
+            ProductStockEventLog reserveLog = ProductStockEventLog.create(reservationId, orderItemId, StockEventType.RESERVE);
+
+            ProductStock stock = ProductStock.create(productId, 10, 5);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+            stock.reserve(10);
+            stock.confirm(10); // total=0 -> SOLD_OUT
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog));
+            given(productStockReservationRepository.findAllById(List.of(reservationId)))
+                    .willReturn(List.of(reservation));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
+
+            List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
+
+            log.info("[ProductStockService.restore] 환불 전 stock.status=SOLD_OUT -> 환불 후 품절 해제 알림 기대");
+
+            productStockService.restore(orderId, items);
+
+            verify(productStateManager).resumeSaleAfterRestock(productId);
+        }
+
+        @Test
+        @DisplayName("같은 재고를 참조하는 CONFIRMED 예약 여러 건을 함께 환불해도 품절 해제 알림은 한 번만 호출된다")
+        void restore_multipleConfirmedItemsSameStock_notifiesRestockedOnce() {
+            UUID stockId = UUID.randomUUID();
+            UUID orderItemId2 = UUID.randomUUID();
+            UUID reservationId1 = UUID.randomUUID();
+            UUID reservationId2 = UUID.randomUUID();
+
+            ProductStockReservation reservation1 = ProductStockReservation
+                    .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation1, "id", reservationId1);
+            reservation1.confirm();
+            ProductStockReservation reservation2 = ProductStockReservation
+                    .create(stockId, orderId, 10, Instant.now().plusSeconds(1800));
+            ReflectionTestUtils.setField(reservation2, "id", reservationId2);
+            reservation2.confirm();
+
+            ProductStockEventLog reserveLog1 = ProductStockEventLog.create(reservationId1, orderItemId, StockEventType.RESERVE);
+            ProductStockEventLog reserveLog2 = ProductStockEventLog.create(reservationId2, orderItemId2, StockEventType.RESERVE);
+
+            ProductStock stock = ProductStock.create(productId, 20, 5);
+            ReflectionTestUtils.setField(stock, "id", stockId);
+            stock.reserve(10);
+            stock.reserve(10);
+            stock.confirm(10);
+            stock.confirm(10); // total=0 -> SOLD_OUT
+
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId, orderItemId2), List.of(StockEventType.RESTORE, StockEventType.REFUND)))
+                    .willReturn(List.of());
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
+                    List.of(orderItemId, orderItemId2), StockEventType.RESERVE))
+                    .willReturn(List.of(reserveLog1, reserveLog2));
+            given(productStockReservationRepository.findAllById(any()))
+                    .willReturn(List.of(reservation1, reservation2));
+            given(productStockRepository.findAllById(List.of(stockId)))
+                    .willReturn(List.of(stock));
+
+            List<ProductStockItem> items = List.of(
+                    new ProductStockItem(productId, orderItemId),
+                    new ProductStockItem(productId, orderItemId2)
+            );
+
+            log.info("[ProductStockService.restore] 같은 재고에 걸린 CONFIRMED 예약 2건 환불 -> 품절 해제 알림 1회만 기대");
+
+            productStockService.restore(orderId, items);
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(20);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(20);
+            verify(productStateManager, times(1)).resumeSaleAfterRestock(productId);
+        }
     }
 
 
@@ -1509,8 +1645,8 @@ public class ProductStockServiceImplTest {
         @DisplayName("동시 요청으로 UNIQUE 제약이 걸리면 ALREADY_PROCESSED 에러로 변환된다")
         void saveEventLog_uniqueViolation_convertsToAlreadyProcessed() {
             ProductStock stock = ProductStock.create(productId, 100, 10);
-            given(productStockEventLogRepository.findByOrderItemIdInAndEventType(
-                    List.of(orderItemId), StockEventType.RESERVE))
+            given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
+                    List.of(orderItemId), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
             given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
                     .willReturn(List.of(stock));
@@ -1799,8 +1935,7 @@ public class ProductStockServiceImplTest {
                 new BigDecimal("1.00")
         );
         ReflectionTestUtils.setField(product, "id", productId);
-        product.addImage(UUID.randomUUID());
-        product.startSale();
+        ReflectionTestUtils.setField(product, "status", ProductStatus.ON_SALE);
         return product;
     }
 

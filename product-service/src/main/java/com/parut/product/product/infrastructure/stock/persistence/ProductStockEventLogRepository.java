@@ -44,4 +44,6 @@ public interface ProductStockEventLogRepository extends JpaRepository<ProductSto
             @Param("cursorId") UUID cursorId,
             Pageable pageable
     );
+
+    List<ProductStockEventLog> findByOrderItemIdInAndEventTypeIn(List<UUID> orderItemIds, List<StockEventType> eventTypes);
 }
