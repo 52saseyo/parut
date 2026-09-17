@@ -3,6 +3,7 @@ package com.parut.product.timedeal.presentation;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
@@ -40,6 +41,47 @@ class TimeDealControllerTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Nested
+    @DisplayName("공개 목록 조회")
+    class GetList {
+        @Test
+        void 상태값이_없으면_ACTIVE_목록을_조회한다() throws Exception {
+            when(queryUseCase.getPublicList(TimeDealStatus.ACTIVE, null, null, 10))
+                    .thenReturn(TimeDealCursorResult.withoutNextCursor(java.util.List.of()));
+
+            mvc.perform(get("/api/v1/time-deals")
+                            .header("X-Trace-Id", "trace-list-active"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value("OK"))
+                    .andExpect(jsonPath("$.data.content").isArray())
+                    .andExpect(jsonPath("$.data.pageInfo.paginationType").value("CURSOR"))
+                    .andExpect(jsonPath("$.data.pageInfo.sortBy").value("startAt"))
+                    .andExpect(jsonPath("$.data.pageInfo.sortDirection").value("DESC"))
+                    .andExpect(jsonPath("$.traceId").value("trace-list-active"));
+
+            verify(queryUseCase).getPublicList(TimeDealStatus.ACTIVE, null, null, 10);
+        }
+
+        @Test
+        void SCHEDULED_상태를_전달하면_SCHEDULED_목록을_조회한다() throws Exception {
+            UUID nextId = UUID.randomUUID();
+            when(queryUseCase.getPublicList(TimeDealStatus.SCHEDULED, null, null, 30))
+                    .thenReturn(TimeDealCursorResult.of(java.util.List.of(),
+                            "2026-09-01T14:00:00Z", nextId, true));
+
+            mvc.perform(get("/api/v1/time-deals")
+                            .param("status", "SCHEDULED")
+                            .param("size", "30"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.pageInfo.nextCursor")
+                            .value("2026-09-01T14:00:00Z"))
+                    .andExpect(jsonPath("$.data.pageInfo.nextIdAfter").value(nextId.toString()))
+                    .andExpect(jsonPath("$.data.pageInfo.hasNext").value(true));
+
+            verify(queryUseCase).getPublicList(TimeDealStatus.SCHEDULED, null, null, 30);
+        }
+    }
 
     @Nested
     @DisplayName("공개 단건 조회")
