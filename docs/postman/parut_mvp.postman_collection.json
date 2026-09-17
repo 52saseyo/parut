@@ -1867,7 +1867,7 @@
               }
             },
             "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. 타임딜 가용 수량이 감소하고 구매 이력이 RESERVED로 생성됩니다."
+            "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. ACTIVE 타임딜에서 타임딜 가용 수량이 감소하고 reserved 수량이 증가하며 구매 이력이 RESERVED로 생성됩니다. 일반 상품 재고는 차감하지 않습니다."
           },
           "event": [
             {
@@ -1904,7 +1904,7 @@
               }
             ],
             "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
-            "description": "선점된 구매를 확정해 구매 상태 CONFIRMED와 판매 수량 증가를 검증합니다."
+            "description": "선점된 구매를 확정해 RESERVED → CONFIRMED를 검증합니다. 타임딜 reserved 수량은 감소하고 sold 수량은 증가하며, 이미 선점 시 차감된 가용 수량이나 일반 상품 재고를 다시 차감하지 않습니다."
           },
           "event": [
             {
@@ -1956,7 +1956,7 @@
               }
             },
             "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다."
+            "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다. 타임딜 가용 수량이 감소하지만 일반 상품 재고는 차감하지 않습니다."
           },
           "event": [
             {
@@ -2006,7 +2006,7 @@
               }
             },
             "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
-            "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 예약 재고 복원을 확인합니다."
+            "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 타임딜 reserved → available 복원을 확인합니다. 일반 상품 재고는 변경하지 않습니다."
           },
           "event": [
             {
@@ -2155,22 +2155,32 @@
                 "event":[{"listen":"prerequest","script":{"type":"text/javascript","exec":["if (!pm.environment.get('timeDealScenarioId')) throw new Error('24-02-01을 먼저 실행하세요.');"]}},{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));","pm.test('수정 결과', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealScenarioId')); pm.expect(body.data.status).to.eql('SCHEDULED'); });"]}}]
               },
               {
-                "name":"24-02-03 할인율 100 입력 거부",
+                "name":"24-02-03 SCHEDULED 타임딜 정보 전체 변경",
+                "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"전체 변경 타임딜\",\n  \"description\": \"변경된 설명\",\n  \"productGrade\": \"UGLY\",\n  \"origin\": \"경북 안동\",\n  \"harvestedDate\": \"2026-09-02\",\n  \"originalPrice\": 22000,\n  \"discountRate\": 15,\n  \"startAt\": \"{{timeDealStartAt}}\",\n  \"endAt\": \"{{timeDealEndAt}}\",\n  \"maxPurchaseQuantity\": 3\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}","description":"정상: SCHEDULED에서는 상품명·설명·품질·산지·수확일·가격·할인율·판매기간·1인 최대 구매수량을 변경할 수 있다. 타임딜 재고와 일반 상품 재고는 차감·증감하지 않는다."},
+                "event":[{"listen":"prerequest","script":{"type":"text/javascript","exec":["if (!pm.environment.get('timeDealScenarioId')) throw new Error('24-02-01을 먼저 실행하세요.');"]}},{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));","pm.test('정보 변경 결과', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealScenarioId')); pm.expect(body.data.status).to.eql('SCHEDULED'); });"]}}]
+              },
+              {
+                "name":"24-02-04 할인율 100 입력 거부",
                 "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"잘못된 할인율\", \"productGrade\": \"NORMAL\", \"origin\": \"국내산\", \"harvestedDate\": \"2026-09-01\", \"originalPrice\": 20000, \"discountRate\": 100, \"startAt\": \"{{timeDealStartAt}}\", \"endAt\": \"{{timeDealEndAt}}\", \"maxPurchaseQuantity\": 1, \"initialQuantity\": 1, \"lowStockThreshold\": 0\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals","description":"실패: 할인율은 0 이상 100 미만이어야 한다. 400 TIME_DEAL_INVALID_DISCOUNT_RATE를 기대한다."},
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));","pm.test('할인율 검증 오류', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_DISCOUNT_RATE')); "]}}]
               },
               {
-                "name":"24-02-04 시작보다 빠른 종료일 거부",
+                "name":"24-02-05 시작보다 빠른 종료일 거부",
                 "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"잘못된 기간\", \"productGrade\": \"NORMAL\", \"origin\": \"국내산\", \"harvestedDate\": \"2026-09-01\", \"originalPrice\": 20000, \"discountRate\": 20, \"startAt\": \"2026-09-20T12:00:00Z\", \"endAt\": \"2026-09-20T11:00:00Z\", \"maxPurchaseQuantity\": 1, \"initialQuantity\": 1, \"lowStockThreshold\": 0\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals","description":"실패: endAt은 startAt 이후여야 한다. 400 TIME_DEAL_INVALID_PERIOD를 기대한다."},
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));","pm.test('기간 검증 오류', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_PERIOD')); "]}}]
               },
               {
-                "name":"24-02-05 ACTIVE 타임딜 수정 거부",
+                "name":"24-02-06 ACTIVE 타임딜 수정 거부",
                 "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"판매 중 수정 시도\"\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}","description":"실패: 06 플로우로 판매 중인 타임딜은 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다. 06-01~06-06 이후 실행한다."},
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('ACTIVE 수정 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_UPDATE_NOT_ALLOWED')); "]}}]
               },
               {
-                "name":"24-02-06 시나리오 타임딜 정리 삭제",
+                "name":"24-02-07 STOPPED 타임딜 수정 거부",
+                "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"중단 후 수정 시도\"\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}","description":"실패: 먼저 강제 종료 API로 STOPPED 상태를 만든 뒤 실행한다. 종료·중단 상태에서는 타임딜 정보 변경이 불가하며 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다. 타임딜 재고와 일반 상품 재고도 차감하지 않는다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('STOPPED 수정 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_UPDATE_NOT_ALLOWED')); "]}}]
+              },
+              {
+                "name":"24-02-08 시나리오 타임딜 정리 삭제",
                 "request":{"method":"DELETE","header":[{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}","description":"정리: 앞 단계에서 직접 생성한 SCHEDULED 타임딜과 재고를 soft delete한다. 선점·판매 수량이 없어야 200 OK다."},
                 "event":[{"listen":"prerequest","script":{"type":"text/javascript","exec":["if (!pm.environment.get('timeDealScenarioId')) throw new Error('24-02-01을 먼저 실행하세요.');"]}},{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));","pm.test('삭제 응답 data null', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data).to.eql(null); });"]}}]
               }
@@ -2235,6 +2245,16 @@
                 "name":"24-04-05 타임딜 재고 0 이하 반환 거부",
                 "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": -999999\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"실패: 타임딜 가용 재고가 0개 이하가 되도록 일반상품으로 반환한다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."},
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));","pm.test('타임딜 재고 하한 검증', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY')); "]}}]
+              },
+              {
+                "name":"24-04-06 ENDED 타임딜 재고 이관 거부",
+                "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"실패: 먼저 판매기간 종료로 ENDED 상태를 만든 뒤 실행한다. 종료된 타임딜은 일반상품 재고를 차감하거나 타임딜 재고를 변경하지 않고 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대한다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('ENDED 재고 이관 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED')); "]}}]
+              },
+              {
+                "name":"24-04-07 STOPPED 타임딜 재고 이관 거부",
+                "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"실패: 먼저 강제 종료 API로 STOPPED 상태를 만든 뒤 실행한다. 중단된 타임딜은 일반상품 재고를 차감하거나 타임딜 재고를 변경하지 않고 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대한다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('STOPPED 재고 이관 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED')); "]}}]
               }
             ]
           },
@@ -2256,6 +2276,16 @@
                 "name":"24-05-03 가용 재고 0 이하 조정 거부",
                 "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"quantity\": -999999\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock","description":"실패: 기존 가용 재고를 초과 회수해 0개 이하로 만들 수 없다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."},
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));","pm.test('재고 하한 검증', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY')); "]}}]
+              },
+              {
+                "name":"24-05-04 ENDED 타임딜 재고 조정 거부",
+                "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock","description":"실패: ENDED 상태에서는 타임딜 자체 재고를 추가·회수할 수 없다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 일반상품 재고는 변경되지 않는다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('ENDED 재고 조정 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED')); "]}}]
+              },
+              {
+                "name":"24-05-05 STOPPED 타임딜 재고 조정 거부",
+                "request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock","description":"실패: STOPPED 상태에서는 타임딜 자체 재고를 추가·회수할 수 없다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 일반상품 재고는 변경되지 않는다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('STOPPED 재고 조정 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED')); "]}}]
               }
             ]
           }
