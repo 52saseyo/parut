@@ -60,6 +60,9 @@
                   "pm.environment.unset('sellerApplicationId');",
                   "pm.environment.unset('sellerId');",
                   "pm.environment.unset('productId');",
+                  "pm.environment.unset('secondProductId');",
+                  "pm.environment.unset('productImageId');",
+                  "pm.environment.unset('secondProductImageId');",
                   "pm.environment.unset('idempotencyKey');",
                   "pm.environment.unset('orderId');",
                   "pm.environment.unset('orderItemId');",
@@ -712,10 +715,10 @@
     },
     {
       "name": "02 일반 상품 판매 준비",
-      "description": "완료 조건: productId 확보, 대표 이미지 준비, 상품 ON_SALE",
+      "description": "완료 조건: 일반 상품 2개와 초기 재고 생성, 두 상품의 대표 이미지 등록, 두 상품 모두 ON_SALE",
       "item": [
         {
-          "name": "02-01 일반 상품과 초기 재고 등록",
+          "name": "02-01-01 첫 번째 상품과 초기 재고 등록",
           "event": [
             {
               "listen": "prerequest",
@@ -775,7 +778,68 @@
           }
         },
         {
-          "name": "02-02 대표 이미지 메타데이터 등록",
+          "name": "02-01-02 두 번째 상품과 초기 재고 등록",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01-08을 먼저 실행하세요.');",
+                  "pm.environment.unset('secondProductId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "pm.test('두 번째 productId가 있다', () => pm.expect(body.data?.productId).to.exist);",
+                  "pm.test('상품 상태가 DRAFT이다', () => pm.expect(body.data?.status).to.eql('DRAFT'));",
+                  "if (body.data?.productId) pm.environment.set('secondProductId', body.data.productId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"VEGETABLE\",\n  \"name\": \"MVP 못난이 감자\",\n  \"description\": \"모양은 달라도 맛있는 MVP 시연용 감자\",\n  \"price\": 6500,\n  \"appearanceType\": \"UGLY\",\n  \"origin\": \"강원도\",\n  \"harvestDate\": \"2026-09-02\",\n  \"saleUnit\": \"KG\",\n  \"unitQuantity\": 3,\n  \"totalQuantity\": 80,\n  \"lowStockThreshold\": 8\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
+            "description": "두 번째 일반 상품과 초기 재고 80개를 함께 생성하고 secondProductId를 저장합니다. 기존 productId는 첫 번째 상품의 이미지 등록과 후속 주문 시나리오에서 계속 사용합니다."
+          }
+        },
+        {
+          "name": "02-02-01 첫 번째 상품 대표 이미지 등록",
           "event": [
             {
               "listen": "prerequest",
@@ -837,7 +901,68 @@
           }
         },
         {
-          "name": "02-03 상품 판매 시작",
+          "name": "02-02-02 두 번째 상품 대표 이미지 등록",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01-08을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 02-01-02를 먼저 실행하세요.');",
+                  "pm.environment.unset('secondProductImageId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "pm.test('두 번째 상품 imageId가 있다', () => pm.expect(body.data?.imageId).to.exist);",
+                  "if (body.data?.imageId) pm.environment.set('secondProductImageId', body.data.imageId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageKey\": \"mvp/products/{{secondProductId}}/main.jpg\",\n  \"originalName\": \"potato-main.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 1024\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{secondProductId}}/image",
+            "description": "두 번째 상품에 대표 이미지 메타데이터를 등록하고 secondProductImageId를 저장합니다."
+          }
+        },
+        {
+          "name": "02-03-01 첫 번째 상품 판매 시작",
           "event": [
             {
               "listen": "prerequest",
@@ -846,7 +971,8 @@
                 "exec": [
                   "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
                   "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                  "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('productImageId')) throw new Error('productImageId 환경변수가 없습니다. 02-02-01을 먼저 실행하세요.');"
                 ]
               }
             },
@@ -860,7 +986,7 @@
                   "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                   "}",
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('상품 상태가 ON_SALE이다', () => pm.expect(body.data?.status).to.eql('ON_SALE'));"
+                  "pm.test('첫 번째 상품 상태가 ON_SALE이다', () => { pm.expect(body.data?.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data?.status).to.eql('ON_SALE'); });"
                 ]
               }
             }
@@ -897,7 +1023,67 @@
           }
         },
         {
-          "name": "02-04 고객 상품 상세 조회",
+          "name": "02-03-02 두 번째 상품 판매 시작",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01-08을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 02-01-02를 먼저 실행하세요.');",
+                  "if (!pm.environment.get('secondProductImageId')) throw new Error('secondProductImageId 환경변수가 없습니다. 02-02-02를 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) {",
+                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "}",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "pm.test('두 번째 상품 상태가 ON_SALE이다', () => { pm.expect(body.data?.productId).to.eql(pm.environment.get('secondProductId')); pm.expect(body.data?.status).to.eql('ON_SALE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ON_SALE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{secondProductId}}/status",
+            "description": "대표 이미지가 등록된 두 번째 상품을 ON_SALE 상태로 변경합니다."
+          }
+        },
+        {
+          "name": "02-04 고객 첫 번째 상품 상세 조회",
           "event": [
             {
               "listen": "prerequest",
