@@ -19,12 +19,14 @@ import com.parut.product.product.domain.product.ProductCategory;
 import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.product.SaleUnit;
 import com.parut.product.product.domain.stock.entity.ProductStock;
+import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.infrastructure.product.persistence.ProductRepository;
 import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
 import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
 import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.ProductOrderInfoResponse;
 import com.parut.product.product.presentation.product.dto.response.ProductResponse;
+import com.parut.product.product.presentation.product.dto.response.SellerProductDetailResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -58,6 +60,8 @@ class ProductServiceTest {
     private static final String IMAGE_URL = "https://example.com/images/apple.jpg";
     private static final UUID PRODUCT_ID_2 = UUID.fromString("20000000-0000-0000-0000-000000000002");
     private static final String SELLER_ROLE = "SELLER";
+    private static final List<ProductStatus> CUSTOMER_VISIBLE_STATUSES =
+            List.of(ProductStatus.ON_SALE, ProductStatus.SOLD_OUT);
 
     @Mock
     private ProductRepository productRepository;
@@ -90,7 +94,8 @@ class ProductServiceTest {
                 SaleUnit.KG,
                 new BigDecimal("1.00"),
                 100,
-                10
+                10,
+                IMAGE_ID
         );
         given(productRepository.save(any(Product.class))).willAnswer(invocation -> {
             Product product = invocation.getArgument(0);
@@ -103,7 +108,37 @@ class ProductServiceTest {
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.DRAFT);
         verify(productStockService).createStock(PRODUCT_ID, 100, 10);
+        verify(productImagePort).save(SELLER_ID, PRODUCT_ID, IMAGE_ID);
         verify(authorizationChecker).requireSeller(SELLER_ROLE);
+    }
+
+    @Test
+    void 이미지_없이도_상품과_초기_재고를_생성한다() {
+        CreateProductRequest request = new CreateProductRequest(
+                ProductCategory.FRUIT,
+                "못난이 사과",
+                "상품 설명",
+                3_000L,
+                AppearanceType.UGLY,
+                "충주",
+                LocalDate.of(2026, 9, 1),
+                SaleUnit.KG,
+                new BigDecimal("1.00"),
+                100,
+                10,
+                null
+        );
+        given(productRepository.save(any(Product.class))).willAnswer(invocation -> {
+            Product product = invocation.getArgument(0);
+            setId(product, PRODUCT_ID);
+            return product;
+        });
+
+        ProductResponse response = productService.createProduct(SELLER_ID, SELLER_ROLE, request);
+
+        assertThat(response.productId()).isEqualTo(PRODUCT_ID);
+        verify(productStockService).createStock(PRODUCT_ID, 100, 10);
+        verify(productImagePort, never()).save(any(), any(), any());
     }
 
     @Test
@@ -227,47 +262,70 @@ class ProductServiceTest {
     }
 
     @Test
-    void 공개_상태인_상품_상세를_조회한다() {
+    void 공개_상태인_상품_상세를_재고와_함께_조회한다() {
         Product product = onSaleProduct();
-        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
+        ProductStock stock = ProductStock.create(PRODUCT_ID, 100, 10);
+        stock.reserve(5);
+
+        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
+                PRODUCT_ID,
+                CUSTOMER_VISIBLE_STATUSES
+        )).willReturn(Optional.of(product));
         given(productImagePort.findImage(PRODUCT_ID))
                 .willReturn(Optional.of(new ProductImageResult(IMAGE_ID, IMAGE_URL)));
+        given(productStockService.getStock(PRODUCT_ID)).willReturn(stock);
 
         ProductDetailResponse response = productService.getProduct(PRODUCT_ID);
 
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.ON_SALE);
+        assertThat(response.availableQuantity()).isEqualTo(95);
         assertThat(response.url()).isEqualTo(IMAGE_URL);
     }
 
     @Test
     void 공개_상품에_이미지가_없으면_상세_조회를_거부한다() {
         Product product = onSaleProduct();
-        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.of(product));
+        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
+                PRODUCT_ID,
+                CUSTOMER_VISIBLE_STATUSES
+        )).willReturn(Optional.of(product));
 
         assertBusinessException(() -> productService.getProduct(PRODUCT_ID), ErrorCode.PRODUCT_IMAGE_REQUIRED);
     }
 
     @Test
     void 존재하지_않는_상품_상세는_조회할_수_없다() {
-        given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID)).willReturn(Optional.empty());
+        given(productRepository.findByIdAndStatusInAndDeletedAtIsNull(
+                PRODUCT_ID,
+                CUSTOMER_VISIBLE_STATUSES
+        )).willReturn(Optional.empty());
 
         assertBusinessException(
                 () -> productService.getProduct(PRODUCT_ID),
                 ErrorCode.PRODUCT_NOT_FOUND
         );
+        verify(productImagePort, never()).findImage(PRODUCT_ID);
     }
 
     @Test
     void 판매자가_본인_상품_상세를_조회한다() {
         Product product = product();
+        ProductStock stock = ProductStock.create(PRODUCT_ID, 100, 10);
+        setId(stock, UUID.randomUUID());
         given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
                 .willReturn(Optional.of(product));
+        given(productStockService.getStock(PRODUCT_ID)).willReturn(stock);
 
-        ProductDetailResponse response = productService.getMyProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE);
+        SellerProductDetailResponse response =
+                productService.getMyProduct(PRODUCT_ID, SELLER_ID, SELLER_ROLE);
 
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.DRAFT);
+        assertThat(response.totalQuantity()).isEqualTo(100);
+        assertThat(response.availableQuantity()).isEqualTo(100);
+        assertThat(response.lowStockThreshold()).isEqualTo(10);
+        assertThat(response.stockStatus()).isEqualTo(StockStatus.AVAILABLE);
         assertThat(response.url()).isNull();
     }
 

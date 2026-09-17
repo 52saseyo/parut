@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ProductService {
-    private static final List<ProductStatus> VISIBLE_STATUSES =
+    private static final List<ProductStatus> CUSTOMER_VISIBLE_STATUSES =
             List.of(
                     ProductStatus.ON_SALE,
                     ProductStatus.SOLD_OUT
@@ -79,6 +79,11 @@ public class ProductService {
                 request.totalQuantity(),
                 request.lowStockThreshold()
         );
+
+        if(request.imageId() != null){
+            productImagePort.save(requesterId, savedProduct.getId(), request.imageId());
+        }
+
         return ProductResponse.from(savedProduct);
     }
 
@@ -167,14 +172,21 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductDetailResponse getProduct(UUID productId) {
-        Product product = findProduct(productId);
+        Product product = productRepository
+                .findByIdAndStatusInAndDeletedAtIsNull(
+                        productId,
+                        CUSTOMER_VISIBLE_STATUSES
+                )
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
         ProductImageResult image = productImagePort.findImage(productId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED));
 
         String imageUrl = image.imageUrl();
 
-        return ProductDetailResponse.from(product, imageUrl);
+        ProductStock stock = productStockService.getStock(productId);
+
+        return ProductDetailResponse.from(product, stock, imageUrl);
     }
 
     /**
@@ -182,7 +194,7 @@ public class ProductService {
      * 공개 상품 여부와 무관하게 삭제되지 않은 본인 상품이면 조회할 수 있다.
      */
     @Transactional(readOnly = true)
-    public ProductDetailResponse getMyProduct(
+    public SellerProductDetailResponse getMyProduct(
             UUID productId,
             UUID requesterId,
             String requesterRole
@@ -204,7 +216,13 @@ public class ProductService {
             throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
         }
 
-        return ProductDetailResponse.from(product, image == null ? null : image.imageUrl());
+        ProductStock stock = productStockService.getStock(productId);
+
+        return SellerProductDetailResponse.from(
+                product,
+                stock,
+                image == null ? null : image.imageUrl()
+        );
     }
 
 
@@ -321,14 +339,14 @@ public class ProductService {
 
     @Transactional(readOnly = true)
     public Page<SellerProductQueryResult> searchSellerProducts(
-            UUID sellerId,
+            UUID requesterId,
             String requesterRole,
             SellerProductSearchCondition condition,
             Pageable pageable
     ){
         authorizationChecker.requireSeller(requesterRole);
         return productQueryRepository.searchSellerProducts(
-                sellerId,
+                requesterId,
                 condition,
                 pageable
         );

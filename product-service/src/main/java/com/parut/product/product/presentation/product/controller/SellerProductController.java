@@ -8,8 +8,8 @@ import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.product.service.ProductService;
 import com.parut.product.product.presentation.product.dto.request.*;
-import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.ProductResponse;
+import com.parut.product.product.presentation.product.dto.response.SellerProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.SellerProductListResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -102,12 +102,12 @@ public class SellerProductController {
      * 공개 조회와 달리 판매 준비, 판매 중지 상태의 상품도 조회할 수 있다.
      */
     @GetMapping("/{productId}")
-    public ResponseEntity<ApiResponse<ProductDetailResponse>> getOne(
+    public ResponseEntity<ApiResponse<SellerProductDetailResponse>> getOne(
             @PathVariable UUID productId,
             @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
             @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
     ){
-        ProductDetailResponse response = productService.getMyProduct(productId, requesterId, requesterRole);
+        SellerProductDetailResponse response = productService.getMyProduct(productId, requesterId, requesterRole);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
