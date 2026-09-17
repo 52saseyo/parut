@@ -35,5 +35,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("sellerId") UUID sellerId
     );
 
+    List<Product> findByIdInAndDeletedAtIsNull(Collection<UUID> productIds);
 
 }

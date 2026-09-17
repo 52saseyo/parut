@@ -2,14 +2,14 @@ package com.parut.product.product.presentation.product.controller;
 
 import com.parut.product.global.common.ApiResponse;
 import com.parut.product.product.application.product.service.ProductService;
+import com.parut.product.product.presentation.product.dto.request.ProductOrderInfoRequest;
 import com.parut.product.product.presentation.product.dto.response.ProductOrderInfoResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -26,6 +26,18 @@ public class ProductInternalController {
             @PathVariable UUID productId
     ){
         ProductOrderInfoResponse response = productService.getOrderInfo(productId);
+
+        return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
+    /**
+     * 주문 서비스에서 사용할 여러 상품의 주문 정보를 조회한다.
+     */
+    @PostMapping("/order-info")
+    public ResponseEntity<ApiResponse<List<ProductOrderInfoResponse>>> getInfos(
+            @Valid @RequestBody ProductOrderInfoRequest request
+    ){
+        List<ProductOrderInfoResponse> response = productService.getOrderInfos(request.productIds());
 
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }

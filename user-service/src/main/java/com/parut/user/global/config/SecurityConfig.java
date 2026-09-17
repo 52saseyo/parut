@@ -38,6 +38,9 @@ public class SecurityConfig {
 
                         // 3. 그 외 나머지 API는 오직 정상 승인된 SELLER만 접근 가능
                         .requestMatchers("/api/v1/products/**").hasRole("SELLER") // 예시: 상품 관련 API
+
+                        // 다른 열려있는 API들이 있다면 그 밑에 이 줄을 추가해 줘!
+                        .requestMatchers("/api/v1/internal/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // 커스텀 JWT 필터를 UsernamePasswordAuthenticationFilter 이전에 동작하도록 설정

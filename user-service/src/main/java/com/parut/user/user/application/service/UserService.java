@@ -3,6 +3,7 @@ package com.parut.user.user.application.service;
 import com.parut.user.user.application.dto.request.UserUpdateRequest;
 import com.parut.user.user.application.dto.response.UserDeleteResponse;
 import com.parut.user.user.application.dto.response.UserResponse;
+import com.parut.user.user.application.dto.response.UserVerifyResponse;
 import com.parut.user.user.domain.User;
 import com.parut.user.global.common.OffsetPageInfo;
 import com.parut.user.global.common.OffsetResponse;
@@ -115,5 +116,25 @@ public class UserService {
 
         // 4. 탈퇴 응답 DTO 반환
         return UserDeleteResponse.of(user.getId(), user.getDeletedAt());
+    }
+
+    public UserVerifyResponse verifyUserStatus(String userId) {
+        // String -> UUID 변환 처리 필요 시 적용
+        UUID userUuid;
+        try {
+            userUuid = UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            return UserVerifyResponse.fail();
+        }
+
+        // DB에서 유효한 회원(탈퇴하지 않은 회원)인지 조회
+        return userRepository.findByIdAndDeletedAtIsNull(userUuid)
+                .map(user -> {
+                    return UserVerifyResponse.success(
+                            user.getId().toString(),
+                            user.getRole() // DB의 실제 권한 문자열 (예: "USER", "ADMIN")
+                    );
+                })
+                .orElseGet(UserVerifyResponse::fail);
     }
 }
