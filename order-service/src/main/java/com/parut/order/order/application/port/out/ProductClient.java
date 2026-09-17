@@ -1,16 +1,18 @@
 package com.parut.order.order.application.port.out;
 
+import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.ProductStockItem;
+import com.parut.order.order.application.port.out.dto.ProductStockReserveItem;
+
+import java.util.List;
 import java.util.UUID;
 
-import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
-
 // Product Service(일반 상품, 일반 상품 재고) 연동 포트
-// ToDo: bulk 도입 시 수정 예정
 public interface ProductClient {
 
-    ProductOrderInfo getOrderInfo(UUID productId);
+    List<ProductOrderInfo> getOrderInfos(List<UUID> productIds);
 
-    void reserveStock(UUID productId, UUID orderId, UUID orderItemId, int quantity);
+    void reserveStock(UUID orderId, List<ProductStockReserveItem> items);
 
-    void restoreStock(UUID productId, UUID orderId, UUID orderItemId);
+    void restoreStock(UUID orderId, List<ProductStockItem> items);
 }

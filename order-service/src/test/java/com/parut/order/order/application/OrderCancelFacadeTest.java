@@ -1,30 +1,5 @@
 package com.parut.order.order.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CancelOrderCommand;
@@ -32,10 +7,27 @@ import com.parut.order.order.application.dto.OrderCancelContext;
 import com.parut.order.order.application.dto.OrderCancelResult;
 import com.parut.order.order.application.port.out.ProductClient;
 import com.parut.order.order.application.port.out.TimeDealClient;
+import com.parut.order.order.application.port.out.dto.ProductStockItem;
 import com.parut.order.order.domain.CancelReasonCode;
 import com.parut.order.order.domain.CanceledByType;
 import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
 import com.parut.order.payment.application.port.in.dto.PaymentCancelReceipt;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderCancelFacadeTest {
@@ -70,7 +62,7 @@ class OrderCancelFacadeTest {
 
         orderCancelFacade.cancel(command());
 
-        verify(productClient).restoreStock(PRODUCT_ID, ORDER_ID, ITEM_ID);
+        verify(productClient).restoreStock(ORDER_ID, List.of(new ProductStockItem(PRODUCT_ID, ITEM_ID)));
         verifyNoInteractions(timeDealClient);
     }
 
@@ -99,11 +91,44 @@ class OrderCancelFacadeTest {
     }
 
     @Test
+    @DisplayName("일반 상품 아이템이 여러 개면(판매자가 섞여도) 재고 복원을 한 번의 벌크 호출로 처리한다")
+    void 다건_일반상품_벌크복원() {
+        UUID secondItemId = UUID.randomUUID();
+        UUID secondProductId = UUID.randomUUID();
+        stubCancelFlow(new OrderCancelContext(
+                ORDER_ID, 30_000L, 6_000L, 36_000L,
+                List.of(new OrderCancelContext.CancelTargetItem(ITEM_ID, PRODUCT_ID, null),
+                        new OrderCancelContext.CancelTargetItem(secondItemId, secondProductId, null))));
+
+        orderCancelFacade.cancel(command());
+
+        verify(productClient, times(1)).restoreStock(ORDER_ID, List.of(
+                new ProductStockItem(PRODUCT_ID, ITEM_ID),
+                new ProductStockItem(secondProductId, secondItemId)));
+        verifyNoInteractions(timeDealClient);
+    }
+
+    @Test
+    @DisplayName("일반 상품과 타임딜 아이템이 섞여도 각자의 API로 정확히 복원한다")
+    void 혼합_일반상품과_타임딜() {
+        UUID timeDealItemId = UUID.randomUUID();
+        stubCancelFlow(new OrderCancelContext(
+                ORDER_ID, 30_000L, 3_000L, 33_000L,
+                List.of(new OrderCancelContext.CancelTargetItem(ITEM_ID, PRODUCT_ID, null),
+                        new OrderCancelContext.CancelTargetItem(timeDealItemId, null, TIME_DEAL_ID))));
+
+        orderCancelFacade.cancel(command());
+
+        verify(productClient, times(1)).restoreStock(ORDER_ID, List.of(new ProductStockItem(PRODUCT_ID, ITEM_ID)));
+        verify(timeDealClient, times(1)).restoreStock(ORDER_ID, CancelReasonCode.CUSTOMER_CANCEL.name());
+    }
+
+    @Test
     @DisplayName("재고 복원이 실패해도 취소는 롤백하지 않고 결과를 반환한다")
     void 재고복원_실패해도_취소유지() {
         stubCancelFlow(context(PRODUCT_ID, null));
         doThrow(new IllegalStateException("Product 장애"))
-                .when(productClient).restoreStock(any(), any(), any());
+                .when(productClient).restoreStock(any(), any());
 
         OrderCancelResult result = orderCancelFacade.cancel(command());
 

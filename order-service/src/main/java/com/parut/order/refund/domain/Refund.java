@@ -1,6 +1,6 @@
 package com.parut.order.refund.domain;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.parut.order.global.common.entity.UpdatableEntity;
@@ -38,13 +38,13 @@ public class Refund extends UpdatableEntity {
     private String rejectionReason;
 
     @Column(name = "requested_at", nullable = false)
-    private OffsetDateTime requestedAt;
+    private Instant requestedAt;
 
     @Column(name = "canceled_at")
-    private OffsetDateTime canceledAt;
+    private Instant canceledAt;
 
     @Column(name = "processed_at")
-    private OffsetDateTime processedAt;
+    private Instant processedAt;
 
     @Column(name = "processed_by")
     private UUID processedBy;
@@ -57,7 +57,7 @@ public class Refund extends UpdatableEntity {
             UUID orderItemId,
             long refundAmount,
             String reason,
-            OffsetDateTime requestedAt
+            Instant requestedAt
     ) {
         return new Refund(orderItemId, refundAmount, reason, requestedAt);
     }
@@ -66,7 +66,7 @@ public class Refund extends UpdatableEntity {
             UUID orderItemId,
             long refundAmount,
             String reason,
-            OffsetDateTime requestedAt
+            Instant requestedAt
     ) {
         if (orderItemId == null) {
             throw new IllegalArgumentException("주문 상품 ID는 필수입니다.");
@@ -86,7 +86,7 @@ public class Refund extends UpdatableEntity {
         this.status = RefundStatus.REQUESTED;
     }
 
-    public void cancel(OffsetDateTime canceledAt) {
+    public void cancel(Instant canceledAt) {
         validateRequested();
         if (canceledAt == null) {
             throw new IllegalArgumentException("환불 취소 시각은 필수입니다.");
@@ -97,7 +97,7 @@ public class Refund extends UpdatableEntity {
         this.status = RefundStatus.CANCELED;
     }
 
-    public void approve(OffsetDateTime processedAt, UUID processedBy) {
+    public void approve(Instant processedAt, UUID processedBy) {
         validateRequested();
         validateProcessing(processedAt, processedBy);
         validateNotBeforeRequestedAt(processedAt, "환불 처리 시각");
@@ -107,7 +107,7 @@ public class Refund extends UpdatableEntity {
         this.status = RefundStatus.APPROVED;
     }
 
-    public void reject(String rejectionReason, OffsetDateTime processedAt, UUID processedBy) {
+    public void reject(String rejectionReason, Instant processedAt, UUID processedBy) {
         validateRequested();
         validateReason(rejectionReason, "환불 거절 사유");
         validateProcessing(processedAt, processedBy);
@@ -134,7 +134,7 @@ public class Refund extends UpdatableEntity {
         }
     }
 
-    private static void validateProcessing(OffsetDateTime processedAt, UUID processedBy) {
+    private static void validateProcessing(Instant processedAt, UUID processedBy) {
         if (processedAt == null) {
             throw new IllegalArgumentException("환불 처리 시각은 필수입니다.");
         }
@@ -143,7 +143,7 @@ public class Refund extends UpdatableEntity {
         }
     }
 
-    private void validateNotBeforeRequestedAt(OffsetDateTime targetAt, String fieldName) {
+    private void validateNotBeforeRequestedAt(Instant targetAt, String fieldName) {
         if (targetAt.isBefore(requestedAt)) {
             throw new IllegalArgumentException(fieldName + "은 환불 요청 시각보다 빠를 수 없습니다.");
         }
