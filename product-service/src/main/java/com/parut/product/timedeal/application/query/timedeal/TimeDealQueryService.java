@@ -5,17 +5,20 @@ import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.global.dto.ImageQuery;
 import com.parut.product.global.dto.ImageQueryResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealQueryRepository;
 import com.parut.product.timedeal.application.port.out.image.ImageQueryPort;
+import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.List;
 
 
 @Service
@@ -25,6 +28,31 @@ public class TimeDealQueryService implements TimeDealQueryUseCase {
 
     private final TimeDealQueryRepository timeDealQueryRepository;
     private final ImageQueryPort imageQueryPort;
+
+    @Override
+    public TimeDealCursorResult<TimeDealPublicDetailResult> getPublicList(
+            TimeDealStatus status,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        List<TimeDealPublicDetailView> views = timeDealQueryRepository.findPublicList(
+                status, cursor, cursorId, size);
+        boolean hasNext = views.size() > size;
+        List<TimeDealPublicDetailView> page = hasNext ? views.subList(0, size) : views;
+        List<TimeDealPublicDetailResult> content = page.stream()
+                .map(view -> TimeDealPublicDetailResult.from(
+                        view,
+                        imageQueryPort.findImage(new ImageQuery(view.timeDealId())).imageUrl()))
+                .toList();
+
+        if (!hasNext) {
+            return TimeDealCursorResult.withoutNextCursor(content);
+        }
+
+        TimeDealPublicDetailView lastView = page.get(page.size() - 1);
+        return TimeDealCursorResult.of(content, lastView.startAt().toString(), lastView.timeDealId(), true);
+    }
 
     @Override
     public TimeDealPublicDetailResult getPublicDetail(UUID timeDealId) {
