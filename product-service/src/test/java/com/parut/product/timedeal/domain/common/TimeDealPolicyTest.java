@@ -44,7 +44,7 @@ class TimeDealPolicyTest {
 
     private static TimeDeal scheduledTimeDeal(int maxPurchaseQuantity) {
         TimeDeal timeDeal = TimeDeal.create(
-                UUID.randomUUID(), UUID.randomUUID(), null,
+                UUID.randomUUID(), UUID.randomUUID(),
                 "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, maxPurchaseQuantity, CREATED_AT);
@@ -90,8 +90,8 @@ class TimeDealPolicyTest {
         }
 
         @Test
-        @DisplayName("마지막 재고를 예약하면 타임딜이 ENDED로 조기 종료된다")
-        void 소진_조기종료() {
+        @DisplayName("마지막 재고를 예약해도 결제 확정 전에는 타임딜이 ACTIVE를 유지한다")
+        void 소진_예약_상태유지() {
             TimeDeal timeDeal = activeTimeDeal();
             TimeDealStock stock = stockOf(timeDeal, 5);
 
@@ -99,7 +99,7 @@ class TimeDealPolicyTest {
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
 
             assertThat(stock.isDepleted()).isTrue();
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
         }
 
         @Test
@@ -197,13 +197,28 @@ class TimeDealPolicyTest {
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
 
             TimeDealPurchaseConfirmResult result =
-                    timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+                    timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
 
             assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CONFIRMED);
             assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CONFIRMED);
             assertThat(stock.getReservedQuantity()).isZero();
             assertThat(stock.getSoldQuantity()).isEqualTo(5);
             assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("마지막 선점이 확정되고 RESERVED가 없으면 타임딜을 종료한다")
+        void 마지막_재고_확정시_종료() {
+            TimeDeal timeDeal = activeTimeDeal();
+            TimeDealStock stock = stockOf(timeDeal, 5);
+            TimeDealPurchase purchase = timeDealPolicy.reserve(
+                    timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
+
+            timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
+
+            assertThat(stock.isDepleted()).isTrue();
+            assertThat(stock.getReservedQuantity()).isZero();
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
         }
 
         @Test
@@ -215,7 +230,7 @@ class TimeDealPolicyTest {
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
 
             TimeDealPurchaseConfirmResult result =
-                    timeDealPolicy.confirmSale(purchase, stock, AFTER_RESERVATION_TTL);
+                    timeDealPolicy.confirmSale(timeDeal, purchase, stock, AFTER_RESERVATION_TTL);
 
             assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CANCELLED);
             assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CANCELLED);
@@ -234,10 +249,10 @@ class TimeDealPolicyTest {
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
             TimeDealPurchase purchase = timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
-            timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+            timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
 
             TimeDealPurchaseConfirmResult result =
-                    timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+                    timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
 
             assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CONFIRMED);
             assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CONFIRMED);
@@ -253,10 +268,10 @@ class TimeDealPolicyTest {
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
             TimeDealPurchase purchase = timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
-            timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+            timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
 
             TimeDealPurchaseConfirmResult result =
-                    timeDealPolicy.confirmSale(purchase, stock, AFTER_RESERVATION_TTL);
+                    timeDealPolicy.confirmSale(timeDeal, purchase, stock, AFTER_RESERVATION_TTL);
 
             assertThat(result).isEqualTo(TimeDealPurchaseConfirmResult.CONFIRMED);
             assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CONFIRMED);
@@ -274,7 +289,7 @@ class TimeDealPolicyTest {
             timeDealPolicy.cancelPurchase(
                     purchase, stock, TimeDealPurchaseCancelReason.PAYMENT_FAILED.name());
 
-            assertThatThrownBy(() -> timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW))
+            assertThatThrownBy(() -> timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -295,7 +310,7 @@ class TimeDealPolicyTest {
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
             TimeDealStock otherStock = stockOf(activeTimeDeal(), INITIAL_QUANTITY);
 
-            assertThatThrownBy(() -> timeDealPolicy.confirmSale(purchase, otherStock, IN_WINDOW))
+            assertThatThrownBy(() -> timeDealPolicy.confirmSale(timeDeal, purchase, otherStock, IN_WINDOW))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_STOCK_MISMATCH);
@@ -366,7 +381,7 @@ class TimeDealPolicyTest {
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
             TimeDealPurchase purchase = timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
-            timeDealPolicy.confirmSale(purchase, stock, IN_WINDOW);
+            timeDealPolicy.confirmSale(timeDeal, purchase, stock, IN_WINDOW);
 
             timeDealPolicy.cancelPurchase(
                     purchase, stock, TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
@@ -415,6 +430,7 @@ class TimeDealPolicyTest {
             TimeDealStock stock = stockOf(timeDeal, 5);
             TimeDealPurchase purchase = timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);
+            timeDeal.end();
 
             timeDealPolicy.cancelPurchase(
                     purchase, stock, TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
@@ -480,7 +496,7 @@ class TimeDealPolicyTest {
             assertThatThrownBy(() -> timeDealPolicy.adjustStock(timeDeal, stock, -6))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
     }
 
@@ -515,7 +531,7 @@ class TimeDealPolicyTest {
         @DisplayName("저장 전 타임딜을 넘기면 예외 — ID가 null이라 걸러진다")
         void 저장전_타임딜() {
             TimeDeal unsavedTimeDeal = TimeDeal.create(
-                    UUID.randomUUID(), UUID.randomUUID(), null,
+                    UUID.randomUUID(), UUID.randomUUID(),
                     "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                     10_000L, BigDecimal.valueOf(30),
                     START_AT, END_AT, MAX_PURCHASE_QUANTITY, CREATED_AT);
@@ -579,39 +595,4 @@ class TimeDealPolicyTest {
     }
 
 
-    @Nested
-    @DisplayName("판매 기간 종료")
-    class EndBySalePeriodEnd {
-
-        @Test
-        @DisplayName("판매 기간이 지났으면 ENDED로 종료된다")
-        void 종료_성공() {
-            TimeDeal timeDeal = activeTimeDeal();
-
-            timeDealPolicy.endBySalePeriodEnd(timeDeal, AFTER_END);
-
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
-        }
-
-        @Test
-        @DisplayName("판매 기간이 남아 있으면 종료할 수 없다 — 소진 조기 종료 경로와 구분된다")
-        void 기간중_종료불가() {
-            TimeDeal timeDeal = activeTimeDeal();
-
-            assertThatThrownBy(() -> timeDealPolicy.endBySalePeriodEnd(timeDeal, IN_WINDOW))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_SALE_PERIOD_NOT_ENDED);
-        }
-
-        @Test
-        @DisplayName("activate가 한 번도 돌지 않은 SCHEDULED 타임딜도 종료할 수 있다")
-        void 예정딜_종료() {
-            TimeDeal timeDeal = scheduledTimeDeal(MAX_PURCHASE_QUANTITY);
-
-            timeDealPolicy.endBySalePeriodEnd(timeDeal, AFTER_END);
-
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ENDED);
-        }
-    }
 }

@@ -263,19 +263,19 @@ class TimeDealStockTest {
             assertThatThrownBy(() -> stock.adjustAvailableQuantity(-31))
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
 
         @Test
-        @DisplayName("잔여 판매 가능 수량 전량 회수는 허용된다")
-        void 전량_회수_허용() {
+        @DisplayName("잔여 판매 가능 수량 전량 회수는 거부된다")
+        void 전량_회수_거부() {
             TimeDealStock stock = stock();
             stock.reserve(70);
 
-            stock.adjustAvailableQuantity(-30);
-
-            assertThat(stock.getAvailableQuantity()).isZero();
-            assertThat(stock.getReservedQuantity()).isEqualTo(70);
+            assertThatThrownBy(() -> stock.adjustAvailableQuantity(-30))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
 
         @Test

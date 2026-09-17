@@ -5,11 +5,9 @@ import java.util.UUID;
 
 import com.parut.order.order.application.port.in.dto.OrderItemView;
 
-/**
- * 요청한 주문상품의 환불 및 정산 판단 정보를 제공한다.
- */
+// Order가 제공하는 주문상품 조회 포트 (환불 도메인이 사용)
 public interface OrderItemQueryUseCase {
 
-    /** 요청한 ID 중 존재하는 주문상품 정보를 목록으로 반환한다. */
+    // 요청한 ID 중 존재하는 것만 반환한다.
     List<OrderItemView> getOrderItems(List<UUID> orderItemIds);
 }

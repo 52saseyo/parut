@@ -32,9 +32,6 @@ public class TimeDeal extends DeletableEntity {
     @Column(name = "product_id", columnDefinition = "uuid", updatable = false)
     private UUID productId;
 
-    @Column(name = "image_id", columnDefinition = "uuid")
-    private UUID imageId;
-
     @Column(name = "original_price", nullable = false)
     private Long originalPrice;
 
@@ -76,7 +73,6 @@ public class TimeDeal extends DeletableEntity {
     private TimeDeal(
             UUID sellerId,
             UUID productId,
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -102,7 +98,6 @@ public class TimeDeal extends DeletableEntity {
 
         this.sellerId = sellerId;
         this.productId = productId;
-        this.imageId = imageId;
         this.name = name;
         this.description = description;
         this.productGrade = productGrade;
@@ -122,7 +117,6 @@ public class TimeDeal extends DeletableEntity {
     public static TimeDeal create(
             UUID sellerId,
             UUID productId,
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -138,7 +132,6 @@ public class TimeDeal extends DeletableEntity {
         return new TimeDeal(
                 sellerId,
                 productId,
-                imageId,
                 name,
                 description,
                 productGrade,
@@ -157,7 +150,6 @@ public class TimeDeal extends DeletableEntity {
     // NOTE: PATCH 부분 수정(null = 변경 없음). 검증은 병합한 뒤의 값으로 해야 기간 역전 같은 조합 오류를 잡는다.
     // NOTE: sellerId·productId는 수정 대상이 아니다 — 소유권과 전환 출처는 생성 시점에 고정된다.
     public void update(
-            UUID imageId,
             String name,
             String description,
             TimeDealProductGrade productGrade,
@@ -177,7 +169,6 @@ public class TimeDeal extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_UPDATE_NOT_ALLOWED);
         }
 
-        UUID newImageId = imageId != null ? imageId : this.imageId;
         String newName = name != null ? name : this.name;
         String newDescription = description != null ? description : this.description;
         TimeDealProductGrade newProductGrade = productGrade != null ? productGrade : this.productGrade;
@@ -199,7 +190,6 @@ public class TimeDeal extends DeletableEntity {
         validateOriginalPrice(newOriginalPrice);
         validateDiscountRate(newDiscountRate);
 
-        this.imageId = newImageId;
         this.name = newName;
         this.description = newDescription;
         this.productGrade = newProductGrade;
@@ -211,6 +201,21 @@ public class TimeDeal extends DeletableEntity {
         this.startAt = newStartAt;
         this.endAt = newEndAt;
         this.maxPurchaseQuantity = newMaxPurchaseQuantity;
+    }
+
+    // 조회 후 바뀐 상태·기간을 처리 시점에 다시 확인한다. 반복 호출은 안전하게 건너뛴다.
+    public void updateSaleStatus(Instant now) {
+        if (now == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (isDeleted() || status == TimeDealStatus.ENDED || status == TimeDealStatus.STOPPED) {
+            return;
+        }
+        if (!now.isBefore(endAt)) {
+            end();
+        } else if (status == TimeDealStatus.SCHEDULED && !now.isBefore(startAt)) {
+            activate(now);
+        }
     }
 
     // NOTE: 판매 기간 안에서만 활성화한다. endAt이 지난 SCHEDULED 타임딜은 activate()가 아니라 end()로 정리한다.
@@ -231,7 +236,8 @@ public class TimeDeal extends DeletableEntity {
     }
 
     // NOTE: SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면 영구히 SCHEDULED로 남는다.
-    // NOTE: 시간 가드가 없는 이유는 재고 소진 조기 종료 때문이며, 호출 경로 제한은 TimeDealPolicy 책임이다.
+    // NOTE: 재고 소진으로 조기 종료할 수 있어 시간 가드를 두지 않는다.
+    // 종료 조건은 시간 경과 시 updateSaleStatus(now), 구매 확정 시 TimeDealPolicy.confirmSale()가 판단한다.
     public void end() {
         if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);
@@ -274,7 +280,7 @@ public class TimeDeal extends DeletableEntity {
             throw new BusinessException(ErrorCode.TIME_DEAL_NOT_ACTIVE);
         }
         // NOTE: 배치가 늦어도 정확하도록 구매 가능 여부는 status가 아니라 시간으로 판단한다.
-        if (now.isBefore(startAt) || now.isAfter(endAt)) {
+        if (now.isBefore(startAt) || !now.isBefore(endAt)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_INVALID);
         }
     }

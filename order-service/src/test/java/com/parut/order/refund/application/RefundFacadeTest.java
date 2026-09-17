@@ -1,25 +1,23 @@
 package com.parut.order.refund.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
-import com.parut.order.payment.application.port.in.dto.PaymentCancelCommand;
-import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
+import com.parut.order.payment.application.port.in.dto.PaymentCancelReceipt;
 import com.parut.order.refund.application.dto.RefundApprovalContext;
 import com.parut.order.refund.domain.Refund;
 
@@ -52,25 +50,26 @@ class RefundFacadeTest {
                 List.of(firstOrderItemId, secondOrderItemId),
                 20_000L
         );
-        PaymentCancelView paymentCancel = new PaymentCancelView(20_000L, Instant.now());
+        PaymentCancelReceipt receipt = new PaymentCancelReceipt(
+                20_000L,
+                "REFUND",
+                Instant.now(),
+                "pg-transaction-key"
+        );
         List<Refund> approvedRefunds = List.of(
                 Refund.request(firstOrderItemId, 10_000L, "상품 불량", Instant.now()),
                 Refund.request(secondOrderItemId, 10_000L, "상품 파손", Instant.now())
         );
 
         when(refundService.prepareApproval(refundIds, sellerId)).thenReturn(context);
-        when(paymentCancelUseCase.cancel(any(PaymentCancelCommand.class)))
-                .thenReturn(paymentCancel);
-        when(refundService.completeApproval(context, paymentCancel)).thenReturn(approvedRefunds);
+        when(paymentCancelUseCase.cancelOnPg(orderId, 20_000L, "REFUND"))
+                .thenReturn(Optional.of(receipt));
+        when(refundService.completeApproval(context, receipt)).thenReturn(approvedRefunds);
 
-        List<Refund> result = refundFacade.approveRefunds(refundIds, sellerId, "refund-approval-1");
+        List<Refund> result = refundFacade.approveRefunds(refundIds, sellerId);
 
-        ArgumentCaptor<PaymentCancelCommand> commandCaptor = ArgumentCaptor.forClass(PaymentCancelCommand.class);
-        verify(paymentCancelUseCase).cancel(commandCaptor.capture());
-        assertThat(commandCaptor.getValue().orderId()).isEqualTo(orderId);
-        assertThat(commandCaptor.getValue().cancelRequestId()).isEqualTo("refund-approval-1");
-        assertThat(commandCaptor.getValue().cancelAmount()).isEqualTo(20_000L);
-        assertThat(commandCaptor.getValue().reason()).isEqualTo("REFUND");
+        verify(paymentCancelUseCase).cancelOnPg(orderId, 20_000L, "REFUND");
+        verify(refundService).completeApproval(context, receipt);
         assertThat(result).isSameAs(approvedRefunds);
     }
 }

@@ -185,9 +185,9 @@ public class TimeDealStock extends DeletableEntity {
         if (delta == 0) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
-        // NOTE: 조정 후 값으로 판단하므로 reserved/sold를 침범하는 조정이 그대로 걸러진다.
-        if (availableQuantity + delta < 0) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+        // NOTE: 수동 조정 후에도 판매 가능한 재고를 최소 1개 남겨야 한다.
+        if (availableQuantity + delta < 1) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY);
         }
     }
 

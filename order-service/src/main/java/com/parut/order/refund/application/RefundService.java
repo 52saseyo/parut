@@ -21,7 +21,8 @@ import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
 import com.parut.order.order.application.port.in.dto.OrderItemView;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderItemStatus;
-import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
+import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
+import com.parut.order.payment.application.port.in.dto.PaymentCancelReceipt;
 import com.parut.order.refund.application.dto.RefundApprovalContext;
 import com.parut.order.refund.domain.Refund;
 import com.parut.order.refund.domain.RefundStatus;
@@ -44,6 +45,7 @@ public class RefundService {
     private final DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
     private final OrderItemQueryUseCase orderItemQueryUseCase;
     private final OrderItemRefundUseCase orderItemRefundUseCase;
+    private final PaymentCancelUseCase paymentCancelUseCase;
 
     @Transactional
     public Refund requestRefund(
@@ -138,20 +140,21 @@ public class RefundService {
     @Transactional
     public List<Refund> completeApproval(
             RefundApprovalContext context,
-            PaymentCancelView paymentCancel
+            PaymentCancelReceipt receipt
     ) {
-        if (context == null || paymentCancel == null) {
+        if (context == null || receipt == null || receipt.canceledAt() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        if (paymentCancel.canceledAmount() != context.totalRefundAmount()) {
+        if (receipt.cancelAmount() != context.totalRefundAmount()) {
             throw new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
 
         List<Refund> refunds = getRequestedRefunds(context.refundIds());
 
+        paymentCancelUseCase.applyCancellation(context.orderId(), receipt);
         orderItemRefundUseCase.applyRefundCompletion(context.orderItemIds());
-        refunds.forEach(refund -> refund.approve(paymentCancel.canceledAt(), context.sellerId()));
+        refunds.forEach(refund -> refund.approve(receipt.canceledAt(), context.sellerId()));
 
         return refunds;
     }

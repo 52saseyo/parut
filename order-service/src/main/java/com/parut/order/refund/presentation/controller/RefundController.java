@@ -8,13 +8,14 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.parut.order.global.auth.RequireRole;
+import com.parut.order.global.auth.UserContext;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.common.ApiResponse;
-import com.parut.order.global.constant.HeaderConstants;
 import com.parut.order.refund.application.RefundFacade;
 import com.parut.order.refund.application.RefundService;
 import com.parut.order.refund.domain.Refund;
@@ -35,55 +36,54 @@ public class RefundController {
 
     @PostMapping("/order-items/{orderItemId}/refunds")
     @ResponseStatus(HttpStatus.CREATED)
+    @RequireRole(UserRole.CUSTOMER)
     public ApiResponse<RefundResponse> requestRefund(
             @PathVariable UUID orderItemId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID customerId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            UserContext userContext,
             @RequestBody RequestRefundRequest request
     ) {
         Refund refund = refundService.requestRefund(
                 orderItemId,
-                customerId,
+                userContext.userId(),
                 request.reason()
         );
 
-        return ApiResponse.success(RefundResponse.from(refund), traceId);
+        return ApiResponse.success(RefundResponse.from(refund));
     }
 
     @PatchMapping("/refunds/{refundId}/cancel")
+    @RequireRole(UserRole.CUSTOMER)
     public ApiResponse<RefundResponse> cancelRefund(
             @PathVariable UUID refundId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID customerId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId
+            UserContext userContext
     ) {
-        Refund refund = refundService.cancelRefund(refundId, customerId);
-        return ApiResponse.success(RefundResponse.from(refund), traceId);
+        Refund refund = refundService.cancelRefund(refundId, userContext.userId());
+        return ApiResponse.success(RefundResponse.from(refund));
     }
 
     @PatchMapping("/refunds/approve")
+    @RequireRole(UserRole.SELLER)
     public ApiResponse<List<RefundResponse>> approveRefunds(
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
-            @RequestHeader(HeaderConstants.IDEMPOTENCY_KEY) String cancelRequestId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            UserContext userContext,
             @RequestBody ApproveRefundRequest request
     ) {
         List<RefundResponse> refunds = refundFacade
-                .approveRefunds(request.refundIds(), sellerId, cancelRequestId)
+                .approveRefunds(request.refundIds(), userContext.userId())
                 .stream()
                 .map(RefundResponse::from)
                 .toList();
 
-        return ApiResponse.success(refunds, traceId);
+        return ApiResponse.success(refunds);
     }
 
     @PatchMapping("/refunds/{refundId}/reject")
+    @RequireRole(UserRole.SELLER)
     public ApiResponse<RefundResponse> rejectRefund(
             @PathVariable UUID refundId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
-            @RequestHeader(value = HeaderConstants.TRACE_ID, required = false) String traceId,
+            UserContext userContext,
             @RequestBody RejectRefundRequest request
     ) {
-        Refund refund = refundService.rejectRefund(refundId, sellerId, request.rejectionReason());
-        return ApiResponse.success(RefundResponse.from(refund), traceId);
+        Refund refund = refundService.rejectRefund(refundId, userContext.userId(), request.rejectionReason());
+        return ApiResponse.success(RefundResponse.from(refund));
     }
 }

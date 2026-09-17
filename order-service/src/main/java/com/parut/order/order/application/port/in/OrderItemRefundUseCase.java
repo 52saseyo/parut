@@ -3,23 +3,18 @@ package com.parut.order.order.application.port.in;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 환불 처리에 따른 주문상품 상태 변경을 제공한다.
- */
+// Order가 제공하는 주문상품 환불 상태 전이 포트 (환불 도메인이 사용). 모든 메서드는 목록 전체에 대한 all-or-nothing으로 동작한다.
 public interface OrderItemRefundUseCase {
 
-    /** 모든 주문상품을 ORDERED 상태일 때만 REFUND_REQUESTED로 변경한다. */
+    // ORDERED -> REFUND_REQUESTED
     void requestRefund(List<UUID> orderItemIds);
 
-    /** 모든 주문상품을 REFUND_REQUESTED 상태일 때만 ORDERED로 되돌린다. */
+    // REFUND_REQUESTED -> ORDERED (고객이 환불 요청을 철회)
     void withdrawRefundRequest(List<UUID> orderItemIds);
 
-    /**
-     * 모든 주문상품이 REFUND_REQUESTED 상태일 때 REFUNDED로 변경한다.
-     * 하나라도 상태가 다르면 일부만 변경하지 않고 전체 처리를 거부한다.
-     */
+    // REFUND_REQUESTED -> REFUNDED
     void applyRefundCompletion(List<UUID> orderItemIds);
 
-    /** 모든 주문상품을 REFUND_REQUESTED 상태일 때 CONFIRMED로 변경하고 확정 시각을 기록한다. */
+    // REFUND_REQUESTED -> CONFIRMED
     void rejectRefund(List<UUID> orderItemIds);
 }

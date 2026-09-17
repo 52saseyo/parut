@@ -40,9 +40,6 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     @Override
     @Transactional
     public void reserve(TimeDealPurchaseReserveCommand timeDealPurchaseReserveCommand) {
-        // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
-        Instant now = Instant.now();
-
         // NOTE: 같은 orderId가 이미 있으면, 내용이 원본과 같고 아직 RESERVED일 때만 재시도로 보고
         // 재고를 다시 선점하지 않고 성공시킨다(멱등). 하나라도 다르면 orderId 충돌이라 409.
         // order_id unique 제약이 최종 방어선이고, 이 검사는 제약 위반(500)을 409로 바꿔준다.
@@ -65,6 +62,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
             return;
         }
 
+        // 재고 동시성은 추후 Redis 원자적 연산으로 제어하므로 타임딜 행은 일반 조회한다.
         TimeDeal timeDeal = timeDealRepository.findById(timeDealPurchaseReserveCommand.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
         TimeDealStock timeDealStock = timeDealStockRepository
@@ -77,6 +75,8 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
                 timeDealPurchaseReserveCommand.userId()
         );
 
+        // 잠금과 조회를 마친 시각으로 한 번 판정한다. 대기 전 시각을 쓰면 종료 후에도 선점될 수 있다.
+        Instant now = Instant.now();
         TimeDealPurchase timeDealPurchase = timeDealPolicy.reserve(
                 timeDeal,
                 timeDealStock,
@@ -102,15 +102,17 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository
                 .findByOrderId(timeDealPurchaseConfirmCommand.orderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
+        TimeDeal timeDeal = timeDealRepository.findById(timeDealPurchase.getTimeDealId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
         TimeDealStock timeDealStock = timeDealStockRepository
                 .findByTimeDealId(timeDealPurchase.getTimeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
-        TimeDealPurchaseConfirmResult result =
-                timeDealPolicy.confirmSale(timeDealPurchase, timeDealStock, now);
+        TimeDealPurchaseConfirmResult timeDealPurchaseConfirmResult =
+                timeDealPolicy.confirmSale(timeDeal, timeDealPurchase, timeDealStock, now);
 
         // NOTE: 이 예외만 noRollbackFor에 지정되어 있어, 위 정리는 커밋되고 응답은 409가 나간다.
-        if (result == TimeDealPurchaseConfirmResult.CANCELLED) {
+        if (timeDealPurchaseConfirmResult == TimeDealPurchaseConfirmResult.CANCELLED) {
             throw new TimeDealReservationExpiredException();
         }
     }

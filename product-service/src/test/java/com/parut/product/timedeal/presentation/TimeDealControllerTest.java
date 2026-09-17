@@ -1,13 +1,14 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
-import com.parut.product.global.interceptor.ServiceKeyInterceptor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.math.BigDecimal;
@@ -18,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.UUID;
@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = TimeDealController.class, properties = "internal.service-key=test-service-key")
-@Import(ServiceKeyInterceptor.class)
+@WebMvcTest(controllers = TimeDealController.class)
 class TimeDealControllerTest {
     @MockitoBean
     private TimeDealCommandUseCase useCase;
@@ -49,9 +49,9 @@ class TimeDealControllerTest {
             UUID timeDealId = UUID.randomUUID();
             UUID productId = UUID.randomUUID();
             when(queryUseCase.getPublicDetail(timeDealId)).thenReturn(
-                    new TimeDealPublicDetailView(timeDealId, productId,
+                    new TimeDealPublicDetailResult(timeDealId, productId,
                             UUID.fromString("11111111-1111-4111-8111-111111111111"),
-                            UUID.fromString("22222222-2222-4222-8222-222222222222"),
+                            null,
                             "테스트 사과", "산지직송 사과입니다.", TimeDealProductGrade.UGLY, "경북 안동",
                             LocalDate.of(2026, 9, 1), 25000L, new BigDecimal("20.40"), 19900L,
                             Instant.parse("2026-09-01T14:00:00Z"), Instant.parse("2026-09-01T17:00:00Z"),
@@ -62,7 +62,7 @@ class TimeDealControllerTest {
                     .andExpect(jsonPath("$.data.timeDealId").value(timeDealId.toString()))
                     .andExpect(jsonPath("$.data.productId").value(productId.toString()))
                     .andExpect(jsonPath("$.data.sellerId").value("11111111-1111-4111-8111-111111111111"))
-                    .andExpect(jsonPath("$.data.imageId").value("22222222-2222-4222-8222-222222222222"))
+                    .andExpect(jsonPath("$.data.imageUrl").value(nullValue()))
                     .andExpect(jsonPath("$.data.name").value("테스트 사과"))
                     .andExpect(jsonPath("$.data.description").value("산지직송 사과입니다."))
                     .andExpect(jsonPath("$.data.productGrade").value("UGLY"))
@@ -88,7 +88,7 @@ class TimeDealControllerTest {
         void 직접등록_타임딜은_productId가_null이며_추적헤더도_생략할수있다() throws Exception {
             UUID timeDealId = UUID.randomUUID();
             when(queryUseCase.getPublicDetail(timeDealId)).thenReturn(
-                    new TimeDealPublicDetailView(timeDealId, null, UUID.randomUUID(), null,
+                    new TimeDealPublicDetailResult(timeDealId, null, UUID.randomUUID(), null,
                             "직접 등록 사과", null, TimeDealProductGrade.NORMAL, "경북 안동",
                             LocalDate.of(2026, 9, 1), 25000L, new BigDecimal("20.40"), 19900L,
                             Instant.now(), Instant.now().plusSeconds(3600),
@@ -96,9 +96,9 @@ class TimeDealControllerTest {
             mvc.perform(get("/api/v1/time-deals/{id}", timeDealId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.productId").value(nullValue()))
-                    .andExpect(jsonPath("$.data.imageId").value(nullValue()))
+                    .andExpect(jsonPath("$.data.imageUrl").value(nullValue()))
                     .andExpect(jsonPath("$.data.description").value(nullValue()))
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
         }
 
         @Test
@@ -106,9 +106,11 @@ class TimeDealControllerTest {
             UUID timeDealId = UUID.randomUUID();
             when(queryUseCase.getPublicDetail(timeDealId))
                     .thenThrow(new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-            mvc.perform(get("/api/v1/time-deals/{id}", timeDealId))
+            mvc.perform(get("/api/v1/time-deals/{id}", timeDealId)
+                            .header("X-Trace-Id", "trace-error-404"))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.code").value("TIME_DEAL_NOT_FOUND"));
+                    .andExpect(jsonPath("$.code").value("TIME_DEAL_NOT_FOUND"))
+                    .andExpect(jsonPath("$.traceId").value("trace-error-404"));
         }
     }
 
@@ -137,7 +139,46 @@ class TimeDealControllerTest {
                             .header("X-User-Id", UUID.randomUUID())
                             .header("X-User-Role", "ADMIN"))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.traceId").value(nullValue()));
+                    .andExpect(jsonPath("$.traceId").isString());
+        }
+    }
+
+    @Nested
+    @DisplayName("타임딜 강제 종료")
+    class Stop {
+        @Test
+        void 강제종료_성공은_STOPPED_상태와_traceId를_반환한다() throws Exception {
+            UUID id = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            when(useCase.stop(new TimeDealStopCommand(id, requesterId, "SELLER")))
+                    .thenReturn(new TimeDealStopResult(id, TimeDealStatus.STOPPED));
+
+            mvc.perform(patch("/api/v1/time-deals/{id}/stop", id)
+                            .header("X-User-Id", requesterId)
+                            .header("X-User-Role", "SELLER")
+                            .header("X-Trace-Id", "trace-stop-123"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value("OK"))
+                    .andExpect(jsonPath("$.data.timeDealId").value(id.toString()))
+                    .andExpect(jsonPath("$.data.status").value("STOPPED"))
+                    .andExpect(jsonPath("$.traceId").value("trace-stop-123"))
+                    .andExpect(jsonPath("$.timestamp").exists());
+            verify(useCase).stop(new TimeDealStopCommand(id, requesterId, "SELLER"));
+        }
+
+        @Test
+        void traceId가_없어도_강제종료할_수_있다() throws Exception {
+            UUID id = UUID.randomUUID();
+            UUID requesterId = UUID.randomUUID();
+            when(useCase.stop(new TimeDealStopCommand(id, requesterId, "ADMIN")))
+                    .thenReturn(new TimeDealStopResult(id, TimeDealStatus.STOPPED));
+
+            mvc.perform(patch("/api/v1/time-deals/{id}/stop", id)
+                            .header("X-User-Id", requesterId)
+                            .header("X-User-Role", "ADMIN"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.status").value("STOPPED"))
+                    .andExpect(jsonPath("$.traceId").isString());
         }
     }
 }

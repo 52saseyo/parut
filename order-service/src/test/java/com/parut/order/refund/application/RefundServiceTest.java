@@ -28,7 +28,8 @@ import com.parut.order.order.application.port.in.OrderItemRefundUseCase;
 import com.parut.order.order.application.port.in.dto.OrderItemView;
 import com.parut.order.order.domain.DeliveryGroupStatus;
 import com.parut.order.order.domain.OrderItemStatus;
-import com.parut.order.payment.application.port.in.dto.PaymentCancelView;
+import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
+import com.parut.order.payment.application.port.in.dto.PaymentCancelReceipt;
 import com.parut.order.refund.application.dto.RefundApprovalContext;
 import com.parut.order.refund.domain.Refund;
 import com.parut.order.refund.domain.RefundStatus;
@@ -55,6 +56,9 @@ class RefundServiceTest {
 
     @Mock
     private OrderItemRefundUseCase orderItemRefundUseCase;
+
+    @Mock
+    private PaymentCancelUseCase paymentCancelUseCase;
 
     @InjectMocks
     private RefundService refundService;
@@ -187,9 +191,15 @@ class RefundServiceTest {
                 ));
 
         RefundApprovalContext context = refundService.prepareApproval(refundIds, SELLER_ID);
+        PaymentCancelReceipt receipt = new PaymentCancelReceipt(
+                20_000L,
+                "REFUND",
+                canceledAt,
+                "pg-transaction-key"
+        );
         List<Refund> approved = refundService.completeApproval(
                 context,
-                new PaymentCancelView(20_000L, canceledAt)
+                receipt
         );
 
         assertThat(context.totalRefundAmount()).isEqualTo(20_000L);
@@ -200,6 +210,7 @@ class RefundServiceTest {
         assertThat(approved)
                 .extracting(Refund::getProcessedBy)
                 .containsOnly(SELLER_ID);
+        verify(paymentCancelUseCase).applyCancellation(ORDER_ID, receipt);
         verify(orderItemRefundUseCase).applyRefundCompletion(context.orderItemIds());
     }
 
