@@ -6,9 +6,11 @@ import com.parut.product.global.common.OffsetResponse;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockUpdateRequest;
+import com.parut.product.product.presentation.stock.dto.response.IsolatedReservationResponse;
 import com.parut.product.product.presentation.stock.dto.response.ProductStockResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -85,5 +87,27 @@ public class ProductStockController {
         OffsetResponse<ProductStockResponse> response = new OffsetResponse<>(content, pageInfo);
 
         return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
+    @GetMapping("/reservations/isolated")
+    public ResponseEntity<ApiResponse<List<IsolatedReservationResponse>>> getIsolatedReservations(
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole
+    ) {
+        List<IsolatedReservationResult> results = productStockService.getIsolatedReservations(requesterId, requesterRole);
+        List<IsolatedReservationResponse> response = results.stream()
+                .map(IsolatedReservationResponse::from)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
+    @PostMapping("/reservations/{reservationId}/recover")
+    public ResponseEntity<ApiResponse<Void>> recoverIsolatedReservation(
+            @PathVariable UUID reservationId,
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole
+    ) {
+        productStockService.recoverIsolatedReservation(reservationId, requesterId, requesterRole);
+        return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 }

@@ -1,7 +1,7 @@
 package com.parut.product.product.presentation.stock.dto.request;
 
 
-import com.parut.product.product.application.dto.stock.ProductStockReserveItem;
+import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;

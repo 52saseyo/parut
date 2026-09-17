@@ -1,5 +1,6 @@
 package com.parut.product.product.application.authorization.stock;
 
+import com.parut.product.global.common.UserRole;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -10,23 +11,40 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class ProductStockAuthorizationChecker {
-    private static final String ADMIN_ROLE = "ADMIN";
-    private static final String SELLER_ROLE = "SELLER";
 
     public void requireOwner(UUID requesterId, String requesterRole, UUID sellerId) {
-        if (!SELLER_ROLE.equals(requesterRole) || !sellerId.equals(requesterId)) {
-            throw new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        UserRole role = UserRole.parse(requesterRole).orElseThrow(this::forbidden);
+        if (role != UserRole.SELLER || !sellerId.equals(requesterId)) {
+            throw forbidden();
         }
     }
 
     public void requireOwnerOrAdmin(UUID requesterId, String requesterRole, UUID sellerId) {
-        if (ADMIN_ROLE.equals(requesterRole)) {
+        UserRole role = UserRole.parse(requesterRole).orElseThrow(this::forbidden);
+        if (role == UserRole.ADMIN) {
             return;
         }
         requireOwner(requesterId, requesterRole, sellerId);
     }
 
     public boolean isAdmin(String requesterRole) {
-        return ADMIN_ROLE.equals(requesterRole);
+        return UserRole.parse(requesterRole).map(r -> r == UserRole.ADMIN).orElse(false);
+    }
+
+    public void requireAdmin(String requesterRole) {
+        if (!isAdmin(requesterRole)) {
+            throw forbidden();
+        }
+    }
+    public UserRole requireSellerOrAdminRole(String requesterRole) {
+        UserRole role = UserRole.parse(requesterRole).orElseThrow(this::forbidden);
+        if (role != UserRole.SELLER && role != UserRole.ADMIN) {
+            throw forbidden();
+        }
+        return role;
+    }
+
+    private BusinessException forbidden() {
+        return new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN);
     }
 }
