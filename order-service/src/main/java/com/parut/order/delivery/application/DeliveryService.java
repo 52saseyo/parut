@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
@@ -30,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class DeliveryService implements DeliveryCreateUseCase {
+public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletionQueryUseCase {
 
     private final DeliveryRepository deliveryRepository;
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
@@ -51,6 +52,17 @@ public class DeliveryService implements DeliveryCreateUseCase {
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
                 .forEach(this::findOrCreateDelivery);
+    }
+
+    @Override
+    public Optional<Instant> getDeliveredAt (UUID deliveryGroupId) {
+        if (deliveryGroupId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
+                .filter(delivery -> delivery.getStatus() == DeliveryStatus.DELIVERED)
+                .map(Delivery::getDeliveredAt);
     }
 
     public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {

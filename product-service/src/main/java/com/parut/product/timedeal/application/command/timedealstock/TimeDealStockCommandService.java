@@ -86,6 +86,10 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
                 .findByTimeDealId(timeDealStockTransferCommand.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
+        // 일반상품 재고가 먼저 변경되므로 ACTIVE/ENDED/STOPPED 및 타임딜 재고 하한을 선검증한다.
+        timeDealPolicy.validateStockAdjustment(
+                timeDeal, timeDealStock, timeDealStockTransferCommand.quantity());
+
         ProductStockTransferCommand productStockTransferCommand = ProductStockTransferCommand.of(
                 timeDealStockTransferCommand.productId(),
                 timeDealStockTransferCommand.quantity(),

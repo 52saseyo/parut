@@ -1,10 +1,24 @@
 package com.parut.order.order.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import com.parut.order.global.exception.BusinessException;
+import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.order.application.dto.CancelOrderCommand;
+import com.parut.order.order.application.dto.OrderCancelContext;
+import com.parut.order.order.application.dto.OrderCancelResult;
+import com.parut.order.order.domain.*;
+import com.parut.order.order.infrastructure.persistence.OrderCancelRepository;
+import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
+import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
+import com.parut.order.order.infrastructure.persistence.OrderRepository;
+import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
+import com.parut.order.payment.application.port.in.PaymentQueryUseCase;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,35 +28,11 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import com.parut.order.global.exception.BusinessException;
-import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.order.application.dto.CancelOrderCommand;
-import com.parut.order.order.application.dto.OrderCancelContext;
-import com.parut.order.order.application.dto.OrderCancelResult;
-import com.parut.order.order.domain.CancelReasonCode;
-import com.parut.order.order.domain.CanceledByType;
-import com.parut.order.order.domain.DeliveryGroupStatus;
-import com.parut.order.order.domain.Order;
-import com.parut.order.order.domain.OrderCancel;
-import com.parut.order.order.domain.OrderDeliveryGroup;
-import com.parut.order.order.domain.OrderItem;
-import com.parut.order.order.domain.OrderItemStatus;
-import com.parut.order.order.domain.OrderStatus;
-import com.parut.order.order.domain.OrderType;
-import com.parut.order.order.infrastructure.persistence.OrderCancelRepository;
-import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
-import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
-import com.parut.order.order.infrastructure.persistence.OrderRepository;
-import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
-import com.parut.order.payment.application.port.in.PaymentQueryUseCase;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderCancelServiceTest {
@@ -73,6 +63,38 @@ class OrderCancelServiceTest {
 
     @InjectMocks
     private OrderCancelService orderCancelService;
+
+    @Test
+    @DisplayName("재고 확정 실패 시 모든 배송그룹·아이템을 취소하고 취소 금액에 전부 반영한다")
+    void 재고확정실패_다건전체취소() {
+        ReflectionTestUtils.setField(orderCancelService, "systemAccountId", "00000000-0000-0000-0000-000000000000");
+        // 배송그룹 2개라 배송비도 2배 필요 -> paidOrder()의 단일 배송비 전제와 달라 별도 구성
+        Order order = Order.create(
+                "ORD-20260916-BBBBBBBB", CUSTOMER_ID, OrderType.NORMAL, "김파릇", "010-1234-5678",
+                "12345", "전남 나주시 배꽃로 1", null, null, UNIT_PRICE * 2, DELIVERY_FEE * 2, "idem-order-0002");
+        ReflectionTestUtils.setField(order, "id", ORDER_ID);
+        order.markStockReserved(Instant.parse("2026-09-17T01:00:00Z"));
+        order.markPaymentPending();
+        order.markPaid(Instant.parse("2026-09-16T01:00:00Z"));
+        OrderDeliveryGroup group1 = group(DeliveryGroupStatus.PENDING, SELLER_ID);
+        OrderDeliveryGroup group2 = group(DeliveryGroupStatus.PENDING, UUID.randomUUID());
+        OrderItem item1 = item(group1, null);
+        OrderItem item2 = item(group2, null);
+
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderDeliveryGroupRepository.findByOrderId(ORDER_ID)).thenReturn(List.of(group1, group2));
+        when(orderItemRepository.findByOrderId(ORDER_ID)).thenReturn(List.of(item1, item2));
+        when(orderCancelRepository.save(any(OrderCancel.class)))
+                .thenAnswer(invocation -> withId(invocation.getArgument(0)));
+
+        orderCancelService.cancelForStockShortage(ORDER_ID);
+
+        assertThat(item1.getItemStatus()).isEqualTo(OrderItemStatus.CANCELED);
+        assertThat(item2.getItemStatus()).isEqualTo(OrderItemStatus.CANCELED);
+        assertThat(group1.getGroupStatus()).isEqualTo(DeliveryGroupStatus.CANCELED);
+        assertThat(group2.getGroupStatus()).isEqualTo(DeliveryGroupStatus.CANCELED);
+        assertThat(order.getCanceledAmount()).isEqualTo(UNIT_PRICE * 2 + DELIVERY_FEE * 2);
+    }
 
     @Test
     @DisplayName("검증: 그룹의 ORDERED 아이템이 모두 취소 대상이면 배송비까지 취소 금액에 포함한다")
