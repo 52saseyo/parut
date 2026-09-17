@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -71,12 +72,22 @@ public class PaymentService {
         // TODO: 실제 토스 연동 시 PaymentFacade에서 트랜잭션 밖으로 분리 예정, 지금은 Mock이라 보류
         paymentGateway.ready(order.orderNo(), order.totalPaymentAmount());
 
-        // ToDo: bulk 도입 시 수정 예정
-        String orderName = orderSnapshotQueryUseCase.getFirstOrderItemSnapshot(order.orderId())
-                .map(OrderItemSnapshotView::productName)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+        String orderName = buildOrderName(order.orderId());
 
         return PaymentReadyResult.from(order, payment, orderName, successUrl, failUrl);
+    }
+
+    // 쿠팡·네이버페이·토스 등에서 흔히 쓰는 표기 방식: "{첫 상품명} 외 {N-1}건"
+    private String buildOrderName(UUID orderId) {
+        List<OrderItemSnapshotView> items = orderSnapshotQueryUseCase.getOrderItemSnapshots(orderId);
+        if (items.isEmpty()) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
+        }
+
+        String firstProductName = items.get(0).productName();
+        return items.size() > 1
+                ? firstProductName + " 외 " + (items.size() - 1) + "건"
+                : firstProductName;
     }
 
     public PaymentConfirmContext loadForConfirm(PaymentConfirmCommand command) {
@@ -97,11 +108,12 @@ public class PaymentService {
             throw new BusinessException(ErrorCode.INVALID_ORDER_STATUS);
         }
 
-        // ToDo: bulk 도입 시 수정 예정
-        OrderItemSnapshotView item = orderSnapshotQueryUseCase.getFirstOrderItemSnapshot(payment.getOrderId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+        List<OrderItemSnapshotView> items = orderSnapshotQueryUseCase.getOrderItemSnapshots(payment.getOrderId());
+        if (items.isEmpty()) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
+        }
 
-        return new PaymentConfirmContext(payment.getId(), payment.getOrderId(), payment.getUserId(), item.orderItemId(), item.productId(), item.timeDealId());
+        return new PaymentConfirmContext(payment.getId(), payment.getOrderId(), payment.getUserId(), items);
     }
 
     @Transactional
@@ -135,7 +147,6 @@ public class PaymentService {
 
     @Transactional
     public void markDeliveryPreparing(UUID orderId) {
-        // ToDo: bulk 도입 시 수정 예정
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
                 .map(OrderDeliveryGroupView::deliveryGroupId)
                 .forEach(orderDeliveryGroupStatusUseCase::markPreparing);
