@@ -2031,6 +2031,82 @@
           ]
         }
       ]
+    },
+    {
+      "name": "10 user-service",
+      "item": [
+        {
+          "name": "11 auth",
+          "item": []
+        },
+        {
+          "name": "12 user",
+          "item": []
+        },
+        {
+          "name": "13 seller",
+          "item": []
+        }
+      ]
+    },
+    {
+      "name": "20 product-service",
+      "item": [
+        {
+          "name": "21 product",
+          "item": []
+        },
+        {
+          "name": "22 image",
+          "item": []
+        },
+        {
+          "name": "23 stock",
+          "item": []
+        },
+        {
+          "name": "24 timedeal",
+          "item": []
+        }
+      ]
+    },
+    {
+      "name": "30 order-service",
+      "item": [
+        {
+          "name": "31 order",
+          "item": []
+        },
+        {
+          "name": "32 payment",
+          "item": []
+        },
+        {
+          "name": "33 delivery",
+          "item": []
+        },
+        {
+          "name": "34 refund",
+          "item": []
+        },
+        {
+          "name": "35 settlement",
+          "item": []
+        }
+      ]
+    },
+    {
+      "name": "40 notification-service",
+      "item": [
+        {
+          "name": "41 notification",
+          "item": []
+        }
+      ]
+    },
+    {
+      "name": "50 gateway-service",
+      "item": []
     }
   ]
 }
