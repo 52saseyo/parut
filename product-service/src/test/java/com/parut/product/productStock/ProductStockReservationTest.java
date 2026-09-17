@@ -185,4 +185,5 @@ public class ProductStockReservationTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
+
 }
