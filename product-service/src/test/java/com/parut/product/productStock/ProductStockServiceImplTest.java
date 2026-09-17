@@ -3,6 +3,8 @@ package com.parut.product.productStock;
 import com.parut.product.global.common.UserRole;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
+import com.parut.product.global.dto.ProductStockTransferCommand;
+import com.parut.product.global.dto.ProductStockTransferResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
@@ -1921,7 +1923,188 @@ public class ProductStockServiceImplTest {
         }
     }
 
-    private Product createOnSaleProduct(UUID sellerId, long price) {
+    @Nested
+    @DisplayName("transferStock()")
+    class TransferStock {
+
+        @Test
+        @DisplayName("음수(감소) 요청 - 판매자 본인이 요청하면 정상 반영된다")
+        void transferStock_negativeQuantity_bySeller_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -30, sellerId, "SELLER");
+            ProductStockTransferResult result = productStockService.transferStock(command);
+
+            log.info("[ProductStockService.transferStock] 감소 30 -> total={}, available={}, result.quantity={}",
+                    stock.getTotalQuantity(), stock.getAvailableQuantity(), result.quantity());
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(70);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(70);
+            // ProductStockTransferResult.of()가 부호를 다시 반전시키므로 원래 커맨드와 반대 부호로 나와야 함
+            assertThat(result.quantity()).isEqualTo(30);
+            assertThat(result.productAvailableQuantity()).isEqualTo(70);
+
+            ArgumentCaptor<ProductStockAllocationLog> logCaptor = ArgumentCaptor.forClass(ProductStockAllocationLog.class);
+            verify(productStockAllocationLogRepository).save(logCaptor.capture());
+            assertThat(logCaptor.getValue().getEventType()).isEqualTo(AllocationEventType.ALLOCATE);
+            assertThat(logCaptor.getValue().getQuantity()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("양수(증가) 요청 - 판매자 본인이 요청하면 정상 반영된다")
+        void transferStock_positiveQuantity_bySeller_success() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            stock.allocate(30); // total=70, available=70로 미리 차감
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, 30, sellerId, "SELLER");
+            ProductStockTransferResult result = productStockService.transferStock(command);
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(100);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(100);
+            assertThat(result.quantity()).isEqualTo(-30);
+
+            ArgumentCaptor<ProductStockAllocationLog> logCaptor = ArgumentCaptor.forClass(ProductStockAllocationLog.class);
+            verify(productStockAllocationLogRepository).save(logCaptor.capture());
+            assertThat(logCaptor.getValue().getEventType()).isEqualTo(AllocationEventType.DEALLOCATE);
+        }
+
+        @Test
+        @DisplayName("양수(증가) 요청은 상품이 SOLD_OUT이어도 막히지 않는다")
+        void transferStock_positiveQuantity_evenIfNotOnSale_success() {
+            ProductStock stock = ProductStock.create(productId, 30, 5);
+            stock.allocate(30); // SOLD_OUT 상태로 만듦
+            Product product = createDraftProduct(sellerId, 5000L); // ON_SALE 아님
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, 10, sellerId, "SELLER");
+
+            log.info("[ProductStockService.transferStock] 상품 DRAFT 상태여도 증가 방향은 허용되어야 함");
+
+            productStockService.transferStock(command);
+
+            assertThat(stock.getTotalQuantity()).isEqualTo(10);
+            verify(productStateManager).resumeSaleAfterRestock(productId);
+        }
+
+        @Test
+        @DisplayName("소유자가 아닌 판매자가 요청하면 예외가 발생")
+        void transferStock_notOwner_throwsForbidden() {
+            Product product = createOnSaleProduct(sellerId, 5000L);
+            given(productReader.getProduct(productId)).willReturn(product);
+            doThrow(new BusinessException(ErrorCode.PRODUCT_STOCK_FORBIDDEN))
+                    .when(authorizationChecker).requireOwnerOrAdmin(any(), any(), any());
+
+            UUID otherSellerId = UUID.randomUUID();
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -10, otherSellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("음수(감소) 요청인데 상품이 ON_SALE이 아니면 예외가 발생")
+        void transferStock_negativeQuantity_notOnSale_throwsException() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createDraftProduct(sellerId, 5000L);
+            given(productReader.getProduct(productId)).willReturn(product);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -10, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
+        }
+
+        @Test
+        @DisplayName("재고가 없으면 예외가 발생")
+        void transferStock_stockNotFound_throwsException() {
+            Product product = createOnSaleProduct(sellerId, 5000L);
+            given(productReader.getProduct(productId)).willReturn(product);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.empty());
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -10, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("가용 재고보다 많이 감소 요청하면 예외가 발생")
+        void transferStock_shortage_throwsException() {
+            ProductStock stock = ProductStock.create(productId, 10, 2);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -20, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_SHORTAGE);
+        }
+
+        @Test
+        @DisplayName("quantity가 0이면 예외가 발생")
+        void transferStock_zeroQuantity_throwsInvalidQuantity() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, 0, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("낙관적 락 충돌 시 CONFLICT 에러로 변환된다")
+        void transferStock_optimisticLockFailure_throwsConflict() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+            given(productStockRepository.saveAndFlush(any(ProductStock.class))).willThrow(OptimisticLockingFailureException.class);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -30, sellerId, "SELLER");
+
+            assertThatThrownBy(() -> productStockService.transferStock(command))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
+        @Test
+        @DisplayName("감소로 재고가 0이 되면 품절 알림이 호출된다")
+        void transferStock_negativeReachesZero_notifiesSoldOut() {
+            ProductStock stock = ProductStock.create(productId, 30, 5);
+            Product product = createOnSaleProduct(sellerId, 5000L);
+
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getProduct(productId)).willReturn(product);
+
+            ProductStockTransferCommand command = new ProductStockTransferCommand(productId, -30, sellerId, "SELLER");
+            productStockService.transferStock(command);
+
+            verify(productStateManager).soldOut(productId);
+        }
+    }
+
+        private Product createOnSaleProduct(UUID sellerId, long price) {
         Product product = Product.create(
                 sellerId,
                 ProductCategory.FRUIT,

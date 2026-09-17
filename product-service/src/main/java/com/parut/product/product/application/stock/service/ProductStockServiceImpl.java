@@ -4,6 +4,8 @@ package com.parut.product.product.application.stock.service;
 import com.parut.product.global.common.UserRole;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
+import com.parut.product.global.dto.ProductStockTransferCommand;
+import com.parut.product.global.dto.ProductStockTransferResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
@@ -272,6 +274,38 @@ public class ProductStockServiceImpl implements ProductStockService{
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
 
         saveEventLog(reservation.getId(), reserveLog.getOrderItemId(), StockEventType.RESTORE);
+    }
+
+    @Override
+    public ProductStockTransferResult transferStock(ProductStockTransferCommand command) {
+        Product product = productReader.getProduct(command.productId());
+        authorizationChecker.requireOwnerOrAdmin(command.requesterId(), command.requesterRole(), product.getSellerId());
+
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
+                .orElseThrow(()->new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        StockStatus previousStatus = stock.getStatus();
+        int quantity = command.quantity();
+        if (quantity < 0 && product.getStatus() != ProductStatus.ON_SALE) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
+        }
+        stock.transfer(quantity);
+
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+        productStockAllocationLogRepository.save(
+                ProductStockAllocationLog.create(
+                        stock.getId(),
+                        quantity < 0 ? AllocationEventType.ALLOCATE : AllocationEventType.DEALLOCATE,
+                        Math.abs(quantity)
+                )
+        );
+        if (stock.getStatus() == StockStatus.SOLD_OUT) {
+            notifySoldOut(command.productId());
+        } else if (previousStatus == StockStatus.SOLD_OUT) {
+            notifyRestocked(command.productId());
+        }
+
+        return ProductStockTransferResult.of(command.productId(), quantity, stock.getAvailableQuantity());
     }
 
 

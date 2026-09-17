@@ -2,6 +2,8 @@ package com.parut.product.product.application.stock.service;
 
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
+import com.parut.product.global.dto.ProductStockTransferCommand;
+import com.parut.product.global.dto.ProductStockTransferResult;
 import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.dto.ProductStockItem;
 import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
@@ -42,4 +44,6 @@ public interface ProductStockService {
     void deallocate(ProductStockAllocateCommand command);
 
     ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole, String cursor, int size);
+
+    ProductStockTransferResult transferStock(ProductStockTransferCommand command);
 }
