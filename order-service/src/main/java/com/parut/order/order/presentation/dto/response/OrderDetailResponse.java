@@ -26,7 +26,7 @@ public record OrderDetailResponse(
         RecipientResponse recipient,
         PaymentSummaryResponse payment,
         List<DeliveryGroupResponse> deliveryGroups,
-        List<OrderCancelResponse> cancels
+        List<CancelSummaryResponse> cancels
 ) {
     public static OrderDetailResponse from(OrderDetailData data) {
         return new OrderDetailResponse(
@@ -44,7 +44,7 @@ public record OrderDetailResponse(
                 RecipientResponse.from(data.recipient()),
                 data.payment() == null ? null : PaymentSummaryResponse.from(data.payment()),
                 data.deliveryGroups().stream().map(DeliveryGroupResponse::from).toList(),
-                data.cancels().stream().map(OrderCancelResponse::from).toList()
+                data.cancels().stream().map(CancelSummaryResponse::from).toList()
         );
     }
 
@@ -152,7 +152,7 @@ public record OrderDetailResponse(
         }
     }
 
-    public record OrderCancelResponse(
+    public record CancelSummaryResponse(
             UUID cancelId,
             CancelReasonCode cancelReasonCode,
             String cancelReason,
@@ -163,8 +163,8 @@ public record OrderDetailResponse(
             Boolean refundRequired,
             Instant canceledAt
     ) {
-        static OrderCancelResponse from(OrderDetailData.Cancel cancel) {
-            return new OrderCancelResponse(
+        static CancelSummaryResponse from(OrderDetailData.Cancel cancel) {
+            return new CancelSummaryResponse(
                     cancel.cancelId(),
                     cancel.cancelReasonCode(),
                     cancel.cancelReason(),
