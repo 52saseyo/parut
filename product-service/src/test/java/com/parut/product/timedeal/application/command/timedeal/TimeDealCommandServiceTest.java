@@ -12,7 +12,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
-import com.parut.product.timedeal.application.port.out.product.ProductStockAllocationPort;
+import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
@@ -64,7 +64,7 @@ class TimeDealCommandServiceTest {
 
     // NOTE: create() 경로는 이 포트를 타지 않는다. 전환 경로 테스트는 allocate() 연결 후에 붙인다.
     @Mock
-    private ProductStockAllocationPort productStockAllocationPort;
+    private ProductStockPort productStockPort;
 
     private TimeDealCommandService timeDealCommandService;
 
@@ -75,7 +75,7 @@ class TimeDealCommandServiceTest {
                 timeDealRepository,
                 timeDealStockRepository,
                 new TimeDealPolicy(),
-                productStockAllocationPort,
+                productStockPort,
                 new TimeDealAuthorizationChecker()
         );
     }
@@ -113,7 +113,7 @@ class TimeDealCommandServiceTest {
             assertThat(stock.getDeletedBy()).isEqualTo(SELLER_ID.toString());
             verify(timeDealRepository).save(timeDeal);
             verify(timeDealStockRepository).save(stock);
-            verifyNoInteractions(productStockAllocationPort);
+            verifyNoInteractions(productStockPort);
         }
 
         @Test
@@ -291,7 +291,7 @@ class TimeDealCommandServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
-            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
+            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockPort);
         }
 
         @Test
@@ -300,7 +300,7 @@ class TimeDealCommandServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
-            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
+            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockPort);
         }
 
         // NOTE: save()가 id와 createdAt(@CreatedDate)을 채워 돌려주는 JPA 동작을 흉내낸다 —
@@ -402,7 +402,7 @@ class TimeDealCommandServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
-            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockAllocationPort);
+            verifyNoInteractions(timeDealRepository, timeDealStockRepository, productStockPort);
         }
     }
 
@@ -446,7 +446,7 @@ class TimeDealCommandServiceTest {
             assertThat(timeDeal.getStartAt()).isEqualTo(START_AT);
             assertThat(timeDeal.getSellerId()).isEqualTo(SELLER_ID);
             verify(timeDealRepository).saveAndFlush(timeDeal);
-            verifyNoInteractions(timeDealStockRepository, productStockAllocationPort);
+            verifyNoInteractions(timeDealStockRepository, productStockPort);
         }
 
         @Test

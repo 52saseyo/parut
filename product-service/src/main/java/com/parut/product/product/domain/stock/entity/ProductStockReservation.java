@@ -86,4 +86,16 @@ public class ProductStockReservation extends DeletableEntity {
         }
     }
 
+    // 관리자의 격리 예약 복구 전용 - EXPIRATION_FAILED 상태에서만 호출 가능
+    public void recoverFromIsolation() {
+        validateIsolated();
+        this.status = ReservationStatus.EXPIRED;
+    }
+
+    private void validateIsolated() {
+        if (this.status != ReservationStatus.EXPIRATION_FAILED) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+    }
+
 }

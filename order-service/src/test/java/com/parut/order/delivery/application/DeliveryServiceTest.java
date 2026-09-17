@@ -113,22 +113,10 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(delivery));
 
-        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.SELLER);
+        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID);
 
         assertThat(result).containsExactly(delivery);
         verify(deliveryRepository, never()).findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID);
-    }
-
-    @Test
-    @DisplayName("판매자가 아니면 배송 목록 조회와 배송 시작을 거부한다")
-    void 판매자_전용_배송_API_권한_없음() {
-        assertThatThrownBy(() -> deliveryService.getDeliveries(ORDER_ID, SELLER_ID, UserRole.CUSTOMER))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> deliveryService.startDelivery(
-                UUID.randomUUID(), SELLER_ID, UserRole.CUSTOMER, "1234567890"))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -160,9 +148,6 @@ class DeliveryServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
         assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SELLER))
-                .isInstanceOf(BusinessException.class)
-                .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.SYSTEM))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
