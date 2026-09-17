@@ -280,7 +280,7 @@ class ProductServiceTest {
         assertThat(response.productId()).isEqualTo(PRODUCT_ID);
         assertThat(response.status()).isEqualTo(ProductStatus.ON_SALE);
         assertThat(response.availableQuantity()).isEqualTo(95);
-        assertThat(response.url()).isEqualTo(IMAGE_URL);
+        assertThat(response.imageUrl()).isEqualTo(IMAGE_URL);
     }
 
     @Test
