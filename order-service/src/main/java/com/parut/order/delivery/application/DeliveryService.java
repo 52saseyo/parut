@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 배송 생성, 조회와 상태 변경을 처리한다.
  *
- * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 권한 검증, 트랜잭션과
+ * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 소유권 검증, 트랜잭션과
  * Order 배송 그룹 상태 동기화를 조율한다.
  */
 @Service
@@ -53,12 +53,9 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .forEach(this::findOrCreateDelivery);
     }
 
-    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId, UserRole userRole) {
+    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
         if (orderId == null || sellerId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (userRole != UserRole.SELLER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
@@ -69,13 +66,15 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .toList();
     }
 
-    /** 배송 존재 여부와 Order가 소유한 구매자, 판매자 정보를 확인한다. */
+    /**
+     * 배송을 조회하고 역할에 따라 데이터 소유권을 확인한다.
+     *
+     * <p>역할 자체는 {@code UserContextInterceptor}가 검사하고, 여기서는 고객과
+     * 판매자의 소유권 및 관리자의 전체 조회 범위만 판단한다.
+     */
     public Delivery getDelivery(UUID deliveryId, UUID userId, UserRole userRole) {
         if (deliveryId == null || userId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (userRole != UserRole.CUSTOMER && userRole != UserRole.SELLER && userRole != UserRole.ADMIN) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findById(deliveryId)
@@ -90,7 +89,8 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
             }
         } else if (userRole == UserRole.SELLER) {
-            OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase.getDeliveryGroup(delivery.getDeliveryGroupId())
+            OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase
+                    .getDeliveryGroup(delivery.getDeliveryGroupId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
             if (!userId.equals(group.sellerId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
@@ -112,18 +112,10 @@ public class DeliveryService implements DeliveryCreateUseCase {
      * 한쪽만 반영되는 상태 불일치를 막는다.
      */
     @Transactional
-    public Delivery startDelivery(
-            UUID deliveryId,
-            UUID sellerId,
-            UserRole userRole,
-            String trackingNumber
-    ) {
+    public Delivery startDelivery(UUID deliveryId, UUID sellerId, String trackingNumber) {
         if (deliveryId == null || sellerId == null
                 || trackingNumber == null || trackingNumber.isBlank() || trackingNumber.length() > 30) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (userRole != UserRole.SELLER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findById(deliveryId)
@@ -139,7 +131,7 @@ public class DeliveryService implements DeliveryCreateUseCase {
         if (!sellerId.equals(deliveryGroup.sellerId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        if (deliveryGroup.nonCanceledItemCount() <= 0) {
+        if (deliveryGroup.shippableItemCount() <= 0) {
             throw new BusinessException(ErrorCode.DELIVERY_NO_SHIPPABLE_ITEMS);
         }
 
