@@ -1,5 +1,6 @@
 package com.parut.user.user.infrastructure;
 
+import aj.org.objectweb.asm.commons.Remapper;
 import com.parut.user.user.domain.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,4 +20,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     // 2. 로그인 시 회원 정보 조회용 (추가)
     Optional<User> findByUsername(String username);
+
+    Optional<User> findByIdAndDeletedAtIsNull(UUID userUuid);
 }

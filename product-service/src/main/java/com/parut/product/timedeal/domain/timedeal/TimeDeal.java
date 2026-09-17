@@ -237,7 +237,7 @@ public class TimeDeal extends DeletableEntity {
 
     // NOTE: SCHEDULED에서도 종료를 허용한다 — 판매 기간이 배치 주기보다 짧으면 영구히 SCHEDULED로 남는다.
     // NOTE: 재고 소진으로 조기 종료할 수 있어 시간 가드를 두지 않는다.
-    // 종료 조건은 시간 경과 시 updateSaleStatus(now), 재고 소진 시 TimeDealPolicy.reserve()가 판단한다.
+    // 종료 조건은 시간 경과 시 updateSaleStatus(now), 구매 확정 시 TimeDealPolicy.confirmSale()가 판단한다.
     public void end() {
         if (status != TimeDealStatus.SCHEDULED && status != TimeDealStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_STATUS_TRANSITION);

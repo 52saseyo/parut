@@ -37,7 +37,7 @@ public class DeliveryController {
             UserContext userContext
     ) {
         List<DeliveryResponse> deliveries = deliveryService
-                .getDeliveries(orderId, userContext.userId(), userContext.role()).stream()
+                .getDeliveries(orderId, userContext.userId()).stream()
                 .map(DeliveryResponse::from)
                 .toList();
 
@@ -65,7 +65,6 @@ public class DeliveryController {
         Delivery delivery = deliveryService.startDelivery(
                 deliveryId,
                 userContext.userId(),
-                userContext.role(),
                 request.trackingNumber()
         );
 

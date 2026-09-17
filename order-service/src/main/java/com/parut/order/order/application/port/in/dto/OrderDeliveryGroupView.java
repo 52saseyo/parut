@@ -5,6 +5,6 @@ import java.util.UUID;
 public record OrderDeliveryGroupView(
         UUID deliveryGroupId,
         UUID sellerId,
-        int nonCanceledItemCount
+        int shippableItemCount
 ) {
 }
