@@ -2206,6 +2206,27 @@
                 "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));","pm.test('취소 사유 검증', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_CANCEL_REASON')); "]}}]
               }
             ]
+          },
+          {
+            "name":"24-04 일반상품 연동 재고 이관",
+            "description":"이미 일반상품에서 전환되어 productId가 연결된 타임딜의 재고를 일반상품 재고와 양방향으로 이동한다.",
+            "item":[
+              {
+                "name":"24-04-01 일반상품 재고에서 타임딜 재고로 이관",
+                "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"정상: 연결된 일반상품 재고 1개를 타임딜 재고로 이관한다. 일반상품 가용 재고는 감소하고 타임딜 가용 재고는 증가한다. HTTP 200을 기대한다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));","pm.test('연결된 상품과 타임딜의 재고 이관 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.quantity).to.eql(1); });"]}}]
+              },
+              {
+                "name":"24-04-02 타임딜 재고를 일반상품 재고로 반환",
+                "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": -1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"정상: 타임딜 재고 1개를 연결된 일반상품 재고로 되돌린다. 앞 단계의 재고 이동을 원복하고 HTTP 200을 기대한다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));","pm.test('재고 이관 원복 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.quantity).to.eql(-1); });"]}}]
+              },
+              {
+                "name":"24-04-03 연결되지 않은 상품으로 이관 거부",
+                "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"},{"key":"X-User-Id","value":"{{sellerId}}"},{"key":"X-User-Role","value":"SELLER"}],"body":{"mode":"raw","raw":"{\n  \"productId\": \"{{$guid}}\",\n  \"quantity\": 1\n}","options":{"raw":{"language":"json"}}},"url":"{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer","description":"실패: 타임딜에 연결된 원본 상품이 아닌 productId로 이관한다. 상품 재고를 건드리지 않고 409 TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED를 기대한다."},
+                "event":[{"listen":"test","script":{"type":"text/javascript","exec":["const body = pm.response.json();","pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));","pm.test('연결 상품 이관 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED')); "]}}]
+              }
+            ]
           }
         ]
       }
