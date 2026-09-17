@@ -51,6 +51,7 @@ class ProductServiceTest {
 
     private static final UUID SELLER_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID PRODUCT_ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
+    private static final UUID PRODUCT_ID_2 = UUID.fromString("20000000-0000-0000-0000-000000000002");
 
     @Mock
     private ProductRepository productRepository;
@@ -250,6 +251,101 @@ class ProductServiceTest {
     }
 
     @Test
+    void 여러_상품의_주문_정보를_요청한_순서대로_반환한다() {
+        Product firstProduct = onSaleProduct(PRODUCT_ID, "사과");
+        Product secondProduct = onSaleProduct(PRODUCT_ID_2, "배");
+        ProductStock firstStock = ProductStock.create(PRODUCT_ID, 100, 10);
+        ProductStock secondStock = ProductStock.create(PRODUCT_ID_2, 0, 0);
+        UUID firstStockId = UUID.randomUUID();
+        UUID secondStockId = UUID.randomUUID();
+        setId(firstStock, firstStockId);
+        setId(secondStock, secondStockId);
+
+        List<UUID> requestedProductIds = List.of(PRODUCT_ID, PRODUCT_ID_2);
+
+        // IN 조회 결과의 순서가 요청 순서와 다르더라도 최종 응답 순서는 요청을 따라야 한다.
+        given(productRepository.findByIdInAndDeletedAtIsNull(requestedProductIds))
+                .willReturn(List.of(secondProduct, firstProduct));
+        given(productStockService.getStocks(requestedProductIds))
+                .willReturn(List.of(secondStock, firstStock));
+
+        List<ProductOrderInfoResponse> responses =
+                productService.getOrderInfos(requestedProductIds);
+
+        assertThat(responses)
+                .extracting(ProductOrderInfoResponse::productId)
+                .containsExactly(PRODUCT_ID, PRODUCT_ID_2);
+        assertThat(responses)
+                .extracting(ProductOrderInfoResponse::stockId)
+                .containsExactly(firstStockId, secondStockId);
+        assertThat(responses)
+                .extracting(ProductOrderInfoResponse::purchasable)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    void 다건_조회에서_중복된_상품_ID는_한_번만_조회하고_반환한다() {
+        Product firstProduct = onSaleProduct(PRODUCT_ID, "사과");
+        Product secondProduct = onSaleProduct(PRODUCT_ID_2, "배");
+        ProductStock firstStock = ProductStock.create(PRODUCT_ID, 100, 10);
+        ProductStock secondStock = ProductStock.create(PRODUCT_ID_2, 50, 5);
+        setId(firstStock, UUID.randomUUID());
+        setId(secondStock, UUID.randomUUID());
+
+        List<UUID> distinctProductIds = List.of(PRODUCT_ID, PRODUCT_ID_2);
+        given(productRepository.findByIdInAndDeletedAtIsNull(distinctProductIds))
+                .willReturn(List.of(firstProduct, secondProduct));
+        given(productStockService.getStocks(distinctProductIds))
+                .willReturn(List.of(firstStock, secondStock));
+
+        List<ProductOrderInfoResponse> responses = productService.getOrderInfos(
+                List.of(PRODUCT_ID, PRODUCT_ID_2, PRODUCT_ID)
+        );
+
+        assertThat(responses)
+                .extracting(ProductOrderInfoResponse::productId)
+                .containsExactly(PRODUCT_ID, PRODUCT_ID_2);
+        verify(productRepository).findByIdInAndDeletedAtIsNull(distinctProductIds);
+        verify(productStockService).getStocks(distinctProductIds);
+    }
+
+    @Test
+    void 다건_조회에서_상품이_하나라도_없으면_예외가_발생한다() {
+        Product product = onSaleProduct(PRODUCT_ID, "사과");
+        ProductStock firstStock = ProductStock.create(PRODUCT_ID, 100, 10);
+        ProductStock secondStock = ProductStock.create(PRODUCT_ID_2, 50, 5);
+        List<UUID> requestedProductIds = List.of(PRODUCT_ID, PRODUCT_ID_2);
+
+        given(productRepository.findByIdInAndDeletedAtIsNull(requestedProductIds))
+                .willReturn(List.of(product));
+        given(productStockService.getStocks(requestedProductIds))
+                .willReturn(List.of(firstStock, secondStock));
+
+        assertBusinessException(
+                () -> productService.getOrderInfos(requestedProductIds),
+                ErrorCode.PRODUCT_NOT_FOUND
+        );
+    }
+
+    @Test
+    void 다건_조회에서_재고가_하나라도_없으면_예외가_발생한다() {
+        Product firstProduct = onSaleProduct(PRODUCT_ID, "사과");
+        Product secondProduct = onSaleProduct(PRODUCT_ID_2, "배");
+        ProductStock firstStock = ProductStock.create(PRODUCT_ID, 100, 10);
+        List<UUID> requestedProductIds = List.of(PRODUCT_ID, PRODUCT_ID_2);
+
+        given(productRepository.findByIdInAndDeletedAtIsNull(requestedProductIds))
+                .willReturn(List.of(firstProduct, secondProduct));
+        given(productStockService.getStocks(requestedProductIds))
+                .willReturn(List.of(firstStock));
+
+        assertBusinessException(
+                () -> productService.getOrderInfos(requestedProductIds),
+                ErrorCode.PRODUCT_STOCK_NOT_FOUND
+        );
+    }
+
+    @Test
     void 공개_가능한_상태의_상품_검색을_Repository에_위임한다() {
         PublicProductSearchCondition condition = publicSearchCondition(ProductStatus.ON_SALE);
         ProductCursorResult<PublicProductQueryResult> expected =
@@ -323,6 +419,25 @@ class ProductServiceTest {
 
     private Product onSaleProduct() {
         Product product = product();
+        product.addImage(UUID.randomUUID());
+        product.startSale();
+        return product;
+    }
+
+    private Product onSaleProduct(UUID productId, String name) {
+        Product product = Product.create(
+                SELLER_ID,
+                ProductCategory.FRUIT,
+                name,
+                "상품 설명",
+                3_000L,
+                AppearanceType.NORMAL,
+                "충주",
+                LocalDate.of(2026, 9, 1),
+                SaleUnit.KG,
+                new BigDecimal("1.00")
+        );
+        setId(product, productId);
         product.addImage(UUID.randomUUID());
         product.startSale();
         return product;
