@@ -150,7 +150,7 @@
                   }
                 },
                 {
-                  "name": "재고 복구",
+                  "name": "재고 복구 (RESERVED)",
                   "request": {
                     "method": "POST",
                     "header": [
@@ -181,7 +181,42 @@
                         "restore"
                       ]
                     },
-                    "description": "결제 실패·주문 취소 시 RESERVED 예약을 취소하고 availableQuantity 를 되돌린다. CONFIRMED 예약(결제 완료 후 취소)이면 대신 환불(REFUND) 처리로 totalQuantity/availableQuantity 를 함께 되돌린다."
+                    "description": "결제 전(RESERVED) 취소. 예약을 CANCELLED로 바꾸고 availableQuantity 를 되돌린다(RESTORE 이벤트). 대상 orderItemId가 결제 완료(CONFIRMED)된 상태면 대신 아래 '재고 환불 (CONFIRMED)'과 동일하게 동작한다 — 같은 엔드포인트, 서버가 예약 상태로 자동 분기."
+                  }
+                },
+                {
+                  "name": "재고 환불 (CONFIRMED)",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{orderItemId}}\"\n    }\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "stocks",
+                        "restore"
+                      ]
+                    },
+                    "description": "결제 완료 후(CONFIRMED) 취소. 예약을 CANCELLED로 바꾸고 totalQuantity/availableQuantity 를 함께 되돌리며 REFUND 이벤트로 기록한다. 재고가 SOLD_OUT 상태였다면 상품 상태를 ON_SALE로 되돌리는 알림도 호출된다. 요청 형식은 위 '재고 복구 (RESERVED)'와 동일하고, 대상 orderItemId의 예약 상태에 따라 서버가 자동 분기한다."
                   }
                 }
               ]
