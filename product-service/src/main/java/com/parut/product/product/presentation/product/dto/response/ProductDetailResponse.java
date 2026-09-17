@@ -21,7 +21,7 @@ public record ProductDetailResponse(
         BigDecimal unitQuantity,
         ProductStatus status,
         int availableQuantity,
-        String url
+        String imageUrl
 
 ) {
     public static ProductDetailResponse from(Product product, ProductStock stock, String imageUrl) {
