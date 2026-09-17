@@ -3,6 +3,7 @@ package com.parut.order.refund.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -210,8 +212,9 @@ class RefundServiceTest {
         assertThat(approved)
                 .extracting(Refund::getProcessedBy)
                 .containsOnly(SELLER_ID);
-        verify(paymentCancelUseCase).applyCancellation(ORDER_ID, receipt);
-        verify(orderItemRefundUseCase).applyRefundCompletion(context.orderItemIds());
+        InOrder approvalOrder = inOrder(orderItemRefundUseCase, paymentCancelUseCase);
+        approvalOrder.verify(orderItemRefundUseCase).applyRefundCompletion(context.orderItemIds());
+        approvalOrder.verify(paymentCancelUseCase).applyCancellation(ORDER_ID, receipt);
     }
 
     private OrderItemView orderItem() {

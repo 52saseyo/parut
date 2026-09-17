@@ -152,8 +152,8 @@ public class RefundService {
 
         List<Refund> refunds = getRequestedRefunds(context.refundIds());
 
-        paymentCancelUseCase.applyCancellation(context.orderId(), receipt);
         orderItemRefundUseCase.applyRefundCompletion(context.orderItemIds());
+        paymentCancelUseCase.applyCancellation(context.orderId(), receipt);
         refunds.forEach(refund -> refund.approve(receipt.canceledAt(), context.sellerId()));
 
         return refunds;
