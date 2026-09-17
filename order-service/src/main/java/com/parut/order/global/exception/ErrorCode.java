@@ -30,6 +30,7 @@ public enum ErrorCode {
     ORDER_ITEM_CONFIRMATION_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 주문상품은 구매 확정할 수 없습니다."),
     ORDER_ALREADY_SHIPPED(HttpStatus.CONFLICT, "배송이 시작되어 취소할 수 없습니다. 환불로 진행해주세요."),
     CANCEL_REASON_REQUIRED(HttpStatus.BAD_REQUEST, "취소 사유는 필수입니다."),
+    TOO_MANY_SELLERS(HttpStatus.BAD_REQUEST, "한 번에 주문할 수 있는 판매자 수를 초과했습니다."),
 
     // payment
     PAYMENT_ALREADY_EXISTS(HttpStatus.CONFLICT, "진행 중이거나 완료된 결제가 있습니다."),

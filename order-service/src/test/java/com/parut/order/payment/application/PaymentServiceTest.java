@@ -7,19 +7,10 @@ import com.parut.order.order.application.port.in.*;
 import com.parut.order.order.application.port.in.dto.OrderItemSnapshotView;
 import com.parut.order.order.application.port.in.dto.OrderSnapshotView;
 import com.parut.order.order.domain.OrderStatus;
-import com.parut.order.payment.application.dto.PaymentConfirmCommand;
-import com.parut.order.payment.application.dto.PaymentConfirmContext;
-import com.parut.order.payment.application.dto.PaymentConfirmResult;
-import com.parut.order.payment.application.dto.PaymentReadyCommand;
-import com.parut.order.payment.application.dto.PaymentReadyResult;
+import com.parut.order.payment.application.dto.*;
 import com.parut.order.payment.application.port.out.PaymentGateway;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
-import com.parut.order.payment.domain.Payment;
-import com.parut.order.payment.domain.PaymentMethod;
-import com.parut.order.payment.domain.PaymentStatus;
-import com.parut.order.payment.domain.PaymentTransaction;
-import com.parut.order.payment.domain.TransactionStatus;
-import com.parut.order.payment.domain.TransactionType;
+import com.parut.order.payment.domain.*;
 import com.parut.order.payment.infrastructure.persistence.PaymentRepository;
 import com.parut.order.payment.infrastructure.persistence.PaymentTransactionRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -99,7 +91,7 @@ class PaymentServiceTest {
         when(orderSnapshotQueryUseCase.getOrderSnapshot(ORDER_ID)).thenReturn(Optional.of(order));
         when(paymentRepository.findByOrderId(ORDER_ID)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> withId(invocation.getArgument(0)));
-        when(orderSnapshotQueryUseCase.getFirstOrderItemSnapshot(ORDER_ID)).thenReturn(Optional.of(itemSnapshot()));
+        when(orderSnapshotQueryUseCase.getOrderItemSnapshots(ORDER_ID)).thenReturn(List.of(itemSnapshot()));
 
         PaymentReadyCommand command = new PaymentReadyCommand(ORDER_ID, USER_ID, PaymentMethod.CREDIT_CARD);
 
@@ -109,6 +101,25 @@ class PaymentServiceTest {
         assertThat(result.amount()).isEqualTo(order.totalPaymentAmount());
         verify(orderStatusUseCase).markPaymentPending(ORDER_ID, USER_ID);
         verify(paymentGateway).ready(ORDER_NO, order.totalPaymentAmount());
+    }
+
+    @Test
+    @DisplayName("결제 준비: 아이템이 여러 개면 결제창 표기가 \"{첫 상품명} 외 {N-1}건\" 형식이 된다")
+    void 결제준비_다건_orderName() {
+        OrderSnapshotView order = orderSnapshot(OrderStatus.STOCK_RESERVED);
+        when(orderSnapshotQueryUseCase.getOrderSnapshot(ORDER_ID)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderId(ORDER_ID)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> withId(invocation.getArgument(0)));
+        when(orderSnapshotQueryUseCase.getOrderItemSnapshots(ORDER_ID)).thenReturn(List.of(
+                itemSnapshot(),
+                new OrderItemSnapshotView(UUID.randomUUID(), UUID.randomUUID(), "제주 감귤 3kg", null)
+        ));
+
+        PaymentReadyCommand command = new PaymentReadyCommand(ORDER_ID, USER_ID, PaymentMethod.CREDIT_CARD);
+
+        PaymentReadyResult result = paymentService.ready(command);
+
+        assertThat(result.orderName()).isEqualTo("신고배 5kg 특품 외 1건");
     }
 
     @Test
@@ -163,9 +174,7 @@ class PaymentServiceTest {
     void 결제승인반영_성공() {
         Payment payment = withId(Payment.create(ORDER_ID, ORDER_NO, USER_ID, 33_000L, IDEMPOTENCY_KEY));
         payment.start();
-        UUID orderItemId = UUID.randomUUID();
-        UUID productId = PRODUCT_ID;
-        PaymentConfirmContext context = new PaymentConfirmContext(payment.getId(), ORDER_ID, USER_ID, orderItemId, productId, null);
+        PaymentConfirmContext context = new PaymentConfirmContext(payment.getId(), ORDER_ID, USER_ID, List.of(itemSnapshot()));
         PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001");
         PaymentApproveResult approveResult = new PaymentApproveResult(
                 PaymentMethod.CREDIT_CARD, Instant.now(), "https://mock-pg.parut.local/receipts/1", "pg-tx-approve-1"

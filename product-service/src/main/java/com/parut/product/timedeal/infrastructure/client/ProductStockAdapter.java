@@ -23,8 +23,6 @@ public class ProductStockAdapter implements ProductStockPort {
 
     @Override
     public ProductStockTransferResult transfer(ProductStockTransferCommand productStockTransferCommand) {
-        // TODO: ProductStockService에 transferStock(ProductStockTransferCommand)가 추가되면 아래 호출로 교체한다.
-        // return productStockService.transferStock(productStockTransferCommand);
-        return new ProductStockTransferResult(null, null, null);
+        return productStockService.transferStock(productStockTransferCommand);
     }
 }

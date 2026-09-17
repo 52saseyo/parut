@@ -1,7 +1,5 @@
 package com.parut.order.payment.application;
 
-import org.springframework.stereotype.Component;
-
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.payment.application.dto.PaymentConfirmCommand;
@@ -12,9 +10,12 @@ import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
 import com.parut.order.payment.application.port.out.TimeDealStockConfirmClient;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
 import com.parut.order.payment.application.port.out.dto.PaymentCancelResult;
-
+import com.parut.order.payment.application.port.out.dto.ProductStockConfirmItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * 결제 승인의 전체 흐름을 조율합니다.
@@ -47,10 +48,14 @@ public class PaymentFacade {
         PaymentConfirmResult result = paymentService.applyApproved(context, command, approveResult);
 
         try {
-            if (context.timeDealId() != null) {
+            // 타임딜 주문은 아이템이 항상 1개라 첫 아이템의 timeDealId만 확인하면 된다
+            if (context.items().get(0).timeDealId() != null) {
                 timeDealStockConfirmClient.confirmStock(context.orderId());
             } else {
-                productStockConfirmClient.confirmStock(context.productId(), context.orderId(), context.orderItemId());
+                List<ProductStockConfirmItem> confirmItems = context.items().stream()
+                        .map(item -> new ProductStockConfirmItem(item.productId(), item.orderItemId()))
+                        .toList();
+                productStockConfirmClient.confirmStock(context.orderId(), confirmItems);
             }
         } catch (BusinessException e) {
             if (e.getErrorCode() != ErrorCode.STOCK_SHORTAGE) {
