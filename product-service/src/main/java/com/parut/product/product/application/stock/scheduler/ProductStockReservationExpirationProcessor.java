@@ -25,7 +25,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class ProductStockReservationExpirationProcessor {
-
+    private static final int MAX_RETRY_COUNT = 3;
     private final ProductStockReservationRepository productStockReservationRepository;
     private final ProductStockRepository productStockRepository;
     private final ProductStockEventLogRepository productStockEventLogRepository;
@@ -56,7 +56,11 @@ public class ProductStockReservationExpirationProcessor {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
 
         stock.restore(reservation.getQuantity());
-        productStockRepository.saveAndFlush(stock);
+        try {
+            productStockRepository.saveAndFlush(stock);
+        } catch (OptimisticLockingFailureException e) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_CONFLICT);
+        }
 
         ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
         try {
@@ -84,7 +88,10 @@ public class ProductStockReservationExpirationProcessor {
                 if (reservation.getStatus() != ReservationStatus.RESERVED) {
                     return;
                 }
-                reservation.fail();
+                reservation.incrementFailureCount();
+                if (reservation.getFailureCount() >= MAX_RETRY_COUNT) {
+                    reservation.fail();
+                }
                 productStockReservationRepository.saveAndFlush(reservation);
             });
         } catch (Exception e) {
