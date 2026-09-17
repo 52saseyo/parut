@@ -446,9 +446,9 @@ class TimeDealPolicyTest {
     class AdjustStock {
 
         @Test
-        @DisplayName("양수는 물량을 추가하고 음수는 회수한다 — 총 재고 자체가 바뀐다")
+        @DisplayName("SCHEDULED에서 양수는 물량을 추가하고 음수는 회수한다 — 총 재고 자체가 바뀐다")
         void 조정_성공() {
-            TimeDeal timeDeal = activeTimeDeal();
+            TimeDeal timeDeal = scheduledTimeDeal(MAX_PURCHASE_QUANTITY);
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
             int before = totalQuantity(stock);
 
@@ -457,6 +457,18 @@ class TimeDealPolicyTest {
 
             timeDealPolicy.adjustStock(timeDeal, stock, -30);
             assertThat(totalQuantity(stock)).isEqualTo(before - 10);
+        }
+
+        @Test
+        @DisplayName("ACTIVE 타임딜의 재고는 조정할 수 없다")
+        void 판매중딜_조정불가() {
+            TimeDeal timeDeal = activeTimeDeal();
+            TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
+
+            assertThatThrownBy(() -> timeDealPolicy.adjustStock(timeDeal, stock, 10))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED);
         }
 
         @Test
@@ -488,7 +500,7 @@ class TimeDealPolicyTest {
         @Test
         @DisplayName("선점된 수량을 침범하는 회수는 막는다")
         void 선점침범_조정불가() {
-            TimeDeal timeDeal = activeTimeDeal();
+            TimeDeal timeDeal = scheduledTimeDeal(MAX_PURCHASE_QUANTITY);
             TimeDealStock stock = stockOf(timeDeal, 10);
             timeDealPolicy.reserve(
                     timeDeal, stock, UUID.randomUUID(), UUID.randomUUID(), 5, 0, IN_WINDOW);

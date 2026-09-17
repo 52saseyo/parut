@@ -12,6 +12,7 @@ import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealSto
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
+import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,6 +101,22 @@ class TimeDealStockCommandServiceTest {
                 .isEqualTo(ErrorCode.TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED);
 
         verifyNoInteractions(productStockPort, timeDealStockRepository);
+    }
+
+    @Test
+    void ACTIVE_타임딜은_일반상품_재고_이동도_호출하지_않는다() {
+        TimeDeal timeDeal = existingTimeDeal();
+        ReflectionTestUtils.setField(timeDeal, "status", TimeDealStatus.ACTIVE);
+        TimeDealStock timeDealStock = TimeDealStock.create(TIME_DEAL_ID, 50, 5);
+        when(timeDealStockRepository.findByTimeDealId(TIME_DEAL_ID)).thenReturn(Optional.of(timeDealStock));
+
+        assertThatThrownBy(() -> service.transferStock(
+                new TimeDealStockTransferCommand(TIME_DEAL_ID, PRODUCT_ID, 20, SELLER_ID, "SELLER")
+        ))
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED);
+
+        verifyNoInteractions(productStockPort);
     }
 
     private TimeDeal existingTimeDeal() {
