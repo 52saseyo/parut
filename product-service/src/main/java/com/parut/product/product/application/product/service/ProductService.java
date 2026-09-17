@@ -24,8 +24,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -258,7 +261,72 @@ public class ProductService {
         }
     }
 
+    /**
+     * 주문 서비스에서 요청한 여러 상품의 주문 정보를 한 번에 조회한다.
+     *
+     * 상품과 재고를 각각 다건 조회한 뒤 productId를 기준으로 조합한다.
+     * Repository의 IN 조회 결과는 요청 순서를 보장하지 않으므로,
+     * 최종 응답은 요청된 productId 순서대로 생성한다.
+     *
+     * @param productIds 주문 정보를 조회할 상품 ID 목록
+     * @return 요청 순서대로 정렬된 상품 주문 정보
+     * @throws BusinessException 상품 또는 재고 정보가 하나라도 존재하지 않는 경우
+     */
+    @Transactional(readOnly = true)
+    public List<ProductOrderInfoResponse> getOrderInfos(List<UUID> productIds) {
+        List<UUID> distinctProductIds = List.copyOf(new LinkedHashSet<>(productIds));
+        List<Product> products = productRepository.findByIdInAndDeletedAtIsNull(distinctProductIds);
 
+        Map<UUID, Product> productById = products.stream()
+                .collect(Collectors.toMap(
+                        Product::getId,
+                        p -> p
+                ));
+
+        List<ProductStock> stocks = productStockService.getStocks(distinctProductIds);
+
+        Map<UUID, ProductStock> stockByProductId = stocks.stream()
+                .collect(Collectors.toMap(
+                        ProductStock::getProductId,
+                        stock -> stock
+                ));
+
+
+        validateAllProductsFound(distinctProductIds, productById, stockByProductId);
+
+        return distinctProductIds.stream()
+                .map(productId -> {
+                    Product product = productById.get(productId);
+                    ProductStock stock = stockByProductId.get(productId);
+
+                    boolean purchasable =
+                            product.getStatus() == ProductStatus.ON_SALE
+                                    && stock.getAvailableQuantity() > 0;
+                    return ProductOrderInfoResponse.from(product, stock , purchasable);
+                })
+                .toList();
+
+    }
+
+
+    /**
+     * 요청한 모든 상품에 상품 정보와 재고 정보가 존재하는지 검증
+     */
+    private void validateAllProductsFound(
+            List<UUID> requestedProductIds,
+            Map<UUID, Product> productById,
+            Map<UUID, ProductStock> stockByProductId
+    ) {
+        for(UUID productId : requestedProductIds) {
+            if(!productById.containsKey(productId)) {
+                throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
+            }
+            if(!stockByProductId.containsKey(productId)) {
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+            }
+
+        }
+    }
 
 
 

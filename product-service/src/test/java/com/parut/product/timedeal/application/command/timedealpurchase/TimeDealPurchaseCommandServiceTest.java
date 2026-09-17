@@ -78,7 +78,7 @@ class TimeDealPurchaseCommandServiceTest {
 
         // NOTE: endAt을 먼 미래로 두어 Instant.now()를 쓰는 서비스에서도 판매 기간 안에 들도록 한다.
         timeDeal = TimeDeal.create(
-                UUID.randomUUID(), UUID.randomUUID(), null,
+                UUID.randomUUID(), UUID.randomUUID(),
                 "산지직송 사과 5kg", null, TimeDealProductGrade.NORMAL, "경북 안동", HARVESTED_DATE,
                 10_000L, BigDecimal.valueOf(30),
                 START_AT, END_AT, MAX_PURCHASE_QUANTITY, START_AT);
@@ -221,6 +221,7 @@ class TimeDealPurchaseCommandServiceTest {
     class Confirm {
 
         private TimeDealPurchase reservedPurchase(Instant reservedAt) {
+            when(timeDealRepository.findById(timeDeal.getId())).thenReturn(Optional.of(timeDeal));
             return TimeDealPurchase.create(
                     timeDeal, UUID.randomUUID(), UUID.randomUUID(), 5, reservedAt);
         }

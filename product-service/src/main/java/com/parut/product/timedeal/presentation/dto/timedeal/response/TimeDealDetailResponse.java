@@ -1,8 +1,9 @@
 package com.parut.product.timedeal.presentation.dto.timedeal.response;
 
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -12,26 +13,30 @@ public record TimeDealDetailResponse(
         UUID timeDealId,
         UUID productId,
         UUID sellerId,
-        UUID imageId,
+        String imageUrl,
         String productName,
+        String description,
         Long originalPrice,
+        BigDecimal discountRate,
         Long dealPrice,
         TimeDealProductGrade productGrade,
         String origin,
         LocalDate harvestedDate
 ) {
-    public static TimeDealDetailResponse from(TimeDealDetailView timeDealDetailView) {
+    public static TimeDealDetailResponse from(TimeDealDetailResult timeDealDetailResult) {
         return new TimeDealDetailResponse(
-                timeDealDetailView.timeDealId(),
-                timeDealDetailView.productId(),
-                timeDealDetailView.sellerId(),
-                timeDealDetailView.imageId(),
-                timeDealDetailView.productName(),
-                timeDealDetailView.originalPrice(),
-                timeDealDetailView.dealPrice(),
-                timeDealDetailView.productGrade(),
-                timeDealDetailView.origin(),
-                timeDealDetailView.harvestedDate()
+                timeDealDetailResult.timeDealId(),
+                timeDealDetailResult.productId(),
+                timeDealDetailResult.sellerId(),
+                timeDealDetailResult.imageUrl(),
+                timeDealDetailResult.productName(),
+                timeDealDetailResult.description(),
+                timeDealDetailResult.originalPrice(),
+                timeDealDetailResult.discountRate(),
+                timeDealDetailResult.dealPrice(),
+                timeDealDetailResult.productGrade(),
+                timeDealDetailResult.origin(),
+                timeDealDetailResult.harvestedDate()
         );
     }
 }

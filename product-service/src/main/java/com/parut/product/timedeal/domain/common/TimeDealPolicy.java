@@ -14,7 +14,7 @@ import java.util.UUID;
 
 // NOTE: 타임딜 컨텍스트의 애그리거트 간 조율을 담당하는 도메인 서비스. 진입점마다 순서를 다시 쓰면
 // 한 곳만 놓쳐도 그 경로의 불변식이 깨지므로 조율을 여기 한 곳에 모은다.
-// NOTE: 금지 규약 — Application Service는 도메인 메서드를 직접 호출하지 않고 전부 이 클래스를 경유한다.
+// NOTE: 여러 애그리거트의 조율은 이 클래스를 경유한다. 단일 타임딜의 기간 갱신은 엔티티가 담당한다.
 @Component
 public class TimeDealPolicy {
 
@@ -39,10 +39,8 @@ public class TimeDealPolicy {
 
         stock.reserve(quantity);
 
-        // NOTE: 소진 조기 종료. end()에 시간 가드가 없어 호출 경로 제한이 이 클래스의 책임이다.
-        if (stock.isDepleted()) {
-            timeDeal.end();
-        }
+        // NOTE: 선점만으로는 결제 확정 여부를 알 수 있으므로 타임딜을 종료하지 않는다.
+        //       재고가 0이어도 RESERVED 구매가 취소·만료되면 재고가 복구될 수 있다.
         return purchase;
     }
 
@@ -50,7 +48,9 @@ public class TimeDealPolicy {
     // 예외를 던지면 그 정리까지 롤백되므로 실패를 반환값으로 표현한다.
     // NOTE: 이미 CONFIRMED면 성공을 그대로 돌려준다(멱등). 이미 CANCELLED인 건은 정리할 것이 없어
     // 반환값을 쓸 이유가 없으므로 도메인의 confirm() 상태 가드가 던지게 둔다.
+    // NOTE: 확정 시점에는 TimeDeal까지 함께 받아, 모든 선점이 확정된 경우에만 소진 종료한다.
     public TimeDealPurchaseConfirmResult confirmSale(
+            TimeDeal timeDeal,
             TimeDealPurchase purchase,
             TimeDealStock stock,
             Instant now
@@ -74,6 +74,15 @@ public class TimeDealPolicy {
 
         purchase.confirm(now);
         stock.confirmSale(quantity);
+
+        // NOTE: available=0이어도 아직 RESERVED가 남아 있으면 취소·만료로 복구될 수 있으므로 종료하지 않는다.
+        //       시간 마감·강제 종료가 먼저 처리된 경우에는 이미 종료된 상태를 다시 전이하지 않는다.
+        if (timeDeal != null
+                && timeDeal.getStatus() == TimeDealStatus.ACTIVE
+                && stock.isDepleted()
+                && stock.getReservedQuantity() == 0) {
+            timeDeal.end();
+        }
         return TimeDealPurchaseConfirmResult.CONFIRMED;
     }
 
@@ -131,6 +140,11 @@ public class TimeDealPolicy {
         stock.adjustAvailableQuantity(delta);
     }
 
+    // NOTE: 일반 상품과 타임딜 사이의 재고 이동 중 타임딜 재고 변경을 조율한다.
+    public void transferStock(TimeDeal timeDeal, TimeDealStock stock, Integer quantity) {
+        adjustStock(timeDeal, stock, quantity);
+    }
+
     // NOTE: 저장된 TimeDeal에 재고를 할당한다 — 저장 전이면 getId()가 null이라 걸러진다.
     // maxPurchaseQuantity <= 초기 재고 검증이 여기 있는 이유는 두 값이 다른 애그리거트에 있기 때문이다.
     public TimeDealStock allocateStock(
@@ -151,8 +165,7 @@ public class TimeDealPolicy {
         return timeDealStock;
     }
 
-    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이
-    // 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
+    // NOTE: 타임딜과 재고를 함께 삭제한다. 두 삭제 조건은 서로를 함의하지 않으므로(SCHEDULED여도 선점이 있을 수 있다) 둘 다 검증한 뒤에 변경을 시작한다 — 하나만 바뀐 채로 예외가 나가지 않게.
     public void delete(TimeDeal timeDeal, TimeDealStock stock, String deletedBy) {
         validateRequiredFields(timeDeal, stock);
         stock.validateBelongsToTimeDeal(timeDeal.getId());
@@ -162,18 +175,6 @@ public class TimeDealPolicy {
 
         timeDeal.softDelete(deletedBy);
         stock.softDelete(deletedBy);
-    }
-
-    // NOTE: 판매 기간 경과로 종료한다(배치 경로). end()에 없는 시간 가드를 여기서 세운다.
-    // 운영자의 임의 중단은 end()가 아니라 stop()이며 이 클래스를 경유하지 않는다.
-    public void endBySalePeriodEnd(TimeDeal timeDeal, Instant now) {
-        if (timeDeal == null || now == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if (now.isBefore(timeDeal.getEndAt())) {
-            throw new BusinessException(ErrorCode.TIME_DEAL_SALE_PERIOD_NOT_ENDED);
-        }
-        timeDeal.end();
     }
 
     private static void validateRequiredFields(Object first, Object second) {

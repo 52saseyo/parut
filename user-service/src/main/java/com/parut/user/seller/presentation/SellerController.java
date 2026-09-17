@@ -1,5 +1,6 @@
 package com.parut.user.seller.presentation;
 
+import com.parut.user.global.common.UserRole;
 import com.parut.user.global.exception.BusinessException;
 import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.seller.application.dto.response.SellerDeleteResponse;
@@ -52,7 +53,7 @@ public class SellerController {
             @RequestHeader("X-User-Role") String role
     ) {
         // ADMIN 권한 체크 로직
-        if (!"ADMIN".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role)) {
             // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
@@ -69,7 +70,7 @@ public class SellerController {
             @RequestBody SellerApplicationProcessRequest request
     ) {
         // ADMIN 권한 체크 로직
-        if (!"ADMIN".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role)) {
             // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
@@ -95,12 +96,12 @@ public class SellerController {
             @RequestBody SellerUpdateRequest request
     ) {
         // 1. ADMIN 또는 SELLER 권한 체크
-        if (!"ADMIN".equalsIgnoreCase(role) && !"SELLER".equalsIgnoreCase(role) && !"PENDING_SELLER".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) && !String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
 
         // 2. SELLER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
-        if (("SELLER".equalsIgnoreCase(role) || "PENDING_SELLER".equalsIgnoreCase(role)) && !id.equals(sellerId)) {
+        if ((String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) || String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) && !id.equals(sellerId)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
 
@@ -116,12 +117,12 @@ public class SellerController {
             @RequestHeader("X-User-Role") String role
     ) {
         // 1. ADMIN 또는 SELLER 권한 체크
-        if (!"ADMIN".equalsIgnoreCase(role) && !"SELLER".equalsIgnoreCase(role) && !"PENDING_SELLER".equalsIgnoreCase(role)) {
+        if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) && !String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
 
         // 2. SELLER인 경우, 본인 정보인지(id와 requesterId가 일치하는지) 체크
-        if (("SELLER".equalsIgnoreCase(role) || "PENDING_SELLER".equalsIgnoreCase(role)) && !id.equals(sellerId)) {
+        if ((String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) || String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) && !id.equals(sellerId)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
         SellerDeleteResponse response = sellerService.deleteSeller(id, sellerId);

@@ -1,6 +1,7 @@
 package com.parut.product.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import com.parut.product.global.logging.TraceIdContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -162,7 +163,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(
-                        ErrorResponse.of(errorCode, null) // TODO tracing 연동 후 traceId 전달
+                        ErrorResponse.of(errorCode, TraceIdContext.currentTraceId())
                 );
     }
 }

@@ -36,6 +36,7 @@ public enum ErrorCode {
     PRODUCT_STOCK_SORT_INVALID_FIELD(HttpStatus.BAD_REQUEST, "허용되지 않은 정렬 기준입니다."),
 
     // time deal
+    TIME_DEAL_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 타임딜 작업에 대한 권한이 없습니다."),
     TIME_DEAL_INVALID_SELLER_ID(HttpStatus.BAD_REQUEST, "판매자 정보는 필수입니다."),
     TIME_DEAL_INVALID_NAME(HttpStatus.BAD_REQUEST, "타임딜 상품명은 비어 있을 수 없으며 150자를 넘을 수 없습니다."),
     TIME_DEAL_INVALID_PRODUCT_GRADE(HttpStatus.BAD_REQUEST, "타임딜 상품 품질은 필수입니다."),
@@ -62,8 +63,9 @@ public enum ErrorCode {
     TIME_DEAL_STOCK_INSUFFICIENT(HttpStatus.CONFLICT, "판매 가능한 재고가 부족합니다."),
     TIME_DEAL_SALE_PERIOD_INVALID(HttpStatus.CONFLICT, "현재 시각이 타임딜 판매 기간이 아닙니다."),
     TIME_DEAL_INVALID_STOCK_QUANTITY(HttpStatus.BAD_REQUEST, "초기 재고는 1개 이상이어야 합니다."),
-    TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 수량은 0일 수 없습니다."),
+    TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY(HttpStatus.BAD_REQUEST, "재고 조정 후 판매 가능 재고는 1개 이상이어야 합니다."),
     TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED(HttpStatus.CONFLICT, "종료되거나 중단된 타임딜의 재고는 조정할 수 없습니다."),
+    TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED(HttpStatus.CONFLICT, "연결된 상품이 없는 타임딜의 재고는 이동할 수 없습니다."),
     TIME_DEAL_MAX_PURCHASE_QUANTITY_EXCEEDS_STOCK(HttpStatus.BAD_REQUEST, "1인당 최대 구매 수량은 초기 재고 수량을 넘을 수 없습니다."),
     TIME_DEAL_STOCK_MISMATCH(HttpStatus.CONFLICT, "다른 타임딜의 재고 또는 구매 이력입니다."),
     TIME_DEAL_NOT_FOUND(HttpStatus.NOT_FOUND, "타임딜을 찾을 수 없습니다."),

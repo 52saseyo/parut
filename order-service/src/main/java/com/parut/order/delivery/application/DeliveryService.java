@@ -12,6 +12,7 @@ import com.parut.order.delivery.application.port.in.DeliveryCreateUseCase;
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
 import com.parut.order.delivery.infrastructure.persistence.DeliveryRepository;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderDeliveryGroupQueryUseCase;
@@ -21,18 +22,15 @@ import com.parut.order.order.application.port.in.dto.OrderDeliveryGroupView;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 배송 생성과 상태 변경을 처리한다.
+ * 배송 생성, 조회와 상태 변경을 처리한다.
  *
- * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 권한 검증, 트랜잭션과
+ * <p>상태 전이는 {@link Delivery}에 맡기고 주문 정보 조회, 소유권 검증, 트랜잭션과
  * Order 배송 그룹 상태 동기화를 조율한다.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DeliveryService implements DeliveryCreateUseCase {
-
-    /** 시연을 위해 배송 시작 60초 후 자동완료한다. */
-    private static final long DELIVERY_COMPLETION_DELAY_SECONDS = 60L;
 
     private final DeliveryRepository deliveryRepository;
     private final OrderDeliveryGroupQueryUseCase orderDeliveryGroupQueryUseCase;
@@ -68,6 +66,39 @@ public class DeliveryService implements DeliveryCreateUseCase {
                 .toList();
     }
 
+    /**
+     * 배송을 조회하고 역할에 따라 데이터 소유권을 확인한다.
+     *
+     * <p>역할 자체는 {@code UserContextInterceptor}가 검사하고, 여기서는 고객과
+     * 판매자의 소유권 및 관리자의 전체 조회 범위만 판단한다.
+     */
+    public Delivery getDelivery(UUID deliveryId, UUID userId, UserRole userRole) {
+        if (deliveryId == null || userId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        Delivery delivery = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        if (userRole == UserRole.ADMIN) {
+            return delivery;
+        }
+
+        if (userRole == UserRole.CUSTOMER) {
+            if (!orderDeliveryGroupQueryUseCase.isOwnedByCustomer(delivery.getDeliveryGroupId(), userId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        } else if (userRole == UserRole.SELLER) {
+            OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase
+                    .getDeliveryGroup(delivery.getDeliveryGroupId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
+            if (!userId.equals(group.sellerId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
+        return delivery;
+    }
+
     // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.
     private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
         return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
@@ -81,11 +112,7 @@ public class DeliveryService implements DeliveryCreateUseCase {
      * 한쪽만 반영되는 상태 불일치를 막는다.
      */
     @Transactional
-    public Delivery startDelivery(
-            UUID deliveryId,
-            UUID sellerId,
-            String trackingNumber
-    ) {
+    public Delivery startDelivery(UUID deliveryId, UUID sellerId, String trackingNumber) {
         if (deliveryId == null || sellerId == null
                 || trackingNumber == null || trackingNumber.isBlank() || trackingNumber.length() > 30) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
@@ -104,7 +131,7 @@ public class DeliveryService implements DeliveryCreateUseCase {
         if (!sellerId.equals(deliveryGroup.sellerId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        if (deliveryGroup.nonCanceledItemCount() <= 0) {
+        if (deliveryGroup.shippableItemCount() <= 0) {
             throw new BusinessException(ErrorCode.DELIVERY_NO_SHIPPABLE_ITEMS);
         }
 
@@ -116,22 +143,22 @@ public class DeliveryService implements DeliveryCreateUseCase {
     }
 
     /**
-     * 시작한 지 60초가 지난 배송을 완료한다.
+     * 배송 한 건과 주문 배송 그룹을 같은 트랜잭션에서 완료한다.
+     * 스케줄러가 이 메서드를 건별로 호출해 한 건의 실패가 다른 건에 영향을 주지 않는다.
      */
     @Transactional
-    public void completeEligibleDeliveries(Instant completionTime) {
-        if (completionTime == null) {
+    public void completeEligibleDelivery(UUID deliveryId, Instant completionTime, Instant completionThreshold) {
+        if (deliveryId == null || completionTime == null || completionThreshold == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
-        List<Delivery> deliveries = deliveryRepository.findAllByStatusAndShippedAtLessThanEqual(
-                DeliveryStatus.SHIPPED,
-                completionTime.minusSeconds(DELIVERY_COMPLETION_DELAY_SECONDS)
-        );
+        Delivery delivery = deliveryRepository.findById(deliveryId).orElse(null);
+        if (delivery == null || delivery.getStatus() != DeliveryStatus.SHIPPED
+                || delivery.getShippedAt().isAfter(completionThreshold)) {
+            return;
+        }
 
-        deliveries.forEach(delivery -> {
-            delivery.complete(completionTime);
-            orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
-        });
+        delivery.complete(completionTime);
+        orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
     }
 }

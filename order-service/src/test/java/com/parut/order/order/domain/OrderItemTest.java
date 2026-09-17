@@ -27,14 +27,26 @@ class OrderItemTest {
     }
 
     @Test
-    @DisplayName("주문 상태가 아닌 상품은 구매 확정할 수 없다")
+    @DisplayName("주문·환불 요청 상태가 아닌 상품은 구매 확정할 수 없다")
     void 구매확정_상태_검증() {
         OrderItem orderItem = orderItem();
         orderItem.cancel(UUID.randomUUID());
 
         assertThatThrownBy(() -> orderItem.confirm(CONFIRMED_AT))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("주문 상태에서만 구매확정으로 전이할 수 있습니다.");
+                .hasMessage("주문 상태 또는 환불 요청 상태에서만 구매확정으로 전이할 수 있습니다.");
+    }
+
+    @Test
+    @DisplayName("환불 요청 상태의 주문상품도 판매자 거절로 구매 확정할 수 있다")
+    void 환불_거절_구매확정() {
+        OrderItem orderItem = orderItem();
+        orderItem.requestRefund();
+
+        orderItem.confirm(CONFIRMED_AT);
+
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
+        assertThat(orderItem.getConfirmedAt()).isEqualTo(CONFIRMED_AT);
     }
 
     private OrderItem orderItem() {

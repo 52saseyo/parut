@@ -142,6 +142,23 @@ class PaymentServiceTest {
     }
 
     @Test
+    @DisplayName("결제 승인: 결제창 진행 중 취소되어 ABORTED된 주문이면 PG 승인 전에 막는다")
+    void 결제승인_취소된주문() {
+        Payment payment = withId(Payment.create(ORDER_ID, ORDER_NO, USER_ID, 33_000L, IDEMPOTENCY_KEY));
+        payment.start();
+        when(paymentRepository.findByOrderNo(ORDER_NO)).thenReturn(Optional.of(payment));
+        when(orderSnapshotQueryUseCase.getOrderSnapshot(ORDER_ID))
+                .thenReturn(Optional.of(orderSnapshot(OrderStatus.ABORTED)));
+
+        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001");
+
+        assertThatThrownBy(() -> paymentService.loadForConfirm(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_ORDER_STATUS);
+    }
+
+    @Test
     @DisplayName("결제 승인 반영: 주문을 PAID로 전이하고 결제를 승인 처리하며 승인 거래를 기록한다")
     void 결제승인반영_성공() {
         Payment payment = withId(Payment.create(ORDER_ID, ORDER_NO, USER_ID, 33_000L, IDEMPOTENCY_KEY));

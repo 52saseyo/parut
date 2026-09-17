@@ -1,16 +1,6 @@
 package com.parut.order.order.application;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.dto.CreateOrderCommand;
@@ -19,22 +9,21 @@ import com.parut.order.order.application.dto.CreatedOrder;
 import com.parut.order.order.application.dto.OrderDetailData;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
 import com.parut.order.order.application.port.out.dto.TimeDealInfo;
-import com.parut.order.order.domain.Order;
-import com.parut.order.order.domain.OrderCancel;
-import com.parut.order.order.domain.OrderDeliveryGroup;
-import com.parut.order.order.domain.OrderItem;
-import com.parut.order.order.domain.OrderStatus;
-import com.parut.order.order.domain.OrderStatusHistory;
-import com.parut.order.order.domain.OrderType;
-import com.parut.order.order.infrastructure.persistence.OrderCancelRepository;
-import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
-import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
-import com.parut.order.order.infrastructure.persistence.OrderRepository;
-import com.parut.order.order.infrastructure.persistence.OrderStatusHistoryRepository;
+import com.parut.order.order.domain.*;
+import com.parut.order.order.infrastructure.persistence.*;
 import com.parut.order.payment.application.port.in.PaymentQueryUseCase;
 import com.parut.order.payment.application.port.in.dto.PaymentView;
-
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Order 도메인의 DB 상태 변경과 조회를 전담합니다.
@@ -51,7 +40,6 @@ public class OrderService {
 
     static final long DELIVERY_FEE_PER_SELLER = 3_000L; // ToDo: 배송비 정책 구체화 시점에 수정
     static final Duration ORDER_TTL = Duration.ofHours(24);
-    private static final String ADMIN_ROLE = "ADMIN";
     private static final DateTimeFormatter ORDER_NO_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final OrderRepository orderRepository;
@@ -217,11 +205,11 @@ public class OrderService {
         return "ORD-" + date + "-" + random;
     }
 
-    public OrderDetailData getOrderDetail(UUID orderId, UUID requesterId, String requesterRole) {
+    public OrderDetailData getOrderDetail(UUID orderId, UUID requesterId, UserRole requesterRole) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
-        if (!ADMIN_ROLE.equals(requesterRole) && !order.getUserId().equals(requesterId)) {
+        if (requesterRole != UserRole.ADMIN && !order.getUserId().equals(requesterId)) {
             throw new BusinessException(ErrorCode.ORDER_ACCESS_DENIED);
         }
 

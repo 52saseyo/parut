@@ -14,7 +14,7 @@ import java.util.UUID;
 // NOTE: 구조적 요건(필수값 존재)만 본다. 가격·수량·기간 규칙은 도메인이 지킨다.
 public record TimeDealCreateCommand(
         UUID sellerId,
-        UUID imageId,
+        String requesterRole,
         String name,
         String description,
         TimeDealProductGrade productGrade,

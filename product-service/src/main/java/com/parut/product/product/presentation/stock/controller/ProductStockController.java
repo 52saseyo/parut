@@ -6,9 +6,13 @@ import com.parut.product.global.common.OffsetResponse;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
+import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.stock.entity.ProductStock;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockUpdateRequest;
+import com.parut.product.product.presentation.stock.dto.response.IsolatedReservationResponse;
+import com.parut.product.product.presentation.stock.dto.response.ProductStockHistoryResponse;
 import com.parut.product.product.presentation.stock.dto.response.ProductStockResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +23,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,9 +41,10 @@ public class ProductStockController {
     public ResponseEntity<ApiResponse<ProductStockResponse>> updateStock(
             @PathVariable UUID productId,
             @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") String userRole,
             @Valid @RequestBody ProductStockUpdateRequest request
     ) {
-        productStockService.updateStock(productId, userId, request.totalQuantity());
+        productStockService.updateStock(productId, userId, userRole, request.totalQuantity());
         ProductStock stock = productStockService.getStock(productId);
         return ResponseEntity.ok(ApiResponse.success(ProductStockResponse.from(stock), null));
     }
@@ -46,6 +52,7 @@ public class ProductStockController {
     @GetMapping
     public ResponseEntity<ApiResponse<OffsetResponse<ProductStockResponse>>> getStockList(
             @RequestHeader("X-User-Id") UUID userId,
+            @RequestHeader("X-User-Role") String userRole,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
@@ -64,7 +71,7 @@ public class ProductStockController {
         // page는 1부터 시작, Pageable은 0부터 시작이라 -1 보정
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(sortDirection, sort));
 
-        Page<ProductStock> stockPage = productStockService.getStockList(userId, pageable);
+        Page<ProductStock> stockPage = productStockService.getStockList(userId, userRole, pageable);
 
         List<ProductStockResponse> content = stockPage.getContent().stream()
                 .map(ProductStockResponse::from)
@@ -83,5 +90,43 @@ public class ProductStockController {
         OffsetResponse<ProductStockResponse> response = new OffsetResponse<>(content, pageInfo);
 
         return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
+    @GetMapping("/reservations/isolated")
+    public ResponseEntity<ApiResponse<List<IsolatedReservationResponse>>> getIsolatedReservations(
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole
+    ) {
+        List<IsolatedReservationResult> results = productStockService.getIsolatedReservations(requesterId, requesterRole);
+        List<IsolatedReservationResponse> response = results.stream()
+                .map(IsolatedReservationResponse::from)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(response, null));
+    }
+
+    @PostMapping("/reservations/{reservationId}/recover")
+    public ResponseEntity<ApiResponse<Void>> recoverIsolatedReservation(
+            @PathVariable UUID reservationId,
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole
+    ) {
+        productStockService.recoverIsolatedReservation(reservationId, requesterId, requesterRole);
+        return ResponseEntity.ok(ApiResponse.success(null, null));
+    }
+
+    @GetMapping("/{productId}/histories")
+    public ResponseEntity<ApiResponse<ProductStockHistoryResponse>> getStockHistory(
+            @PathVariable UUID productId,
+            @RequestHeader("X-User-Id") UUID requesterId,
+            @RequestHeader("X-User-Role") String requesterRole,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        if (size < 1) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PAGE_INVALID_SIZE);
+        }
+        ProductStockHistoryResult result = productStockService.getStockHistory(
+                productId, requesterId, requesterRole, cursor, size);
+        return ResponseEntity.ok(ApiResponse.success(ProductStockHistoryResponse.from(result), null));
     }
 }

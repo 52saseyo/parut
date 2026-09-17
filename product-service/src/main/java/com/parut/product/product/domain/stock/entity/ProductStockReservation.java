@@ -40,6 +40,9 @@ public class ProductStockReservation extends DeletableEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    @Column(name = "failure_count", nullable = false)
+    private int failureCount;
+
     public static ProductStockReservation create(UUID stockId, UUID orderId,
                                                  int quantity, Instant expiresAt) {
         ProductStockReservation reservation = new ProductStockReservation();
@@ -50,7 +53,6 @@ public class ProductStockReservation extends DeletableEntity {
         reservation.expiresAt = expiresAt;
         return reservation;
     }
-
 
     public void confirm() {
         validateReserved();
@@ -74,6 +76,19 @@ public class ProductStockReservation extends DeletableEntity {
         this.status = ReservationStatus.EXPIRATION_FAILED;
     }
 
+    // CONFIRMED 취소
+    public void cancelConfirmed() {
+        if (this.status != ReservationStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
+        }
+        this.status = ReservationStatus.CANCELLED;
+    }
+
+    // 재시도 횟수 증가
+    public void incrementFailureCount() {
+        this.failureCount++;
+    }
+
     private void validateReserved() {
         if(this.status != ReservationStatus.RESERVED) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
@@ -83,6 +98,18 @@ public class ProductStockReservation extends DeletableEntity {
     private void validateNotExpired() {
         if(this.expiresAt.isBefore(Instant.now())) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_EXPIRED);
+        }
+    }
+
+    // 관리자의 격리 예약 복구 전용 - EXPIRATION_FAILED 상태에서만 호출 가능
+    public void recoverFromIsolation() {
+        validateIsolated();
+        this.status = ReservationStatus.EXPIRED;
+    }
+
+    private void validateIsolated() {
+        if (this.status != ReservationStatus.EXPIRATION_FAILED) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
     }
 

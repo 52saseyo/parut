@@ -82,6 +82,14 @@ public class ProductStock extends DeletableEntity {
         refreshStatus();
     }
 
+    // confirm() 을 되돌림
+    public void refundConfirmed(int quantity) {
+        if (quantity <= 0) throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        this.totalQuantity += quantity;
+        this.availableQuantity += quantity;
+        refreshStatus();
+    }
+
     public void adjustQuantity(int totalQuantity, int availableQuantity) {
         if (totalQuantity < 0 || availableQuantity < 0) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
@@ -131,6 +139,16 @@ public class ProductStock extends DeletableEntity {
         this.totalQuantity += quantity;
         this.availableQuantity += quantity;
         refreshStatus();
+    }
+
+    public void transfer(int delta) {
+        if (delta < 0) {
+            allocate(-delta);
+        } else if (delta > 0) {
+            deallocate(delta);
+        } else {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_INVALID_QUANTITY);
+        }
     }
 
     @Override
