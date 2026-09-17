@@ -130,14 +130,19 @@ public class TimeDealPolicy {
     // NOTE: 판매자·운영자의 수동 재고 조정. delta의 부호가 방향(+ 추가, − 회수).
     // ENDED/STOPPED 차단이 여기 있는 이유는 TimeDealStock이 TimeDeal 상태를 알 수 없기 때문이다.
     public void adjustStock(TimeDeal timeDeal, TimeDealStock stock, Integer delta) {
+        validateStockAdjustment(timeDeal, stock, delta);
+        stock.adjustAvailableQuantity(delta);
+    }
+
+    // NOTE: 일반상품 연동 이관은 일반상품 재고를 먼저 변경하므로, 외부 Port 호출 전에 타임딜 상태를 검증한다.
+    public void validateStockAdjustment(TimeDeal timeDeal, TimeDealStock stock, Integer delta) {
         validateRequiredFields(timeDeal, stock);
         stock.validateBelongsToTimeDeal(timeDeal.getId());
+        stock.validateAdjustableQuantity(delta);
 
-        if (timeDeal.getStatus() == TimeDealStatus.ENDED
-                || timeDeal.getStatus() == TimeDealStatus.STOPPED) {
+        if (timeDeal.getStatus() != TimeDealStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED);
         }
-        stock.adjustAvailableQuantity(delta);
     }
 
     // NOTE: 일반 상품과 타임딜 사이의 재고 이동 중 타임딜 재고 변경을 조율한다.

@@ -87,6 +87,10 @@ public class TimeDealStock extends DeletableEntity {
         this.availableQuantity += delta;
     }
 
+    public void validateAdjustableQuantity(Integer delta) {
+        validateAdjustDelta(delta);
+    }
+
     // NOTE: 선점·판매된 수량이 있으면 삭제 불가 — 진행 중인 구매나 판매 이력의 근거가 사라진다.
     // "TimeDeal과 함께만 삭제한다"는 순서는 TimeDealPolicy가 보장한다.
     public void validateDeletable() {
