@@ -8,7 +8,7 @@ import java.util.UUID;
 public interface ProductImagePort {
 
     void save(
-            UUID uploadId,
+            UUID uploaderId,
             UUID productId,
             UUID imageId
     );
