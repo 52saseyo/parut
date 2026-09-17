@@ -4,22 +4,25 @@ package com.parut.product.product.application.stock.service;
 import com.parut.product.global.common.UserRole;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
+import com.parut.product.global.dto.ProductStockTransferCommand;
+import com.parut.product.global.dto.ProductStockTransferResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
-import com.parut.product.product.application.stock.dto.ProductStockItem;
-import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
+import com.parut.product.product.application.stock.dto.*;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
-import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.stock.entity.ProductStock;
+import com.parut.product.product.domain.stock.entity.ProductStockAllocationLog;
 import com.parut.product.product.domain.stock.entity.ProductStockEventLog;
 import com.parut.product.product.domain.stock.entity.ProductStockReservation;
+import com.parut.product.product.domain.stock.enums.AllocationEventType;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
 import com.parut.product.product.domain.stock.enums.StockStatus;
+import com.parut.product.product.infrastructure.stock.persistence.ProductStockAllocationLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockReservationRepository;
@@ -29,6 +32,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -55,6 +60,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductReader productReader;
     private final ProductStateManager productStateManager;
     private final ProductStockAuthorizationChecker authorizationChecker;
+    private final ProductStockAllocationLogRepository productStockAllocationLogRepository;
 
     // 상품 등록 시 재고 등록
     @Override
@@ -108,7 +114,6 @@ public class ProductStockServiceImpl implements ProductStockService{
         } else if (previousStatus == StockStatus.SOLD_OUT) {
             notifyRestocked(productId);
         }
-
     }
 
     // 재고 삭제
@@ -118,6 +123,79 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
         stock.softDelete(deletedBy);
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+    }
+
+    // 재고 이력 조회
+    @Override
+    @Transactional(readOnly = true)
+    public ProductStockHistoryResult getStockHistory(UUID productId, UUID requesterId, String requesterRole, String cursor, int size) {
+
+        HistoryCursor parsedCursor = HistoryCursor.decode(cursor);
+        Instant eventLogCursorCreatedAt = parsedCursor.eventLogCreatedAt();
+        UUID eventLogCursorId = parsedCursor.eventLogId();
+        Instant allocationCursorCreatedAt = parsedCursor.allocationCreatedAt();
+        UUID allocationCursorId = parsedCursor.allocationId();
+
+        UUID sellerId = productReader.getSellerId(productId);
+        authorizationChecker.requireOwnerOrAdmin(requesterId, requesterRole, sellerId);
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        Pageable pageable = PageRequest.of(0, size);
+
+        // RESERVE/CONFIRM/RESTORE: ProductStockReservation과 조인해서 stockId로 바로 거름(size만큼만 조회, 예약 전체 조회 없음)
+        List<ProductStockEventLog> eventLogs = (eventLogCursorCreatedAt == null)
+                ? productStockEventLogRepository.findFirstHistoryBatch(stock.getId(), pageable)
+                : productStockEventLogRepository.findNextHistoryBatchByCursor(
+                stock.getId(), eventLogCursorCreatedAt, eventLogCursorId, pageable);
+
+        // 위에서 뽑힌 이벤트로그가 참조하는 예약만(최대 size개) 조회해서 quantity 매핑
+        List<UUID> pageReservationIds = eventLogs.stream()
+                .map(ProductStockEventLog::getReservationId)
+                .distinct()
+                .toList();
+        Map<UUID, Integer> quantityByReservationId = productStockReservationRepository.findAllById(pageReservationIds)
+                .stream()
+                .collect(Collectors.toMap(ProductStockReservation::getId, ProductStockReservation::getQuantity));
+
+        List<ProductStockAllocationLog> allocationLogs = (allocationCursorCreatedAt == null)
+                ? productStockAllocationLogRepository.findFirstHistoryBatch(List.of(stock.getId()), pageable)
+                : productStockAllocationLogRepository.findNextHistoryBatchByCursor(
+                List.of(stock.getId()), allocationCursorCreatedAt, allocationCursorId, pageable);
+
+        List<ProductStockHistoryItem> items = Stream.concat(
+                        eventLogs.stream().map(log -> new ProductStockHistoryItem(
+                                log.getId(), "EVENT_LOG", log.getEventType().name(),
+                                quantityByReservationId.get(log.getReservationId()),
+                                log.getCreatedAt(), log.getCreatedBy())),
+                        allocationLogs.stream().map(log -> new ProductStockHistoryItem(
+                                log.getId(), "ALLOCATION_LOG", log.getEventType().name(), log.getQuantity(),
+                                log.getCreatedAt(), log.getCreatedBy()))
+                )
+                .sorted(Comparator.comparing(ProductStockHistoryItem::occurredAt).reversed())
+                .limit(size)
+                .toList();
+
+        // 핵심: 이번 페이지에 실제로 "포함된" 항목 중, 그 소스의 마지막 것으로만 다음 커서를 잡는다.
+        // 그 소스에서 하나도 안 뽑혔으면 커서를 그대로 유지(다음 페이지에서 같은 지점부터 다시 시도).
+        ProductStockHistoryItem lastEventLogItem = items.stream()
+                .filter(i -> i.source().equals("EVENT_LOG"))
+                .reduce((first, second) -> second).orElse(null);
+        ProductStockHistoryItem lastAllocationItem = items.stream()
+                .filter(i -> i.source().equals("ALLOCATION_LOG"))
+                .reduce((first, second) -> second).orElse(null);
+
+        Instant nextEventLogCursorCreatedAt = lastEventLogItem != null ? lastEventLogItem.occurredAt() : eventLogCursorCreatedAt;
+        UUID nextEventLogCursorId = lastEventLogItem != null ? lastEventLogItem.id() : eventLogCursorId;
+        Instant nextAllocationCursorCreatedAt = lastAllocationItem != null ? lastAllocationItem.occurredAt() : allocationCursorCreatedAt;
+        UUID nextAllocationCursorId = lastAllocationItem != null ? lastAllocationItem.id() : allocationCursorId;
+
+        Product product = productReader.getProduct(productId);
+        String nextCursor = new HistoryCursor(
+                nextEventLogCursorCreatedAt, nextEventLogCursorId,
+                nextAllocationCursorCreatedAt, nextAllocationCursorId
+        ).encode();
+        return new ProductStockHistoryResult(product.getName(), items, nextCursor);
     }
 
     // 격리된 재고 조회
@@ -138,10 +216,20 @@ public class ProductStockServiceImpl implements ProductStockService{
             reservations = productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, stockIds);
         }
 
+        List<UUID> stockIds = reservations.stream()
+                .map(ProductStockReservation::getStockId)
+                .distinct()
+                .toList();
+        Map<UUID, ProductStock> stockById = productStockRepository.findAllById(stockIds)
+                .stream()
+                .collect(Collectors.toMap(ProductStock::getId, s -> s));
+
         List<IsolatedReservationResult> result = new ArrayList<>();
         for (ProductStockReservation reservation : reservations) {
-            ProductStock stock = productStockRepository.findById(reservation.getStockId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+            ProductStock stock = stockById.get(reservation.getStockId());
+            if (stock == null) {
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
+            }
             Product product = productReader.getProduct(stock.getProductId());
 
             result.add(new IsolatedReservationResult(
@@ -188,6 +276,38 @@ public class ProductStockServiceImpl implements ProductStockService{
         saveEventLog(reservation.getId(), reserveLog.getOrderItemId(), StockEventType.RESTORE);
     }
 
+    @Override
+    public ProductStockTransferResult transferStock(ProductStockTransferCommand command) {
+        Product product = productReader.getProduct(command.productId());
+        authorizationChecker.requireOwnerOrAdmin(command.requesterId(), command.requesterRole(), product.getSellerId());
+
+        ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(command.productId())
+                .orElseThrow(()->new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND));
+
+        StockStatus previousStatus = stock.getStatus();
+        int quantity = command.quantity();
+        if (quantity < 0 && product.getStatus() != ProductStatus.ON_SALE) {
+            throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
+        }
+        stock.transfer(quantity);
+
+        saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+        productStockAllocationLogRepository.save(
+                ProductStockAllocationLog.create(
+                        stock.getId(),
+                        quantity < 0 ? AllocationEventType.ALLOCATE : AllocationEventType.DEALLOCATE,
+                        Math.abs(quantity)
+                )
+        );
+        if (stock.getStatus() == StockStatus.SOLD_OUT) {
+            notifySoldOut(command.productId());
+        } else if (previousStatus == StockStatus.SOLD_OUT) {
+            notifyRestocked(command.productId());
+        }
+
+        return ProductStockTransferResult.of(command.productId(), quantity, stock.getAvailableQuantity());
+    }
+
 
     // 재고 예약
     @Override
@@ -195,7 +315,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         Instant expiresAt = Instant.now().plus(reservationTtl);
         // 1. 멱등성 체크 - IN절 한 번
         List<ProductStockReserveItem> targetItems =
-                filterUnprocessed(items, ProductStockReserveItem::orderItemId, StockEventType.RESERVE);
+                filterUnprocessed(items, ProductStockReserveItem::orderItemId, List.of(StockEventType.RESERVE));
         if (targetItems.isEmpty()) {
             return; // 전부 이미 처리됨 - 멱등 반환
         }
@@ -245,7 +365,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     public void confirm(UUID orderId, List<ProductStockItem> items) {
         // 1. 멱등성 체크 - IN절 한 번
         List<ProductStockItem> targetItems =
-                filterUnprocessed(items, ProductStockItem::orderItemId, StockEventType.CONFIRM);
+                filterUnprocessed(items, ProductStockItem::orderItemId,List.of(StockEventType.CONFIRM));
         if (targetItems.isEmpty()) {
             return;
         }
@@ -311,10 +431,11 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Override
     public void restore(UUID orderId, List<ProductStockItem> items) {
-        // 1. 멱등성 체크 - IN절 한 번
-        List<ProductStockItem> targetItems =
-                filterUnprocessed(items, ProductStockItem::orderItemId, StockEventType.RESTORE);
-
+        // 1. 멱등성 체크 - RESTORE/REFUND 둘 다 이미 처리된 건 제외 (IN절 한 번)
+        List<ProductStockItem> targetItems = filterUnprocessed(
+                items, ProductStockItem::orderItemId,
+                List.of(StockEventType.RESTORE, StockEventType.REFUND)
+        );
         if (targetItems.isEmpty()) {
             return;
         }
@@ -323,33 +444,36 @@ public class ProductStockServiceImpl implements ProductStockService{
         List<UUID> targetOrderItemIds = targetItems.stream().map(ProductStockItem::orderItemId).toList();
         Map<UUID, ProductStockReservation> reservationByOrderItemId = loadValidatedReservations(targetOrderItemIds);
 
-        // 3. reservation 검증(null/orderId 불일치) + 상태별 분기
-        //    EXPIRED -> 이미 스케줄러가 처리 완료, 멱등 스킵 / EXPIRATION_FAILED -> 격리 상태, 즉시 예외
-        //    나머지(RESERVED)만 실제 복구 대상(actuallyRestoreItems)으로 확정
+        // 3. reservation 검증 + 상태별 분리
+        //    EXPIRED -> skip / EXPIRATION_FAILED -> 즉시 예외 / RESERVED -> 취소 대상 / CONFIRMED -> 환불 대상
         List<ProductStockItem> actuallyRestoreItems = new ArrayList<>();
+        List<ProductStockItem> actuallyRefundItems = new ArrayList<>();
         for (ProductStockItem item : targetItems) {
             ProductStockReservation reservation = reservationByOrderItemId.get(item.orderItemId());
             if (reservation == null || !reservation.getOrderId().equals(orderId)) {
                 throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
             }
 
-            if (reservation.getStatus() == ReservationStatus.EXPIRED) {
-                continue;
+
+            switch (reservation.getStatus()) {
+                case EXPIRED -> { /* 스케줄러가 이미 처리, 멱등 스킵 */ }
+                case EXPIRATION_FAILED -> {
+                    log.warn("[restore] 격리된 예약 - orderId={}, orderItemId={}, reservationId={}",
+                            orderId, item.orderItemId(), reservation.getId());
+                    throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
+                }
+                case RESERVED -> actuallyRestoreItems.add(item);
+                case CONFIRMED -> actuallyRefundItems.add(item);
+                default -> throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
             }
-            if (reservation.getStatus() == ReservationStatus.EXPIRATION_FAILED) {
-                log.warn("[restore] 격리된 예약 - orderId={}, orderItemId={}, reservationId={}",
-                        orderId, item.orderItemId(), reservation.getId());
-                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
-            }
-            actuallyRestoreItems.add(item);
         }
 
-        if (actuallyRestoreItems.isEmpty()) {
+        if (actuallyRestoreItems.isEmpty() && actuallyRefundItems.isEmpty()) {
             return;
         }
 
-        // 4. 재고 조회 - IN절 한 번 (3번에서 reservation 검증/분류가 끝난 뒤라 안전하게 조회 가능)
-        List<UUID> stockIds = actuallyRestoreItems.stream()
+        // 4. 재고 조회 - 두 리스트 합쳐서 IN절 한 번
+        List<UUID> stockIds = Stream.concat(actuallyRestoreItems.stream(), actuallyRefundItems.stream())
                 .map(item -> reservationByOrderItemId.get(item.orderItemId()).getStockId())
                 .distinct()
                 .toList();
@@ -357,7 +481,8 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .findAllById(stockIds)
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
-
+        Map<UUID, StockStatus> previousStatusByStockId = stockById.values().stream()
+                .collect(Collectors.toMap(ProductStock::getId, ProductStock::getStatus));
         // 5. stock 검증 + 도메인 로직 + 이벤트로그 준비
         List<ProductStockEventLog> eventLogsToSave = new ArrayList<>();
         List<ProductStockReservation> reservationsToSave = new ArrayList<>();
@@ -374,7 +499,19 @@ public class ProductStockServiceImpl implements ProductStockService{
 
             eventLogsToSave.add(ProductStockEventLog.create(reservation.getId(), item.orderItemId(), StockEventType.RESTORE));
         }
+        for (ProductStockItem item : actuallyRefundItems) {
+            ProductStockReservation reservation = reservationByOrderItemId.get(item.orderItemId());
+            reservation.cancelConfirmed();
+            reservationsToSave.add(reservation);
 
+            ProductStock stock = stockById.get(reservation.getStockId());
+            if (stock == null || !stock.getProductId().equals(item.productId())) {
+                throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_NOT_FOUND);
+            }
+            stock.refundConfirmed(reservation.getQuantity());
+
+            eventLogsToSave.add(ProductStockEventLog.create(reservation.getId(), item.orderItemId(), StockEventType.REFUND));
+        }
         // 6. 저장 - 배치로 한 번에
         try {
             productStockReservationRepository.saveAllAndFlush(reservationsToSave);
@@ -385,6 +522,12 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
 
         saveEventLogsSafely(eventLogsToSave, "restore", orderId);
+        Set<UUID> restockedProductIds = stockById.values().stream()
+                .filter(stock -> previousStatusByStockId.get(stock.getId()) == StockStatus.SOLD_OUT
+                        && stock.getStatus() != StockStatus.SOLD_OUT)
+                .map(ProductStock::getProductId)
+                .collect(Collectors.toSet());
+        restockedProductIds.forEach(this::notifyRestocked);
     }
 
     @Override
@@ -413,13 +556,16 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         stock.allocate(command.quantity());
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+        productStockAllocationLogRepository.save(
+                ProductStockAllocationLog.create(stock.getId(), AllocationEventType.ALLOCATE, command.quantity())
+        );
         if (stock.getStatus() == StockStatus.SOLD_OUT) {
             notifySoldOut(command.productId());
         }
         return new ProductStockAllocateResult(
                 product.getId(),
                 product.getSellerId(),
-                product.getImageId(),
+                null,   // 추후 수정 (상품ID를 통해 imageUrl을 받아옴)
                 command.quantity(),
                 product.getName(),
                 product.getDescription(),
@@ -443,6 +589,9 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         stock.deallocate(command.quantity());
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
+        productStockAllocationLogRepository.save(
+                ProductStockAllocationLog.create(stock.getId(), AllocationEventType.DEALLOCATE, command.quantity())
+        );
         if (previousStatus == StockStatus.SOLD_OUT && stock.getStatus() != StockStatus.SOLD_OUT) {
             notifyRestocked(command.productId());
         }
@@ -484,11 +633,11 @@ public class ProductStockServiceImpl implements ProductStockService{
     private <T> List<T> filterUnprocessed(
             List<T> items,
             Function<T, UUID> orderItemIdExtractor,
-            StockEventType eventType
+            List<StockEventType> eventTypes
     ) {
         List<UUID> orderItemIds = items.stream().map(orderItemIdExtractor).toList();
         Set<UUID> alreadyProcessed = productStockEventLogRepository
-                .findByOrderItemIdInAndEventType(orderItemIds, eventType)
+                .findByOrderItemIdInAndEventTypeIn(orderItemIds, eventTypes)
                 .stream()
                 .map(ProductStockEventLog::getOrderItemId)
                 .collect(Collectors.toSet());
