@@ -7,6 +7,7 @@ import com.parut.order.order.application.dto.OrderCancelContext;
 import com.parut.order.order.application.dto.OrderCancelResult;
 import com.parut.order.order.application.port.out.ProductClient;
 import com.parut.order.order.application.port.out.TimeDealClient;
+import com.parut.order.order.application.port.out.dto.ProductStockItem;
 import com.parut.order.payment.application.port.in.PaymentCancelUseCase;
 import com.parut.order.payment.application.port.in.dto.PaymentCancelReceipt;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -58,13 +60,15 @@ public class OrderCancelFacade {
         return result;
     }
 
-    // ToDo: bulk 도입 시 아이템별 반복 호출을 1회로 개선 예정
     private void restoreStock(CancelOrderCommand command, OrderCancelContext context) {
-        context.items().stream()
+        List<ProductStockItem> productItems = context.items().stream()
                 .filter(item -> item.timeDealId() == null)
-                .forEach(item -> safelyRestore(
-                        () -> productClient.restoreStock(item.productId(), context.orderId(), item.orderItemId()),
-                        context.orderId()));
+                .map(item -> new ProductStockItem(item.productId(), item.orderItemId()))
+                .toList();
+
+        if (!productItems.isEmpty()) {
+            safelyRestore(() -> productClient.restoreStock(context.orderId(), productItems), context.orderId());
+        }
 
         // 타임딜 재고 해제는 orderId 단위 API라 아이템 수와 무관하게 한 번만 호출한다.
         if (context.items().stream().anyMatch(item -> item.timeDealId() != null)) {

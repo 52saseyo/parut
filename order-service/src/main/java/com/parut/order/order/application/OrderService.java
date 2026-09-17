@@ -3,10 +3,7 @@ package com.parut.order.order.application;
 import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.order.application.dto.CreateOrderCommand;
-import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
-import com.parut.order.order.application.dto.CreatedOrder;
-import com.parut.order.order.application.dto.OrderDetailData;
+import com.parut.order.order.application.dto.*;
 import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
 import com.parut.order.order.application.port.out.dto.TimeDealInfo;
 import com.parut.order.order.domain.*;
@@ -21,9 +18,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Order 도메인의 DB 상태 변경과 조회를 전담합니다.
@@ -39,6 +35,7 @@ import java.util.UUID;
 public class OrderService {
 
     static final long DELIVERY_FEE_PER_SELLER = 3_000L; // ToDo: 배송비 정책 구체화 시점에 수정
+    static final int MAX_SELLER_COUNT = 5;
     static final Duration ORDER_TTL = Duration.ofHours(24);
     private static final DateTimeFormatter ORDER_NO_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
@@ -56,42 +53,68 @@ public class OrderService {
     /**
      * 주문 초기 데이터(주문, 배송그룹, 아이템, 이력)를 DB에 확정 저장합니다.
      *
+     * <p>아이템을 판매자(sellerId) 기준으로 그룹핑해 배송그룹을 판매자 수만큼 생성합니다.
+     *
      * <p>동시 요청으로 멱등키가 충돌할 경우 예외를 직접 처리하지 않고 ({@link OrderFacade})로 전파하여,
      * 해당 트랜잭션이 깔끔하게 롤백되도록 유도합니다.
      */
-    // ToDo: bulk 도입 시 수정 예정
     @Transactional
-    public CreatedOrder saveNewOrder(CreateOrderCommand command, ProductOrderInfo productInfo) {
+    public CreatedOrder saveNewOrder(CreateOrderCommand command, Map<UUID, ProductOrderInfo> productInfoByProductId) {
         // 일반 상품은 할인이 없어 unitPrice = originalPrice 로 저장
-        // 타임딜 주문은 unitPrice에 할인가 저장
-        long unitPrice = productInfo.originalPrice();
-        long totalProductAmount = unitPrice * command.quantity();
+        long totalProductAmount = command.items().stream()
+                .mapToLong(item -> productInfoByProductId.get(item.productId()).originalPrice() * item.quantity())
+                .sum();
 
-        Order order = orderRepository.saveAndFlush(buildOrder(command, totalProductAmount));
+        Set<UUID> sellerIds = command.items().stream()
+                .map(item -> productInfoByProductId.get(item.productId()).sellerId())
+                .collect(Collectors.toSet());
+        if (sellerIds.size() > MAX_SELLER_COUNT) {
+            throw new BusinessException(ErrorCode.TOO_MANY_SELLERS);
+        }
+        long totalDeliveryFee = DELIVERY_FEE_PER_SELLER * sellerIds.size();
+
+        Order order = orderRepository.saveAndFlush(buildOrder(command, totalProductAmount, totalDeliveryFee));
         recordHistory(order.getId(), null, OrderStatus.CREATED, "주문 생성", command.userId());
 
-        OrderDeliveryGroup group = orderDeliveryGroupRepository.save(
-                OrderDeliveryGroup.create(order.getId(), productInfo.sellerId(), totalProductAmount, DELIVERY_FEE_PER_SELLER)
-        );
-        OrderItem item = orderItemRepository.save(
-                OrderItem.create(
-                        order.getId(),
-                        group.getId(),
-                        productInfo.productId(),
-                        null,
-                        productInfo.productName(),
-                        productInfo.appearanceType(),
-                        productInfo.origin(),
-                        productInfo.harvestDate(),
-                        productInfo.saleUnit(),
-                        productInfo.unitQuantity(),
-                        productInfo.originalPrice(),
-                        unitPrice,
-                        command.quantity()
-                )
-        );
+        Map<UUID, List<OrderItemCommand>> itemsBySeller = command.items().stream()
+                .collect(Collectors.groupingBy(item -> productInfoByProductId.get(item.productId()).sellerId()));
 
-        return new CreatedOrder(order, item);
+        List<OrderItem> savedItems = new ArrayList<>();
+        for (Map.Entry<UUID, List<OrderItemCommand>> entry : itemsBySeller.entrySet()) {
+            UUID sellerId = entry.getKey();
+            List<OrderItemCommand> sellerItems = entry.getValue();
+            long groupProductAmount = sellerItems.stream()
+                    .mapToLong(item -> productInfoByProductId.get(item.productId()).originalPrice() * item.quantity())
+                    .sum();
+
+            OrderDeliveryGroup group = orderDeliveryGroupRepository.save(
+                    OrderDeliveryGroup.create(order.getId(), sellerId, groupProductAmount, DELIVERY_FEE_PER_SELLER)
+            );
+
+            for (OrderItemCommand item : sellerItems) {
+                ProductOrderInfo productInfo = productInfoByProductId.get(item.productId());
+                long unitPrice = productInfo.originalPrice();
+                savedItems.add(orderItemRepository.save(
+                        OrderItem.create(
+                                order.getId(),
+                                group.getId(),
+                                productInfo.productId(),
+                                null,
+                                productInfo.productName(),
+                                productInfo.appearanceType(),
+                                productInfo.origin(),
+                                productInfo.harvestDate(),
+                                productInfo.saleUnit(),
+                                productInfo.unitQuantity(),
+                                productInfo.originalPrice(),
+                                unitPrice,
+                                item.quantity()
+                        )
+                ));
+            }
+        }
+
+        return new CreatedOrder(order, savedItems);
     }
 
     /**
@@ -127,7 +150,7 @@ public class OrderService {
                 )
         );
 
-        return new CreatedOrder(order, item);
+        return new CreatedOrder(order, List.of(item));
     }
 
     @Transactional
@@ -159,7 +182,7 @@ public class OrderService {
         orderRepository.deleteById(orderId);
     }
 
-    private Order buildOrder(CreateOrderCommand command, long totalProductAmount) {
+    private Order buildOrder(CreateOrderCommand command, long totalProductAmount, long totalDeliveryFee) {
         return Order.create(
                 generateOrderNo(),
                 command.userId(),
@@ -171,7 +194,7 @@ public class OrderService {
                 command.addressDetail(),
                 command.deliveryRequest(),
                 totalProductAmount,
-                DELIVERY_FEE_PER_SELLER,
+                totalDeliveryFee,
                 command.idempotencyKey()
         );
     }

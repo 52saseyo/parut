@@ -2,6 +2,7 @@ package com.parut.order.payment.application;
 
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.order.application.port.in.dto.OrderItemSnapshotView;
 import com.parut.order.order.domain.OrderStatus;
 import com.parut.order.payment.application.dto.PaymentConfirmCommand;
 import com.parut.order.payment.application.dto.PaymentConfirmContext;
@@ -11,6 +12,7 @@ import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
 import com.parut.order.payment.application.port.out.TimeDealStockConfirmClient;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
 import com.parut.order.payment.application.port.out.dto.PaymentCancelResult;
+import com.parut.order.payment.application.port.out.dto.ProductStockConfirmItem;
 import com.parut.order.payment.domain.PaymentMethod;
 import com.parut.order.payment.domain.PaymentStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,11 +62,22 @@ class PaymentFacadeTest {
     }
 
     private PaymentConfirmContext context() {
-        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, ORDER_ITEM_ID, PRODUCT_ID, null);
+        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID,
+                List.of(new OrderItemSnapshotView(ORDER_ITEM_ID, PRODUCT_ID, "신고배 5kg 특품", null)));
+    }
+
+    private PaymentConfirmContext multiItemContext() {
+        UUID secondItemId = UUID.randomUUID();
+        UUID secondProductId = UUID.randomUUID();
+        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, List.of(
+                new OrderItemSnapshotView(ORDER_ITEM_ID, PRODUCT_ID, "신고배 5kg 특품", null),
+                new OrderItemSnapshotView(secondItemId, secondProductId, "제주 감귤 3kg", null)
+        ));
     }
 
     private PaymentConfirmContext timeDealContext() {
-        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID, ORDER_ITEM_ID, PRODUCT_ID, UUID.randomUUID());
+        return new PaymentConfirmContext(PAYMENT_ID, ORDER_ID, USER_ID,
+                List.of(new OrderItemSnapshotView(ORDER_ITEM_ID, PRODUCT_ID, "신고배 5kg 특품(타임딜)", UUID.randomUUID())));
     }
 
     private PaymentApproveResult approveResult() {
@@ -93,11 +107,32 @@ class PaymentFacadeTest {
         PaymentConfirmResult result = paymentFacade.confirm(command);
 
         assertThat(result.orderStatus()).isEqualTo(OrderStatus.PAID);
-        verify(productStockConfirmClient).confirmStock(PRODUCT_ID, ORDER_ID, ORDER_ITEM_ID);
+        verify(productStockConfirmClient).confirmStock(ORDER_ID, List.of(new ProductStockConfirmItem(PRODUCT_ID, ORDER_ITEM_ID)));
         verifyNoInteractions(timeDealStockConfirmClient);
         verify(paymentService).markDeliveryPreparing(ORDER_ID);
         verify(paymentGateway, never()).cancel(any(), anyLong(), any());
         verify(paymentService, never()).applyStockShortageCancel(any(), any());
+    }
+
+    @Test
+    @DisplayName("결제 승인: 다건 주문이면 아이템 전체를 한 번의 벌크 호출로 확정한다")
+    void 결제승인_다건_벌크확정() {
+        PaymentConfirmCommand command = command();
+        PaymentConfirmContext context = multiItemContext();
+        PaymentApproveResult approveResult = approveResult();
+        PaymentConfirmResult confirmResult = confirmResult(approveResult, command);
+
+        when(paymentService.loadForConfirm(command)).thenReturn(context);
+        when(paymentGateway.approve(command.paymentKey(), command.tossOrderId(), command.amount(), command.idempotencyKey()))
+                .thenReturn(approveResult);
+        when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
+
+        paymentFacade.confirm(command);
+
+        List<ProductStockConfirmItem> expectedItems = context.items().stream()
+                .map(item -> new ProductStockConfirmItem(item.productId(), item.orderItemId()))
+                .toList();
+        verify(productStockConfirmClient, times(1)).confirmStock(ORDER_ID, expectedItems);
     }
 
     @Test
@@ -155,7 +190,7 @@ class PaymentFacadeTest {
                 .thenReturn(approveResult);
         when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
         doThrow(new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE))
-                .when(productStockConfirmClient).confirmStock(PRODUCT_ID, ORDER_ID, ORDER_ITEM_ID);
+                .when(productStockConfirmClient).confirmStock(ORDER_ID, List.of(new ProductStockConfirmItem(PRODUCT_ID, ORDER_ITEM_ID)));
 
         assertThatThrownBy(() -> paymentFacade.confirm(command))
                 .isInstanceOf(BusinessException.class)
@@ -181,7 +216,7 @@ class PaymentFacadeTest {
                 .thenReturn(approveResult);
         when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
         doThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE))
-                .when(productStockConfirmClient).confirmStock(PRODUCT_ID, ORDER_ID, ORDER_ITEM_ID);
+                .when(productStockConfirmClient).confirmStock(ORDER_ID, List.of(new ProductStockConfirmItem(PRODUCT_ID, ORDER_ITEM_ID)));
         when(paymentGateway.cancel(command.paymentKey(), confirmResult.balanceAmount(), "OUT_OF_STOCK"))
                 .thenReturn(cancelResult);
 
@@ -208,7 +243,7 @@ class PaymentFacadeTest {
                 .thenReturn(approveResult);
         when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
         doThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE))
-                .when(productStockConfirmClient).confirmStock(PRODUCT_ID, ORDER_ID, ORDER_ITEM_ID);
+                .when(productStockConfirmClient).confirmStock(ORDER_ID, List.of(new ProductStockConfirmItem(PRODUCT_ID, ORDER_ITEM_ID)));
         doThrow(new RuntimeException("PG down"))
                 .when(paymentGateway).cancel(command.paymentKey(), confirmResult.balanceAmount(), "OUT_OF_STOCK");
 

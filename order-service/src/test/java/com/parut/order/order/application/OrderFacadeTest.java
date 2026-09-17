@@ -1,21 +1,20 @@
 package com.parut.order.order.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Optional;
-import java.util.UUID;
-
+import com.parut.order.global.exception.BusinessException;
+import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
+import com.parut.order.order.application.dto.CreatedOrder;
+import com.parut.order.order.application.dto.OrderItemCommand;
+import com.parut.order.order.application.port.out.ProductClient;
+import com.parut.order.order.application.port.out.TimeDealClient;
+import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
+import com.parut.order.order.application.port.out.dto.ProductStockReserveItem;
+import com.parut.order.order.application.port.out.dto.TimeDealInfo;
+import com.parut.order.order.domain.Order;
+import com.parut.order.order.domain.OrderItem;
+import com.parut.order.order.domain.OrderStatus;
+import com.parut.order.order.domain.OrderType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,19 +23,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.parut.order.global.exception.BusinessException;
-import com.parut.order.global.exception.ErrorCode;
-import com.parut.order.order.application.dto.CreateOrderCommand;
-import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
-import com.parut.order.order.application.dto.CreatedOrder;
-import com.parut.order.order.application.port.out.ProductClient;
-import com.parut.order.order.application.port.out.TimeDealClient;
-import com.parut.order.order.application.port.out.dto.ProductOrderInfo;
-import com.parut.order.order.application.port.out.dto.TimeDealInfo;
-import com.parut.order.order.domain.Order;
-import com.parut.order.order.domain.OrderItem;
-import com.parut.order.order.domain.OrderStatus;
-import com.parut.order.order.domain.OrderType;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderFacadeTest {
@@ -61,7 +57,7 @@ class OrderFacadeTest {
 
     private CreateOrderCommand createCommand(int quantity) {
         return new CreateOrderCommand(
-                USER_ID, IDEMPOTENCY_KEY, PRODUCT_ID, quantity,
+                USER_ID, IDEMPOTENCY_KEY, List.of(new OrderItemCommand(PRODUCT_ID, quantity)),
                 "홍길동", "01012345678", "06234", "서울특별시 강남구 테헤란로 123", "5층 501호", null
         );
     }
@@ -139,14 +135,14 @@ class OrderFacadeTest {
         reserved.markStockReserved(java.time.Instant.now().plusSeconds(3600));
 
         when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
-        when(productClient.getOrderInfo(PRODUCT_ID)).thenReturn(purchasableProductInfo());
-        when(orderService.saveNewOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        when(productClient.getOrderInfos(List.of(PRODUCT_ID))).thenReturn(List.of(purchasableProductInfo()));
+        when(orderService.saveNewOrder(any(), any())).thenReturn(new CreatedOrder(created, List.of(item)));
         when(orderService.markStockReserved(created.getId(), USER_ID)).thenReturn(reserved);
 
         Order result = orderFacade.createOrder(createCommand(2));
 
         assertThat(result.getOrderStatus()).isEqualTo(OrderStatus.STOCK_RESERVED);
-        verify(productClient).reserveStock(eq(PRODUCT_ID), eq(created.getId()), eq(item.getId()), eq(2));
+        verify(productClient).reserveStock(eq(created.getId()), eq(List.of(new ProductStockReserveItem(PRODUCT_ID, item.getId(), 2))));
         verify(orderService, never()).deleteFailedOrder(any());
     }
 
@@ -157,10 +153,10 @@ class OrderFacadeTest {
         OrderItem item = existingItem(created);
 
         when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
-        when(productClient.getOrderInfo(PRODUCT_ID)).thenReturn(purchasableProductInfo());
-        when(orderService.saveNewOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        when(productClient.getOrderInfos(List.of(PRODUCT_ID))).thenReturn(List.of(purchasableProductInfo()));
+        when(orderService.saveNewOrder(any(), any())).thenReturn(new CreatedOrder(created, List.of(item)));
         doThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE))
-                .when(productClient).reserveStock(any(), any(), any(), anyInt());
+                .when(productClient).reserveStock(any(), any());
 
         assertThatThrownBy(() -> orderFacade.createOrder(createCommand(1)))
                 .isInstanceOf(BusinessException.class)
@@ -175,10 +171,10 @@ class OrderFacadeTest {
     @DisplayName("판매 불가 상품이면 PRODUCT_UNAVAILABLE 예외를 던지고 주문을 저장하지 않는다")
     void 판매불가_상품() {
         when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
-        when(productClient.getOrderInfo(PRODUCT_ID)).thenReturn(new ProductOrderInfo(
+        when(productClient.getOrderInfos(List.of(PRODUCT_ID))).thenReturn(List.of(new ProductOrderInfo(
                 PRODUCT_ID, SELLER_ID, "품절 상품", "NORMAL", "국내산",
                 LocalDate.of(2026, 8, 20), "KG", BigDecimal.valueOf(5), 15_000L, false
-        ));
+        )));
 
         assertThatThrownBy(() -> orderFacade.createOrder(createCommand(1)))
                 .isInstanceOf(BusinessException.class)
@@ -199,7 +195,7 @@ class OrderFacadeTest {
 
         when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
         when(timeDealClient.getOrderInfo(TIME_DEAL_ID)).thenReturn(timeDealInfo());
-        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, List.of(item)));
         when(orderService.markStockReserved(created.getId(), USER_ID)).thenReturn(reserved);
 
         Order result = orderFacade.createTimeDealOrder(createTimeDealCommand(2));
@@ -218,7 +214,7 @@ class OrderFacadeTest {
 
         when(orderService.findByIdempotencyKey(IDEMPOTENCY_KEY)).thenReturn(Optional.empty());
         when(timeDealClient.getOrderInfo(TIME_DEAL_ID)).thenReturn(timeDealInfo());
-        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, item));
+        when(orderService.saveNewTimeDealOrder(any(), any())).thenReturn(new CreatedOrder(created, List.of(item)));
         doThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE))
                 .when(timeDealClient).reserveStock(any(), any(), any(), anyInt());
 
