@@ -1,16 +1,15 @@
 package com.parut.order.order.application.dto;
 
-import java.util.UUID;
-
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 
-// ToDo: bulk 도입 시 수정 예정
+import java.util.List;
+import java.util.UUID;
+
 public record CreateOrderCommand(
         UUID userId,
         String idempotencyKey,
-        UUID productId,
-        int quantity,
+        List<OrderItemCommand> items,
         String recipientName,
         String recipientPhone,
         String zipCode,
@@ -21,12 +20,14 @@ public record CreateOrderCommand(
     public CreateOrderCommand {
         if (userId == null
                 || idempotencyKey == null || idempotencyKey.isBlank()
-                || productId == null
+                || items == null || items.isEmpty()
                 || recipientName == null || recipientName.isBlank()
                 || recipientPhone == null || recipientPhone.isBlank()
                 || zipCode == null || zipCode.isBlank()
-                || addressBase == null || addressBase.isBlank()
-                || quantity < 1) {
+                || addressBase == null || addressBase.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (items.stream().map(OrderItemCommand::productId).distinct().count() != items.size()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }

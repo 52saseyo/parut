@@ -1,6 +1,7 @@
 package com.parut.order.order.presentation.dto.request;
 
 import com.parut.order.order.application.dto.CreateOrderCommand;
+import com.parut.order.order.application.dto.OrderItemCommand;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,9 +13,8 @@ import java.util.UUID;
 
 public record CreateOrderRequest(
 
-        // ToDo: bulk 고려 시점에 수정 예정
         @NotNull
-        @Size(min = 1, max = 1, message = "MVP는 단일 상품 주문만 지원")
+        @Size(min = 1, max = 20, message = "주문 상품은 1개 이상 20개 이하만 가능합니다")
         List<@Valid OrderItemRequest> items,
 
         @NotNull
@@ -24,12 +24,13 @@ public record CreateOrderRequest(
         Boolean removeFromCart
 ) {
     public CreateOrderCommand toCommand(UUID userId, String idempotencyKey) {
-        OrderItemRequest item = items.get(0);
+        List<OrderItemCommand> itemCommands = items.stream()
+                .map(item -> new OrderItemCommand(item.productId(), item.quantity()))
+                .toList();
         return new CreateOrderCommand(
                 userId,
                 idempotencyKey,
-                item.productId(),
-                item.quantity(),
+                itemCommands,
                 recipient.recipientName(),
                 recipient.recipientPhone(),
                 recipient.zipCode(),

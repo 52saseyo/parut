@@ -1,17 +1,17 @@
 package com.parut.order.payment.infrastructure.client;
 
-import java.util.UUID;
-
-import org.springframework.stereotype.Component;
-
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
+import com.parut.order.payment.application.port.out.dto.ProductStockConfirmItem;
 import com.parut.order.payment.infrastructure.client.dto.ProductStockConfirmApiRequest;
-
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -21,15 +21,18 @@ public class FeignProductStockConfirmClient implements ProductStockConfirmClient
     private final ProductStockConfirmFeignClient productStockConfirmFeignClient;
 
     @Override
-    public void confirmStock(UUID productId, UUID orderId, UUID orderItemId) {
+    public void confirmStock(UUID orderId, List<ProductStockConfirmItem> items) {
         try {
-            productStockConfirmFeignClient.confirmStock(productId, new ProductStockConfirmApiRequest(orderId, orderItemId));
+            productStockConfirmFeignClient.confirmStock(new ProductStockConfirmApiRequest(
+                    orderId,
+                    items.stream()
+                            .map(item -> new ProductStockConfirmApiRequest.Item(item.productId(), item.orderItemId()))
+                            .toList()
+            ));
         } catch (FeignException.NotFound | FeignException.Conflict e) {
-            // 예약이 없거나(만료 정리 포함) 이미 처리됨 -> 재고 확정 실패로 간주
             throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
         } catch (FeignException e) {
-            log.warn("[ProductStockConfirmClient] 재고 확정 실패 productId={}, orderItemId={}, status={}",
-                    productId, orderItemId, e.status(), e);
+            log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}, status={}", orderId, items, e.status(), e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }

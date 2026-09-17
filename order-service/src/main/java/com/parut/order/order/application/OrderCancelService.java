@@ -45,12 +45,11 @@ public class OrderCancelService implements OrderCancelUseCase {
     public void cancelForStockShortage(UUID orderId) {
         // 락 획득 순서: 주문 -> 배송그룹 -> 아이템
         Order order = getOrder(orderId);
-        // ToDo: bulk 도입 시 수정 필요
-        OrderDeliveryGroup group = orderDeliveryGroupRepository.findByOrderId(orderId).get(0);
-        OrderItem item = orderItemRepository.findByOrderId(orderId).get(0);
+        List<OrderDeliveryGroup> groups = orderDeliveryGroupRepository.findByOrderId(orderId);
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
 
-        long cancelProductAmount = item.getUnitPrice() * item.getQuantity();
-        long cancelDeliveryFee = group.getDeliveryFee(); // 그룹에 ORDERED 아이템이 안 남으므로 전액 환불
+        long cancelProductAmount = items.stream().mapToLong(item -> item.getUnitPrice() * item.getQuantity()).sum();
+        long cancelDeliveryFee = groups.stream().mapToLong(OrderDeliveryGroup::getDeliveryFee).sum(); // 그룹에 ORDERED 아이템이 안 남으므로 전액 환불
 
         OrderCancel orderCancel = orderCancelRepository.save(
                 OrderCancel.create(
@@ -67,8 +66,8 @@ public class OrderCancelService implements OrderCancelUseCase {
         );
 
         Instant canceledAt = Instant.now();
-        group.cancel(canceledAt);
-        item.cancel(orderCancel.getId());
+        groups.forEach(group -> group.cancel(canceledAt));
+        items.forEach(item -> item.cancel(orderCancel.getId()));
         order.applyCancellation(orderCancel.getCancelTotalAmount());
     }
 
