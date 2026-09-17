@@ -3,6 +3,7 @@ package com.parut.product.timedeal.presentation;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockQueryResult;
+import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockQueryUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,9 @@ class TimeDealStockControllerTest {
 
     @MockitoBean
     private TimeDealStockQueryUseCase useCase;
+
+    @MockitoBean
+    private TimeDealStockCommandUseCase commandUseCase;
 
     @Autowired
     private MockMvc mvc;
