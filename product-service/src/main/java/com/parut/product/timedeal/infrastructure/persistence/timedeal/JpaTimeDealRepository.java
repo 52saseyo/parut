@@ -16,7 +16,12 @@ public interface JpaTimeDealRepository extends JpaRepository<TimeDeal, UUID> {
     Optional<TimeDeal> findByIdAndDeletedAtIsNull(UUID id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select timeDeal from TimeDeal timeDeal where timeDeal.id = :id and timeDeal.deletedAt is null")
+    @Query("""
+            select timeDeal
+              from TimeDeal timeDeal
+             where timeDeal.id = :id
+               and timeDeal.deletedAt is null
+            """)
     Optional<TimeDeal> findByIdForUpdate(@Param("id") UUID id);
 
 

@@ -39,4 +39,10 @@ public interface ProductStockReservationRepository extends JpaRepository<Product
             @Param("cursorId") UUID cursorId,
             Pageable pageable
     );
+
+    // 격리 예약 조회 - ADMIN용 (전체)
+    List<ProductStockReservation> findByStatus(ReservationStatus status);
+
+    // 격리 예약 조회 - SELLER용 (본인 상품 범위로 제한)
+    List<ProductStockReservation> findByStatusAndStockIdIn(ReservationStatus status, List<UUID> stockIds);
 }

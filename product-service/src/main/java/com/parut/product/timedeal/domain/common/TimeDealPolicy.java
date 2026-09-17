@@ -39,10 +39,8 @@ public class TimeDealPolicy {
 
         stock.reserve(quantity);
 
-        // NOTE: 소진 조기 종료. end()에 시간 가드가 없어 호출 경로 제한이 이 클래스의 책임이다.
-        if (stock.isDepleted()) {
-            timeDeal.end();
-        }
+        // NOTE: 선점만으로는 결제 확정 여부를 알 수 있으므로 타임딜을 종료하지 않는다.
+        //       재고가 0이어도 RESERVED 구매가 취소·만료되면 재고가 복구될 수 있다.
         return purchase;
     }
 
@@ -50,7 +48,9 @@ public class TimeDealPolicy {
     // 예외를 던지면 그 정리까지 롤백되므로 실패를 반환값으로 표현한다.
     // NOTE: 이미 CONFIRMED면 성공을 그대로 돌려준다(멱등). 이미 CANCELLED인 건은 정리할 것이 없어
     // 반환값을 쓸 이유가 없으므로 도메인의 confirm() 상태 가드가 던지게 둔다.
+    // NOTE: 확정 시점에는 TimeDeal까지 함께 받아, 모든 선점이 확정된 경우에만 소진 종료한다.
     public TimeDealPurchaseConfirmResult confirmSale(
+            TimeDeal timeDeal,
             TimeDealPurchase purchase,
             TimeDealStock stock,
             Instant now
@@ -74,6 +74,15 @@ public class TimeDealPolicy {
 
         purchase.confirm(now);
         stock.confirmSale(quantity);
+
+        // NOTE: available=0이어도 아직 RESERVED가 남아 있으면 취소·만료로 복구될 수 있으므로 종료하지 않는다.
+        //       시간 마감·강제 종료가 먼저 처리된 경우에는 이미 종료된 상태를 다시 전이하지 않는다.
+        if (timeDeal != null
+                && timeDeal.getStatus() == TimeDealStatus.ACTIVE
+                && stock.isDepleted()
+                && stock.getReservedQuantity() == 0) {
+            timeDeal.end();
+        }
         return TimeDealPurchaseConfirmResult.CONFIRMED;
     }
 
@@ -129,6 +138,11 @@ public class TimeDealPolicy {
             throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED);
         }
         stock.adjustAvailableQuantity(delta);
+    }
+
+    // NOTE: 일반 상품과 타임딜 사이의 재고 이동 중 타임딜 재고 변경을 조율한다.
+    public void transferStock(TimeDeal timeDeal, TimeDealStock stock, Integer quantity) {
+        adjustStock(timeDeal, stock, quantity);
     }
 
     // NOTE: 저장된 TimeDeal에 재고를 할당한다 — 저장 전이면 getId()가 null이라 걸러진다.
