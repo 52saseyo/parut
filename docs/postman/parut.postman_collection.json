@@ -639,6 +639,100 @@
                       }
                     }
                   ]
+                },
+                {
+                  "name": "타임딜 재고 조정",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "{{timeDealRequesterRole}}" },
+                      { "key": "X-Trace-Id", "value": "{{timeDealTraceId}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"quantity\": -10\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "time-deals", "{{timeDealId}}", "stock"]
+                    },
+                    "description": "판매자 본인 또는 ADMIN이 타임딜 판매 가능 재고를 조정한다. quantity는 delta이며 양수는 추가, 음수는 회수다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); ",
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('재고 조정 결과가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); ['availableQuantity', 'reservedQuantity', 'soldQuantity'].forEach(key => pm.expect(body.data[key]).to.be.a('number')); });"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "타임딜 재고 이관",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "{{timeDealRequesterRole}}" },
+                      { "key": "X-Trace-Id", "value": "{{timeDealTraceId}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 10\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "time-deals", "{{timeDealId}}", "stock", "transfer"]
+                    },
+                    "description": "연결된 일반 상품과 타임딜 사이에서 재고를 이동한다. quantity는 타임딜 기준 delta이며 상품 재고에는 반대 방향으로 전달된다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}')); ",
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('재고 이관 결과가 반환된다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.variables.get('timeDealId')); pm.expect(body.data.productId).to.eql(pm.variables.get('productId')); });"
+                        ]
+                      }
+                    }
+                  ]
                 }
               ]
             }

@@ -221,6 +221,7 @@ class TimeDealPurchaseCommandServiceTest {
     class Confirm {
 
         private TimeDealPurchase reservedPurchase(Instant reservedAt) {
+            when(timeDealRepository.findById(timeDeal.getId())).thenReturn(Optional.of(timeDeal));
             return TimeDealPurchase.create(
                     timeDeal, UUID.randomUUID(), UUID.randomUUID(), 5, reservedAt);
         }
