@@ -12,6 +12,8 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
     List<OrderItem> findByOrderId(UUID orderId);
 
+    List<OrderItem> findByCancelId(UUID cancelId);
+
     int countByDeliveryGroupIdAndItemStatus(UUID deliveryGroupId, OrderItemStatus itemStatus);
 
     void deleteByOrderId(UUID orderId);
