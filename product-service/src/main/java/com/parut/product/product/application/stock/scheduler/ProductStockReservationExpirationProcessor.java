@@ -64,7 +64,7 @@ public class ProductStockReservationExpirationProcessor {
 
         ProductStockEventLog eventLog = ProductStockEventLog.create(reservation.getId(), orderItemId, StockEventType.RESTORE);
         try {
-            productStockEventLogRepository.save(eventLog);
+            productStockEventLogRepository.saveAndFlush(eventLog);
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }

@@ -5069,7 +5069,7 @@
           "name": "23 stock",
           "item": [
             {
-              "name": "23-00-01 상품+재고 생성, 게이트웨이 우회",
+              "name": "23-00-01 (선택, 01·02 미실행 시) 상품+재고 생성, 게이트웨이 우회",
               "request": {
                 "method": "POST",
                 "header": [
@@ -5083,7 +5083,7 @@
                   "options": { "raw": { "language": "json" } }
                 },
                 "url": "{{productBaseUrl}}/api/v1/seller/products",
-                "description": "게이트웨이/로그인 없이 product-service를 직접 호출해 상품+초기 재고를 생성합니다. sellerId는 실제 가입된 판매자가 아니어도 됩니다."
+                "description": "게이트웨이/로그인 없이 product-service를 직접 호출해 상품+초기 재고를 생성합니다. sellerId는 실제 가입된 판매자가 아니어도 됩니다. 01~02를 이미 실행해서 productId가 있다면 이 요청은 건너뛰고 23-00-02부터 실행하세요."
               },
               "event": [
                 {
@@ -5450,42 +5450,6 @@
               ]
             },
             {
-              "name": "23-03-01 이력 정상 조회, 게이트웨이 경유",
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    { "key": "token", "value": "{{sellerAccessToken}}", "type": "string" }
-                  ]
-                },
-                "method": "GET",
-                "header": [],
-                "url": "{{gatewayBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=20",
-                "description": "01~03 플로우로 로그인/주문까지 마친 뒤, 실제 판매자 JWT로 게이트웨이를 거쳐 이력을 조회합니다. 통합 검증용이며, 게이트웨이가 로그인 이후 요청마다 재검증하는 로직이 판매자 계정을 못 찾는 버그가 있는 동안은 401이 날 수 있습니다(버그 수정 후 재확인 필요)."
-              },
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01번(로그인)부터 다시 실행하세요.');",
-                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 02번(상품 등록)부터 다시 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
               "name": "23-03-02 격리 예약 조회 - ADMIN, 게이트웨이 경유",
               "request": {
                 "auth": {
@@ -5506,67 +5470,6 @@
                     "type": "text/javascript",
                     "exec": [
                       "if (!pm.environment.get('adminAccessToken')) throw new Error('adminAccessToken 환경변수가 없습니다. 01번(관리자 로그인)부터 다시 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "23-03-03 격리 예약 조회 - SELLER, 게이트웨이 경유",
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    { "key": "token", "value": "{{sellerAccessToken}}", "type": "string" }
-                  ]
-                },
-                "method": "GET",
-                "header": [],
-                "url": "{{gatewayBaseUrl}}/api/v1/stocks/reservations/isolated",
-                "description": "판매자 JWT로 게이트웨이를 거쳐 본인 상품 범위의 격리 예약을 조회합니다. 통합 검증용, 게이트웨이 재검증 버그가 남아있는 동안은 401이 날 수 있습니다."
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "23-03-04 격리 예약 복구 - ADMIN, 게이트웨이 경유",
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    { "key": "token", "value": "{{adminAccessToken}}", "type": "string" }
-                  ]
-                },
-                "method": "POST",
-                "header": [],
-                "url": "{{gatewayBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
-                "description": "관리자 JWT로 게이트웨이를 거쳐 격리 예약을 복구합니다. 통합 검증용, 게이트웨이 재검증 버그가 남아있는 동안은 401이 날 수 있습니다. reservationId는 23-02-03과 별개로 DB에서 새로 EXPIRATION_FAILED 상태를 만들어야 의미 있게 동작합니다."
-              },
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('reservationId')) throw new Error('reservationId 환경변수가 없습니다. DB에서 EXPIRATION_FAILED 상태 예약을 만들고 값을 채우세요.');"
                     ]
                   }
                 },
