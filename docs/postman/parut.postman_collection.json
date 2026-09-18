@@ -226,201 +226,61 @@
               "description": "/api/v1/** — 클라이언트 공개 경로.",
               "item": [
                 {
-                  "name": "01 이미지 Presigned URL 발급",
+                  "name": "상품+재고 생성 (이미지 없음)",
                   "request": {
                     "method": "POST",
                     "header": [
-                      { "key": "Content-Type", "value": "application/json" },
-                      { "key": "X-User-Id", "value": "{{userId}}" },
-                      { "key": "X-User-Role", "value": "SELLER" }
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
+                      }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 102400\n}",
-                      "options": { "raw": { "language": "json" } }
-                    },
-                    "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/images/presigned-url",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "images", "presigned-url"]
-                    },
-                    "description": "판매자가 S3 업로드용 Presigned URL을 발급받고 imageKey와 uploadUrl을 환경 변수에 저장한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('Presigned URL 발급 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.imageKey).to.exist; pm.expect(body.data.uploadUrl).to.exist; });",
-                        "if (pm.response.code === 200 && body.data) { pm.environment.set('imageKey', body.data.imageKey); pm.environment.set('uploadUrl', body.data.uploadUrl); }"
-                      ]
-                    }
-                  }]
-                },
-                {
-                  "name": "02 S3 이미지 업로드",
-                  "request": {
-                    "method": "PUT",
-                    "header": [{ "key": "Content-Type", "value": "image/jpeg" }],
-                    "body": { "mode": "file", "file": { "src": "" } },
-                    "url": { "raw": "{{uploadUrl}}", "host": ["{{uploadUrl}}"] },
-                    "description": "Body에서 실제 JPEG 파일을 선택한 뒤 실행한다. Presigned 요청과 동일한 Content-Type을 사용해야 한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": ["pm.test('S3 이미지 업로드 성공', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"]
-                    }
-                  }]
-                },
-                {
-                  "name": "03 이미지 업로드 완료",
-                  "request": {
-                    "method": "POST",
-                    "header": [
-                      { "key": "Content-Type", "value": "application/json" },
-                      { "key": "X-User-Id", "value": "{{userId}}" },
-                      { "key": "X-User-Role", "value": "SELLER" }
-                    ],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"imageKey\": \"{{imageKey}}\",\n  \"originalName\": \"apple.jpg\"\n}",
-                      "options": { "raw": { "language": "json" } }
-                    },
-                    "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/images/complete",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "images", "complete"]
-                    },
-                    "description": "S3 객체를 검증하고 Image를 저장한 뒤 생성된 imageId를 환경 변수에 저장한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('이미지 등록 성공', () => { pm.response.to.have.status(201); pm.expect(body.data.imageId).to.exist; pm.expect(body.data.imageUrl).to.exist; });",
-                        "if (pm.response.code === 201 && body.data) pm.environment.set('imageId', body.data.imageId);"
-                      ]
-                    }
-                  }]
-                },
-                {
-                  "name": "04 이미지와 함께 상품 등록",
-                  "request": {
-                    "method": "POST",
-                    "header": [
-                      { "key": "Content-Type", "value": "application/json" },
-                      { "key": "X-User-Id", "value": "{{userId}}" },
-                      { "key": "X-User-Role", "value": "SELLER" }
-                    ],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"Postman 테스트 사과\",\n  \"description\": \"이미지 및 재고 상세 테스트\",\n  \"price\": 10000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1.00,\n  \"totalQuantity\": 100,\n  \"lowStockThreshold\": 10,\n  \"imageId\": \"{{imageId}}\"\n}",
-                      "options": { "raw": { "language": "json" } }
+                      "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"재고 API 테스트 상품\",\n  \"description\": \"재고 API 단독 테스트용으로 이미지 없이 빠르게 생성한다\",\n  \"price\": 10000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1,\n  \"totalQuantity\": 100,\n  \"lowStockThreshold\": 10\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
                     },
                     "url": {
                       "raw": "{{productBaseUrl}}/api/v1/seller/products",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "seller", "products"]
-                    },
-                    "description": "상품, 초기 재고, 업로드한 이미지 연결을 생성하고 productId를 환경 변수에 저장한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('상품 등록 성공', () => { pm.response.to.have.status(201); pm.expect(body.data.productId).to.exist; pm.expect(body.data.status).to.eql('DRAFT'); });",
-                        "if (pm.response.code === 201 && body.data) pm.environment.set('productId', body.data.productId);"
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "seller",
+                        "products"
                       ]
-                    }
-                  }]
-                },
-                {
-                  "name": "05 판매자 상품 상세 및 재고 조회",
-                  "request": {
-                    "method": "GET",
-                    "header": [
-                      { "key": "X-User-Id", "value": "{{userId}}" },
-                      { "key": "X-User-Role", "value": "SELLER" }
-                    ],
-                    "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/seller/products/{{productId}}",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "seller", "products", "{{productId}}"]
                     },
-                    "description": "판매자 본인 상품과 전체·가용 재고, 부족 기준, 재고 상태를 조회한다."
+                    "description": "상품 생성은 product 도메인 API(/api/v1/seller/products)지만, 아래 재고 요청들의 productId를 바로 마련하기 위한 stock 전용 테스트 헬퍼다. imageId 없이 상품+초기 재고(DRAFT, totalQuantity 100)를 생성한다. ON_SALE 전환에는 이미지가 필요하니 그건 별도 처리. 201 응답의 productId를 환경 변수에 저장한다."
                   },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('판매자 상품 상세 및 재고 조회 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.totalQuantity).to.eql(100); pm.expect(body.data.availableQuantity).to.eql(100); pm.expect(body.data.lowStockThreshold).to.eql(10); pm.expect(body.data.stockStatus).to.eql('AVAILABLE'); pm.expect(body.data.url).to.exist; });"
-                      ]
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('productId가 있다', () => pm.expect(body.data?.productId).to.exist);",
+                          "if (body.data?.productId) pm.environment.set('productId', body.data.productId);"
+                        ]
+                      }
                     }
-                  }]
-                },
-                {
-                  "name": "06 상품 판매 시작",
-                  "request": {
-                    "method": "PATCH",
-                    "header": [
-                      { "key": "Content-Type", "value": "application/json" },
-                      { "key": "X-User-Id", "value": "{{userId}}" },
-                      { "key": "X-User-Role", "value": "SELLER" }
-                    ],
-                    "body": {
-                      "mode": "raw",
-                      "raw": "{\n  \"status\": \"ON_SALE\"\n}",
-                      "options": { "raw": { "language": "json" } }
-                    },
-                    "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/seller/products/{{productId}}/status",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "seller", "products", "{{productId}}", "status"]
-                    },
-                    "description": "이미지와 판매 가능한 재고가 있는 DRAFT 상품을 ON_SALE로 변경한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('상품 판매 시작 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.status).to.eql('ON_SALE'); });"
-                      ]
-                    }
-                  }]
-                },
-                {
-                  "name": "07 공개 상품 상세 및 가용 재고 조회",
-                  "request": {
-                    "method": "GET",
-                    "header": [],
-                    "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/products/{{productId}}",
-                      "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "products", "{{productId}}"]
-                    },
-                    "description": "ON_SALE 또는 SOLD_OUT 상품의 공개 상세를 조회하며 availableQuantity만 공개한다."
-                  },
-                  "event": [{
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('공개 상품 상세 및 가용 재고 조회 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.status).to.eql('ON_SALE'); pm.expect(body.data.availableQuantity).to.eql(100); pm.expect(body.data.stockId).to.be.undefined; pm.expect(body.data.totalQuantity).to.be.undefined; pm.expect(body.data.lowStockThreshold).to.be.undefined; pm.expect(body.data.stockStatus).to.be.undefined; });"
-                      ]
-                    }
-                  }]
+                  ]
                 },
                 {
                   "name": "재고 수정",
