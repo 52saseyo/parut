@@ -7380,135 +7380,10 @@
       "item": [
         {
           "name": "31 order",
-          "description": "01~07 시연 흐름의 해피패스에서 다루지 않은 주문 생성·조회·취소의 실패, 예외, 멱등성 케이스입니다. PG_APPROVE_FAILED/PG_CANCEL_FAILED처럼 MockPaymentGateway가 항상 성공만 반환해 Postman으로 재현할 수 없는 보상 경로는 여기 포함하지 않았습니다(단위/통합 테스트로 커버).",
+          "description": "시연 각본에 등장할 만한 주문 관련 실패·예외만 추립니다(재고 부족, 취소 정책 위반, 멱등성). 순수 입력값 검증(빈 배열·중복 productId·404 조회 등)은 parut.postman_collection.json에서 다룹니다.",
           "item": [
             {
-              "name": "31-01 주문 생성 실패 - 주문 상품 없음",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 01~02 시연 흐름을 먼저 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
-                      "pm.test('INVALID_INPUT_VALUE', () => pm.expect(body.code).to.eql('INVALID_INPUT_VALUE'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{customerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Idempotency-Key",
-                    "value": "{{$guid}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"items\": [],\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": null\n  },\n  \"removeFromCart\": false\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                "description": "items가 빈 배열이면 400 INVALID_INPUT_VALUE를 반환합니다(§3-2 CreateOrderRequest.items @Size(min=1))."
-              }
-            },
-            {
-              "name": "31-02 주문 생성 실패 - 같은 상품 중복 담기",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 01~02 시연 흐름을 먼저 실행하세요.');",
-                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 02 일반 상품 흐름을 먼저 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
-                      "pm.test('INVALID_INPUT_VALUE', () => pm.expect(body.code).to.eql('INVALID_INPUT_VALUE'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{customerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Idempotency-Key",
-                    "value": "{{$guid}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    },\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": null\n  },\n  \"removeFromCart\": false\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                "description": "같은 productId가 두 번 들어오면 수량을 합산하지 않고 400 INVALID_INPUT_VALUE로 거부합니다(→ decisions.md ADR-017)."
-              }
-            },
-            {
-              "name": "31-03 주문 생성 실패 - 재고 부족",
+              "name": "31-01 주문 생성 실패 - 재고 부족",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7571,7 +7446,7 @@
               }
             },
             {
-              "name": "31-04 주문 생성 - 멱등성 확인용 기본 주문",
+              "name": "31-02 주문 생성 - 멱등성 확인용 기본 주문",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7632,11 +7507,11 @@
                   }
                 },
                 "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                "description": "아래 멱등성 재요청과 조회/취소 실패 케이스에서 재사용할 주문을 만듭니다. Idempotency-Key는 orderTestIdempotencyKey에 고정 저장해 다음 요청에서 그대로 재사용합니다."
+                "description": "아래 멱등성 재요청과 취소 실패 케이스에서 재사용할 주문을 만듭니다. Idempotency-Key는 orderTestIdempotencyKey에 고정 저장해 다음 요청에서 그대로 재사용합니다."
               }
             },
             {
-              "name": "31-05 주문 생성 멱등성 확인 - 같은 요청 재시도",
+              "name": "31-03 주문 생성 멱등성 확인 - 같은 요청 재시도",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7696,11 +7571,11 @@
                   }
                 },
                 "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                "description": "바로 앞 요청과 같은 Idempotency-Key로 재요청합니다. 새 주문을 만들지 않고 기존 orderTestOrderId를 그대로 반환해야 합니다(§3-4, →ADR-017 멱등키 3단계 처리)."
+                "description": "바로 앞 요청과 같은 Idempotency-Key로 재요청합니다. 새 주문을 만들지 않고 기존 orderTestOrderId를 그대로 반환해야 합니다(§3-4, → ADR-017 멱등키 3단계 처리)."
               }
             },
             {
-              "name": "31-06 주문 조회로 orderTestItemId 확보",
+              "name": "31-04 주문 조회로 orderTestItemId 확보",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7743,100 +7618,11 @@
                 "method": "GET",
                 "header": [],
                 "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestOrderId}}",
-                "description": "결제 전 주문(STOCK_RESERVED)을 조회해 아래 조회·취소 실패 케이스에서 쓸 orderTestItemId를 저장합니다."
+                "description": "결제 전 주문(STOCK_RESERVED)을 조회해 아래 취소 실패 케이스에서 쓸 orderTestItemId를 저장합니다."
               }
             },
             {
-              "name": "31-07 주문 조회 실패 - 존재하지 않는 주문",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
-                      "pm.test('ORDER_NOT_FOUND', () => pm.expect(body.code).to.eql('ORDER_NOT_FOUND'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{customerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "GET",
-                "header": [],
-                "url": "{{gatewayBaseUrl}}/api/v1/orders/00000000-0000-0000-0000-000000000000",
-                "description": "존재하지 않는 orderId로 조회하면 404 ORDER_NOT_FOUND를 반환합니다."
-              }
-            },
-            {
-              "name": "31-08 주문 조회 실패 - 허용되지 않은 역할(SELLER)",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                      "if (!pm.environment.get('orderTestOrderId')) throw new Error('orderTestOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
-                      "pm.test('FORBIDDEN', () => pm.expect(body.code).to.eql('FORBIDDEN'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{sellerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "GET",
-                "header": [],
-                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestOrderId}}",
-                "description": "주문 조회는 CUSTOMER, ADMIN만 허용됩니다. SELLER 토큰으로 호출하면 소유권과 무관하게 403 FORBIDDEN입니다(§1-2, 역할 불일치는 공통 처리)."
-              }
-            },
-            {
-              "name": "31-09 주문 취소 실패 - 판매자 취소 사유 누락",
+              "name": "31-05 주문 취소 실패 - 판매자 취소 사유 누락",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7900,7 +7686,7 @@
               }
             },
             {
-              "name": "31-10 주문 취소 실패 - 배송 시작된 주문",
+              "name": "31-06 주문 취소 실패 - 배송 시작된 주문",
               "event": [
                 {
                   "listen": "prerequest",
@@ -7964,7 +7750,7 @@
               }
             },
             {
-              "name": "31-11 주문 취소 실패 - 이미 취소된 아이템 재취소",
+              "name": "31-07 주문 취소 실패 - 이미 취소된 아이템 재취소",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8218,68 +8004,10 @@
       },
         {
           "name": "32 payment",
-          "description": "01~07 시연 흐름의 해피패스에서 다루지 않은 결제 준비·승인의 실패, 예외, 상태 가드 케이스입니다. PG_APPROVE_FAILED처럼 MockPaymentGateway가 항상 성공만 반환해 Postman으로 재현할 수 없는 PG 실패·보상 경로는 여기 포함하지 않았습니다(단위/통합 테스트로 커버).",
+          "description": "시연 각본에 등장할 만한 결제 관련 실패·예외만 추립니다(위변조 방어, 중복 준비/승인 방지). 존재하지 않는 리소스에 대한 단순 404류는 parut.postman_collection.json에서 다룹니다.",
           "item": [
             {
-              "name": "32-01 결제 준비 실패 - 존재하지 않는 주문",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 01~02 시연 흐름을 먼저 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
-                      "pm.test('ORDER_NOT_FOUND', () => pm.expect(body.code).to.eql('ORDER_NOT_FOUND'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{customerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"orderId\": \"00000000-0000-0000-0000-000000000000\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
-                "description": "존재하지 않는 orderId로 결제 준비를 요청하면 404 ORDER_NOT_FOUND를 반환합니다."
-              }
-            },
-            {
-              "name": "32-02 결제 준비 실패 - 재고 예약 없는 주문(결제 완료 후 재요청)",
+              "name": "32-01 결제 준비 실패 - 재고 예약 없는 주문(결제 완료 후 재요청)",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8338,7 +8066,7 @@
               }
             },
             {
-              "name": "32-03 결제 실패 검증용 주문 생성",
+              "name": "32-02 결제 실패 검증용 주문 생성",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8402,7 +8130,7 @@
               }
             },
             {
-              "name": "32-04 결제 실패 검증용 결제 준비",
+              "name": "32-03 결제 실패 검증용 결제 준비",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8464,7 +8192,7 @@
               }
             },
             {
-              "name": "32-05 결제 준비 실패 - 이미 진행 중인 결제 존재",
+              "name": "32-04 결제 준비 실패 - 이미 결제 준비된 주문",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8486,7 +8214,7 @@
                       "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                       "}",
                       "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                      "pm.test('PAYMENT_ALREADY_EXISTS', () => pm.expect(body.code).to.eql('PAYMENT_ALREADY_EXISTS'));"
+                      "pm.test('INVALID_ORDER_STATUS', () => pm.expect(body.code).to.eql('INVALID_ORDER_STATUS'));"
                     ]
                   }
                 }
@@ -8519,11 +8247,11 @@
                   }
                 },
                 "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
-                "description": "바로 앞에서 IN_PROGRESS 결제가 이미 만들어진 같은 주문에 결제 준비를 다시 요청합니다. ABORTED가 아닌 진행 중 결제가 있으면 409 PAYMENT_ALREADY_EXISTS를 반환합니다."
+                "description": "바로 앞에서 결제 준비를 마쳐 이미 PAYMENT_PENDING인 주문에 결제 준비를 다시 요청합니다. STOCK_RESERVED가 아니게 되어 409 INVALID_ORDER_STATUS를 반환합니다(결제 존재 여부 체크보다 상태 체크가 먼저입니다)."
               }
             },
             {
-              "name": "32-06 결제 승인 실패 - 금액 위변조",
+              "name": "32-05 결제 승인 실패 - 금액 위변조",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8587,69 +8315,7 @@
               }
             },
             {
-              "name": "32-07 결제 승인 실패 - 존재하지 않는 결제",
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "let body = {};",
-                      "if (pm.response.text()) {",
-                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                      "}",
-                      "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
-                      "pm.test('PAYMENT_NOT_FOUND', () => pm.expect(body.code).to.eql('PAYMENT_NOT_FOUND'));"
-                    ]
-                  }
-                }
-              ],
-              "request": {
-                "auth": {
-                  "type": "bearer",
-                  "bearer": [
-                    {
-                      "key": "token",
-                      "value": "{{customerAccessToken}}",
-                      "type": "string"
-                    }
-                  ]
-                },
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  },
-                  {
-                    "key": "Idempotency-Key",
-                    "value": "{{$guid}}"
-                  }
-                ],
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"paymentKey\": \"MOCK-PAYMENT-UNKNOWN\",\n  \"tossOrderId\": \"ORD-NONEXISTENT-0000\",\n  \"amount\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                },
-                "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
-                "description": "존재하지 않는 tossOrderId로 승인을 요청하면 404 PAYMENT_NOT_FOUND를 반환합니다."
-              }
-            },
-            {
-              "name": "32-08 결제 실패 검증용 Mock 결제 승인",
+              "name": "32-06 결제 실패 검증용 Mock 결제 승인",
               "event": [
                 {
                   "listen": "prerequest",
@@ -8715,7 +8381,7 @@
               }
             },
             {
-              "name": "32-09 결제 승인 실패 - 이미 승인된 결제 재승인",
+              "name": "32-07 결제 승인 실패 - 이미 승인된 결제 재승인",
               "event": [
                 {
                   "listen": "prerequest",
