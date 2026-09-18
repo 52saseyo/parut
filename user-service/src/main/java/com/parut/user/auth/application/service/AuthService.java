@@ -61,16 +61,21 @@ public class AuthService {
         User user = userRepository.findByUsername(request.username())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. 비밀번호 검증
+        // 2. 탈퇴(소프트 딜리트) 계정 검증 추가
+        if (user.getDeletedAt() != null) {
+            throw new BusinessException(ErrorCode.USER_DEL_ACCOUNT);
+        }
+
+        // 3. 비밀번호 검증
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new BusinessException(ErrorCode.PWD_NOT_MATCH); // 비밀번호 불일치
         }
 
-        // 3. 토큰 생성
+        // 4. 토큰 생성
         String accessToken = jwtProvider.createAccessToken(user.getId(), String.valueOf(UserRole.CUSTOMER));
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
-        // 4. Redis에 RefreshToken 저장 로직 추가 (생략)
+        // 5. Redis에 RefreshToken 저장 로직 추가 (생략)
         // Refresh Token Redis 저장 (TTL: 8시간 - JwtProvider에 설정된 시간과 동일하게 맞춰도 무방)
         redisTemplate.opsForValue().set("REFRESH:" + user.getId(), refreshToken, Duration.ofHours(8));
 
@@ -82,6 +87,11 @@ public class AuthService {
         // 1. 판매자 조회
         Seller seller = sellerRepository.findByLoginId(request.username())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
+
+        // 2. 탈퇴(소프트 딜리트) 계정 검증 추가
+        if (seller.getDeletedAt() != null) {
+            throw new BusinessException(ErrorCode.SELLER_DEL_ACCOUNT);
+        }
 
         // 2. 비밀번호 검증
         if (!passwordEncoder.matches(request.password(), seller.getPassword())) {

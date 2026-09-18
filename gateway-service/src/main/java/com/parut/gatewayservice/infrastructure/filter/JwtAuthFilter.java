@@ -109,10 +109,11 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
 
                             // 6. JWT payload에서 '임시 식별자'만 추출
                             String jwtUserId = claims.getSubject();
+                            String role = claims.get("role", String.class);
 
                             // 7. [핵심 로직 추가] user-service로 신뢰할 수 있는 데이터 조회
                             return webClient.get()
-                                    .uri(userServiceUrl + "/api/v1/internal/users/" + jwtUserId + "/verify")
+                                    .uri(userServiceUrl + "/api/v1/internal/users/" + jwtUserId + "/verify?role=" + role)
                                     .retrieve()
                                     .bodyToMono(UserVerifyResponse.class) // 앞서 만든 DTO 클래스
                                     .flatMap(verifyResult -> {

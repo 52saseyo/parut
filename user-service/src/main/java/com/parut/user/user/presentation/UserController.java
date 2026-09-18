@@ -10,6 +10,7 @@ import com.parut.user.user.application.service.UserService;
 import com.parut.user.global.common.ApiResponse;
 import com.parut.user.global.common.OffsetResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -18,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
@@ -63,6 +64,7 @@ public class UserController {
             @PageableDefault(size = 10, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable,
             @RequestHeader("X-User-Role") String role
     ) {
+        log.warn("[USER-SERVICE] role: {}", role);
         // ADMIN 권한 체크 로직
         if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role)) {
             // 공통 에러 응답이나 적절한 예외 처리 (예: CustomException 또는 HttpStatus.FORBIDDEN)

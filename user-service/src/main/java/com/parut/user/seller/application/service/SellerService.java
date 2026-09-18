@@ -1,5 +1,7 @@
 package com.parut.user.seller.application.service;
 
+import com.parut.user.global.common.ApiResponse;
+import com.parut.user.seller.application.client.OrderServiceClient;
 import com.parut.user.seller.application.dto.request.SellerApplicationProcessRequest;
 import com.parut.user.seller.application.dto.request.SellerApplyRequest;
 import com.parut.user.seller.application.dto.request.SellerUpdateRequest;
@@ -31,6 +33,7 @@ public class SellerService {
 
     private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OrderServiceClient orderServiceClient; // FeignClient
 
     @Transactional
     public SellerResponse apply(SellerApplyRequest request) {// 1. 아이디 중복 검증
@@ -155,10 +158,21 @@ public class SellerService {
         Seller seller = sellerRepository.findById(sellerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
 
-        // 3. Soft Delete 상태 변경 (더티 체킹 적용)
-        seller.softDelete(seller.getLoginId());
+        // 3. order-service API 호출하여 구매 확정되지 않은 주문이 있는지 확인
+//        try {
+//            ApiResponse<Boolean> response = orderServiceClient.checkUnconfirmedOrders(sellerId);
+//
+//            // 만약 미확정 주문이 존재한다면 (response.getData() == true) 예외 발생
+//            if (Boolean.TRUE.equals(response.data())) {
+//                throw new BusinessException(ErrorCode.SELLER_EXIST_ORDERS);
+//            }
+//        } catch (Exception e) {
+//            // 타임아웃이나 order-service 장애 시의 Fallback 처리
+//            throw new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE);
+//        }
 
-        // TO-DO : ORDER쪽 개발 완료되면 주문중인 데이터가 있는지 확인 후 삭제 진행
+        // 4. Soft Delete 상태 변경 (더티 체킹 적용)
+        seller.softDelete(seller.getLoginId());
 
         return SellerDeleteResponse.of(seller.getId(), seller.getDeletedAt());
     }

@@ -20,6 +20,16 @@ jwt:
 internal:
   service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
 
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000 # 타임아웃 3초 (MS)
+        readTimeout: 5000    # 응답 대기 5초 (MS)
+        loggerLevel: BASIC   # 요청/응답 요약 로그
+  order-service:
+    url: ${ORDER_URL:http://localhost:8083}
+
 logging:
   level:
     root: info
