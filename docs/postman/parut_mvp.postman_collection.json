@@ -5074,7 +5074,8 @@
                 "method": "POST",
                 "header": [
                   { "key": "Content-Type", "value": "application/json" },
-                  { "key": "X-User-Id", "value": "{{sellerId}}" }
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
                 ],
                 "body": {
                   "mode": "raw",
