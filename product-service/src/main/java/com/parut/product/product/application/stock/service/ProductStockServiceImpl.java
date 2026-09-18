@@ -286,6 +286,7 @@ public class ProductStockServiceImpl implements ProductStockService{
 
         StockStatus previousStatus = stock.getStatus();
         int quantity = command.quantity();
+        int previousAvailable = stock.getAvailableQuantity();
         if (quantity < 0 && product.getStatus() != ProductStatus.ON_SALE) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_PRODUCT_NOT_ON_SALE);
         }
@@ -305,7 +306,8 @@ public class ProductStockServiceImpl implements ProductStockService{
             notifyRestocked(command.productId());
         }
 
-        return ProductStockTransferResult.of(command.productId(), quantity, stock.getAvailableQuantity());
+        int appliedQuantity = stock.getAvailableQuantity() - previousAvailable;
+        return ProductStockTransferResult.of(product.getId(), appliedQuantity, stock.getAvailableQuantity());
     }
 
 
