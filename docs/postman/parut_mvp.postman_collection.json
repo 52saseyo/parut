@@ -5379,7 +5379,7 @@
                       { "key": "X-User-Role", "value": "ADMIN" }
                     ],
                     "url": "{{productBaseUrl}}/api/v1/stocks/reservations/isolated",
-                    "description": "관리자가 전체 격리(EXPIRATION_FAILED) 예약을 조회합니다."
+                    "description": "관리자가 전체 격리(EXPIRATION_FAILED) 예약을 조회합니다. 격리 예약은 DB에서 직접 status를 EXPIRATION_FAILED로 만들어둬야 조회됩니다(23-00-02로 예약 생성 후 stockTestOrderId로 row를 찾아 status/failure_count를 갱신 — 이 예약을 그대로 재사용해야 orderItemId도 자동으로 맞춰짐). 이 요청의 test 스크립트가 응답에서 reservationId/isolatedOrderId/isolatedOrderItemId를 자동으로 환경변수에 저장하므로, 이후 23-02-03부터는 별도 복붙 없이 23번 끝까지 이어서 실행할 수 있습니다."
                   },
                   "event": [
                     {
@@ -5396,7 +5396,22 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const list = body.data ?? [];",
+                          "const stockTestOrderId = pm.environment.get('stockTestOrderId');",
+                          "const target = list.find((r) => r.orderId === stockTestOrderId) ?? list[0];",
+                          "if (target?.reservationId) {",
+                          "  pm.environment.set('reservationId', target.reservationId);",
+                          "  pm.environment.set('isolatedOrderId', target.orderId);",
+                          "  if (target.orderId === stockTestOrderId && pm.environment.get('stockTestOrderItemId')) {",
+                          "    pm.environment.set('isolatedOrderItemId', pm.environment.get('stockTestOrderItemId'));",
+                          "  }",
+                          "  console.log('격리 예약 자동 캡처: reservationId=' + target.reservationId + ', isolatedOrderId=' + target.orderId);",
+                          "} else {",
+                          "  console.warn('격리(EXPIRATION_FAILED) 예약이 조회되지 않았습니다. DB에서 status를 먼저 EXPIRATION_FAILED로 만들어두세요.');",
+                          "}"
                         ]
                       }
                     }
