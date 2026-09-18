@@ -1151,6 +1151,208 @@
               },
               "item": []
             },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": [
+                {
+                  "name": "일반 상품 주문 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"테스트 구매자\",\n    \"recipientPhone\": \"010-0000-0000\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": null\n  },\n  \"removeFromCart\": false\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders"]
+                    },
+                    "description": "{{buyerId}}가 {{productId}} 재고를 예약하며 주문을 생성합니다. Idempotency-Key 헤더는 필수이며 같은 키로 재요청하면 새 주문을 만들지 않고 기존 주문을 반환합니다.\n\n성공: 200/201, orderStatus=STOCK_RESERVED. 이후 요청에서 쓸 orderId를 저장합니다.\n\n- 400: items 비었음, 21개 초과, 같은 productId 중복\n- 409: 재고 부족(STOCK_SHORTAGE), 판매 불가 상품(PRODUCT_UNAVAILABLE)\n- 503: Product Service 호출 실패"
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200 또는 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                          "pm.test('orderId가 있다', () => pm.expect(body.data?.orderId).to.exist);",
+                          "if (body.data?.orderId) pm.environment.set('orderId', body.data.orderId);"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "주문 상세 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" }
+                    ],
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders/{{orderId}}",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders", "{{orderId}}"]
+                    },
+                    "description": "{{orderId}}의 배송그룹·아이템·결제 요약과 아이템별 취소·환불 가능 여부(cancelable/refundable)를 조회합니다.\n\n성공: 200 OK. 첫 번째 주문상품의 orderItemId를 저장합니다.\n\n- 403: 본인 주문이 아님\n- 404: 주문 없음"
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const item = body.data?.deliveryGroups?.[0]?.items?.[0];",
+                          "pm.test('주문상품이 있다', () => pm.expect(item?.orderItemId).to.exist);",
+                          "if (item?.orderItemId) pm.environment.set('orderItemId', item.orderItemId);"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "구매자 주문 취소",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderItemIds\": [\"{{orderItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"단순 변심\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders/{{orderId}}/cancel",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders", "{{orderId}}", "cancel"]
+                    },
+                    "description": "배송 시작 전(PENDING/PREPARING) {{orderItemId}}를 구매자가 취소합니다. 결제 완료 후라면 PG 부분 취소도 함께 처리됩니다.\n\n성공: 200 OK, 아이템 CANCELED. 그룹에 ORDERED 아이템이 안 남으면 배송비도 함께 환불됩니다.\n\n- 404: 주문·주문상품 없음\n- 409: 이미 취소·환불된 아이템(INVALID_ORDER_STATUS), 배송 시작됨(ORDER_ALREADY_SHIPPED)\n- 502: PG 부분 취소 실패"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "판매자 주문 취소",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderItemIds\": [\"{{orderItemId}}\"],\n  \"cancelReasonCode\": \"SELLER_CANCEL\",\n  \"cancelReason\": \"품절로 인한 취소\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders/{{orderId}}/cancel",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders", "{{orderId}}", "cancel"]
+                    },
+                    "description": "{{sellerId}}가 본인 배송그룹의 {{orderItemId}}를 취소합니다. SELLER는 cancelReason이 필수입니다. {{productId}}의 소유 판매자가 {{sellerId}}와 같아야 통과합니다(별도 관리하는 fixture SQL 참고).\n\n성공: 200 OK, 아이템 CANCELED.\n\n- 400: cancelReason 누락(CANCEL_REASON_REQUIRED)\n- 403: 본인 배송그룹의 아이템이 아님\n- 409: 이미 취소·환불된 아이템, 배송 시작됨"
+                  },
+                  "response": []
+                },
+                {
+                  "name": "주문 생성 실패 - 재고 부족",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 100000\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"테스트 구매자\",\n    \"recipientPhone\": \"010-0000-0000\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": null\n  },\n  \"removeFromCart\": false\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders"]
+                    },
+                    "description": "가용 재고보다 훨씬 큰 수량을 주문해 409 STOCK_SHORTAGE를 확인합니다. 주문 레코드는 생성되지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('STOCK_SHORTAGE', () => pm.expect(body.code).to.eql('STOCK_SHORTAGE'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "주문 취소 실패 - 판매자 사유 누락",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderItemIds\": [\"{{orderItemId}}\"],\n  \"cancelReasonCode\": \"SELLER_CANCEL\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/orders/{{orderId}}/cancel",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "orders", "{{orderId}}", "cancel"]
+                    },
+                    "description": "SELLER 취소인데 cancelReason이 없으면 400 CANCEL_REASON_REQUIRED를 반환하고 상태는 바뀌지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
+                          "pm.test('CANCEL_REASON_REQUIRED', () => pm.expect(body.code).to.eql('CANCEL_REASON_REQUIRED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                }
+              ]
+            },
           {
             "name": "external",
             "description": "/api/v1/** — 클라이언트 공개 경로.",
@@ -1525,7 +1727,170 @@
             {
               "name": "external",
               "description": "/api/v1/** — 클라이언트 공개 경로.",
-              "item": []
+              "item": [
+                {
+                  "name": "결제 준비",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/payments/ready",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "payments", "ready"]
+                    },
+                    "description": "STOCK_RESERVED 상태인 {{orderId}}의 결제를 준비합니다. 주문을 PAYMENT_PENDING으로 전이시키고 결제 레코드를 만듭니다.\n\n성공: 200 OK. paymentId, tossOrderId, amount를 저장합니다.\n\n- 404: 주문 없음\n- 409: STOCK_RESERVED가 아님(INVALID_ORDER_STATUS), 진행 중인 결제 존재(PAYMENT_ALREADY_EXISTS)"
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('결제 준비 값이 모두 있다', () => { pm.expect(body.data?.paymentId).to.exist; pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                          "if (body.data?.paymentId) pm.environment.set('paymentId', body.data.paymentId);",
+                          "if (body.data?.tossOrderId) pm.environment.set('tossOrderId', body.data.tossOrderId);",
+                          "if (body.data?.amount !== undefined) pm.environment.set('paymentAmount', body.data.amount);"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "결제 승인",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"paymentKey\": \"{{paymentKey}}\",\n  \"tossOrderId\": \"{{tossOrderId}}\",\n  \"amount\": {{paymentAmount}}\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/payments/confirm",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "payments", "confirm"]
+                    },
+                    "description": "Mock PG로 결제를 승인합니다(항상 성공). 결제는 DONE, 주문은 PAID로 바뀌고 재고 확정 후 배송 그룹이 PREPARING으로 전이합니다.\n\n성공: 200 OK\n\n- 400: 금액 불일치(PAYMENT_AMOUNT_MISMATCH)\n- 404: 결제 없음\n- 409: IN_PROGRESS가 아님(INVALID_PAYMENT_STATUS), 결제창 진행 중 주문이 취소됨(INVALID_ORDER_STATUS)\n- 409(STOCK_SHORTAGE): 재고 확정 실패 시 PG 취소로 자동 환불"
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.environment.set('paymentKey', `MOCK-PAYMENT-${Date.now()}`);"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('결제와 주문 상태가 완료다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "결제 승인 실패 - 금액 위변조",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" },
+                      { "key": "Idempotency-Key", "value": "{{$guid}}" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"paymentKey\": \"MOCK-PAYMENT-TAMPERED\",\n  \"tossOrderId\": \"{{tossOrderId}}\",\n  \"amount\": 1\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/payments/confirm",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "payments", "confirm"]
+                    },
+                    "description": "결제 준비 금액과 다른 amount로 승인을 요청합니다. PG를 호출하지 않고 400 PAYMENT_AMOUNT_MISMATCH를 즉시 반환합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
+                          "pm.test('PAYMENT_AMOUNT_MISMATCH', () => pm.expect(body.code).to.eql('PAYMENT_AMOUNT_MISMATCH'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                },
+                {
+                  "name": "결제 준비 실패 - 이미 결제 준비된 주문",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{buyerId}}" },
+                      { "key": "X-User-Role", "value": "CUSTOMER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{orderBaseUrl}}/api/v1/payments/ready",
+                      "host": ["{{orderBaseUrl}}"],
+                      "path": ["api", "v1", "payments", "ready"]
+                    },
+                    "description": "이미 결제 준비를 마친 {{orderId}}에 결제 준비를 다시 요청합니다. 결제 준비 성공 시 주문이 PAYMENT_PENDING으로 바뀌어 더 이상 STOCK_RESERVED가 아니므로, 재요청은 결제 존재 여부 체크 이전에 409 INVALID_ORDER_STATUS로 막힙니다(순수 동시성 경합 상황에서만 PAYMENT_ALREADY_EXISTS가 나옵니다). '결제 준비' 요청을 먼저 실행한 뒤(승인 전) 바로 이어서 실행하세요."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('INVALID_ORDER_STATUS', () => pm.expect(body.code).to.eql('INVALID_ORDER_STATUS'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "response": []
+                }
+              ]
             }
           ]
         },
