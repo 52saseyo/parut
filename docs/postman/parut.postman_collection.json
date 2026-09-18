@@ -294,6 +294,10 @@
                       {
                         "key": "X-User-Id",
                         "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -328,6 +332,10 @@
                       {
                         "key": "X-User-Id",
                         "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
                       }
                     ],
                     "url": {
@@ -362,7 +370,8 @@
                           "description": "asc / desc"
                         }
                       ]
-                    }
+                    },
+                    "description": "재고 목록을 페이지네이션으로 조회한다. 200 OK, size는 10/30/50만 허용(그 외 400), sort는 createdAt/updatedAt만 허용(그 외 400). ADMIN은 전체 상품, SELLER는 본인 상품만 조회된다."
                   }
                 },
                 {

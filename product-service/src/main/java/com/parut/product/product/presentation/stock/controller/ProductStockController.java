@@ -6,6 +6,7 @@ import com.parut.product.global.common.OffsetResponse;
 import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.product.application.stock.dto.IsolatedReservationResult;
 import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
@@ -23,7 +24,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,7 +46,7 @@ public class ProductStockController {
     ) {
         productStockService.updateStock(productId, userId, userRole, request.totalQuantity());
         ProductStock stock = productStockService.getStock(productId);
-        return ResponseEntity.ok(ApiResponse.success(ProductStockResponse.from(stock), null));
+        return ResponseEntity.ok(ApiResponse.success(ProductStockResponse.from(stock), TraceIdContext.currentTraceId()));
     }
 
     @GetMapping
@@ -89,7 +89,7 @@ public class ProductStockController {
 
         OffsetResponse<ProductStockResponse> response = new OffsetResponse<>(content, pageInfo);
 
-        return ResponseEntity.ok(ApiResponse.success(response, null));
+        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
     }
 
     @GetMapping("/reservations/isolated")
@@ -101,7 +101,7 @@ public class ProductStockController {
         List<IsolatedReservationResponse> response = results.stream()
                 .map(IsolatedReservationResponse::from)
                 .toList();
-        return ResponseEntity.ok(ApiResponse.success(response, null));
+        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
     }
 
     @PostMapping("/reservations/{reservationId}/recover")
@@ -111,7 +111,7 @@ public class ProductStockController {
             @RequestHeader("X-User-Role") String requesterRole
     ) {
         productStockService.recoverIsolatedReservation(reservationId, requesterId, requesterRole);
-        return ResponseEntity.ok(ApiResponse.success(null, null));
+        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
     }
 
     @GetMapping("/{productId}/histories")
@@ -127,6 +127,6 @@ public class ProductStockController {
         }
         ProductStockHistoryResult result = productStockService.getStockHistory(
                 productId, requesterId, requesterRole, cursor, size);
-        return ResponseEntity.ok(ApiResponse.success(ProductStockHistoryResponse.from(result), null));
+        return ResponseEntity.ok(ApiResponse.success(ProductStockHistoryResponse.from(result), TraceIdContext.currentTraceId()));
     }
 }
