@@ -1,6 +1,8 @@
 package com.parut.user.auth.infrastructure;
 
+import aj.org.objectweb.asm.commons.Remapper;
 import com.parut.user.auth.application.service.Admin;
+import com.parut.user.seller.domain.Seller;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,4 +14,6 @@ public interface AdminRepository extends JpaRepository<Admin, UUID> {
      * 삭제(deleted_at)되지 않은 유효한 계정만 조회합니다.
      */
     Optional<Admin> findByUsernameAndDeletedAtIsNull(String username);
+
+    Optional<Admin> findByIdAndDeletedAtIsNull(UUID userUuid);
 }

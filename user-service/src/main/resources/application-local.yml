@@ -51,6 +51,14 @@ management:
     env:
       enabled: true
 
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000 # 타임아웃 3초 (MS)
+        readTimeout: 5000    # 응답 대기 5초 (MS)
+        loggerLevel: BASIC   # 요청/응답 요약 로그
+
 logging:
   level:
     com.parut.user: debug

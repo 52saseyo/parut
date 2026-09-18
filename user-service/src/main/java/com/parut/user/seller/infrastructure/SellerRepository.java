@@ -1,5 +1,6 @@
 package com.parut.user.seller.infrastructure;
 
+import aj.org.objectweb.asm.commons.Remapper;
 import com.parut.user.seller.domain.Seller;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,4 +17,6 @@ public interface SellerRepository extends JpaRepository<Seller, UUID> {
 
     // 판매자 로그인 시 정보 조회용
     Optional<Seller> findByLoginId(String loginId);
+
+    Optional<Seller> findByIdAndDeletedAtIsNull(UUID userUuid);
 }

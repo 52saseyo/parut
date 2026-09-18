@@ -1,5 +1,7 @@
 package com.parut.user.user.application.service;
 
+import com.parut.user.auth.infrastructure.AdminRepository;
+import com.parut.user.seller.infrastructure.SellerRepository;
 import com.parut.user.user.application.dto.request.UserUpdateRequest;
 import com.parut.user.user.application.dto.response.UserDeleteResponse;
 import com.parut.user.user.application.dto.response.UserResponse;
@@ -26,6 +28,8 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final SellerRepository sellerRepository;
+        private final AdminRepository adminRepository;
 
     @Transactional(readOnly = true)
     public UserResponse getUser(UUID userId) {
@@ -118,7 +122,7 @@ public class UserService {
         return UserDeleteResponse.of(user.getId(), user.getDeletedAt());
     }
 
-    public UserVerifyResponse verifyUserStatus(String userId) {
+    public UserVerifyResponse verifyUserStatus(String userId, String role) {
         // String -> UUID 변환 처리 필요 시 적용
         UUID userUuid;
         try {
@@ -127,14 +131,23 @@ public class UserService {
             return UserVerifyResponse.fail();
         }
 
-        // DB에서 유효한 회원(탈퇴하지 않은 회원)인지 조회
-        return userRepository.findByIdAndDeletedAtIsNull(userUuid)
-                .map(user -> {
-                    return UserVerifyResponse.success(
-                            user.getId().toString(),
-                            user.getRole() // DB의 실제 권한 문자열 (예: "USER", "ADMIN")
-                    );
-                })
-                .orElseGet(UserVerifyResponse::fail);
+        // 1. Role에 따라 조회할 테이블 분기
+        if ("SELLER".equals(role) || "PENDING_SELLER".equals(role)) {
+            // 판매자 테이블만 조회
+            return sellerRepository.findByIdAndDeletedAtIsNull(userUuid)
+                    .map(seller -> UserVerifyResponse.success(seller.getId().toString(), seller.getRole()))
+                    .orElseGet(UserVerifyResponse::fail);
+        }else if ("ADMIN".equals(role)) {
+            // 관리자 전용 테이블에서 조회
+            return adminRepository.findByIdAndDeletedAtIsNull(userUuid)
+                    .map(admin -> UserVerifyResponse.success(admin.getId().toString(), admin.getRole()))
+                    .orElseGet(UserVerifyResponse::fail);
+
+        } else {
+            // 일반 회원 테이블만 조회
+            return userRepository.findByIdAndDeletedAtIsNull(userUuid)
+                    .map(user -> UserVerifyResponse.success(user.getId().toString(), user.getRole()))
+                    .orElseGet(UserVerifyResponse::fail);
+        }
     }
 }

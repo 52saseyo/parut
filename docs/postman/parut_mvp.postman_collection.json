@@ -345,7 +345,21 @@
           ],
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{adminUsername}}\",\n    \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": "{{gatewayBaseUrl}}/api/v1/auth/login/admin",
             "description": "임시 관리자 토큰과 JWT subject인 adminId를 자동 저장합니다."
           }
@@ -2237,7 +2251,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
+                      "if (!pm.environment.get('sellerPendingAccessToken')) throw new Error('sellerPendingAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
                     ]
                   }
                 },
@@ -2266,7 +2280,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -2285,7 +2299,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -2318,7 +2332,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
