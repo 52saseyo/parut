@@ -2033,7 +2033,7 @@
                   "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                   "}",
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('최초 확정 시각이 유지된다', () => { pm.expect(body.data?.confirmed).to.eql(true); pm.expect(body.data?.confirmedAt).to.eql(pm.environment.get('confirmedAt')); });"
+                  "pm.test('최초 확정 시각이 유지된다', () => { const firstConfirmedAt = pm.environment.get('confirmedAt'); pm.expect(body.data?.confirmed).to.eql(true); pm.expect(Date.parse(body.data?.confirmedAt)).to.eql(Date.parse(firstConfirmedAt)); });"
                 ]
               }
             }
@@ -7339,7 +7339,7 @@
       "item": [
         {
           "name": "31 order",
-          "description": "시연 각본에 등장할 만한 주문 관련 실패·예외만 추립니다(재고 부족, 취소 정책 위반, 멱등성). 순수 입력값 검증(빈 배열·중복 productId·404 조회 등)은 parut.postman_collection.json에서 다룹니다.",
+          "description": "시연 각본에 등장할 만한 주문 관련 실패·예외만 추립니다(재고 부족, 취소 정책 위반, 멱등성). 순수 입력값 검증(빈 배열·중복 productId·404 조회 등)은 parut.postman_collection.json에서 다룹니다. 구매확정 핵심 실패는 03-04 직후 31-20을 실행하고 04-01로 돌아갑니다.",
           "item": [
             {
               "name": "31-01 주문 생성 실패 - 재고 부족",
@@ -7771,196 +7771,190 @@
                 "url": "{{gatewayBaseUrl}}/api/v1/orders/{{cancelOrderId}}/cancel",
                 "description": "05에서 이미 CANCELED로 처리된 아이템을 새 Idempotency-Key로 다시 취소 시도합니다. 05-09(같은 키 재요청)와 달리 이번엔 진짜 새 요청이라 멱등 반환을 타지 않고, 배송 그룹이 이미 CANCELED라 취소 불가 상태로 409 INVALID_ORDER_STATUS를 반환합니다(§4 취소 가능 판정)."
               }
+            },
+            {
+              "name": "31-20 구매확정 핵심 검증",
+              "description": "선행 실행: 01-01부터 01-09, 02-01부터 02-04, 03-01부터 03-04. 이 폴더를 실행한 뒤 04-01로 돌아갑니다. 실패 요청은 주문과 주문상품 상태를 변경하지 않습니다.",
+              "item": [
+                {
+                  "name": "31-20-01 다른 고객 회원가입",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const suffix = String(Date.now()).slice(-10);",
+                          "pm.environment.set('otherCustomerUsername', `pc_${suffix}`);",
+                          "if (!pm.environment.get('otherCustomerPassword')) pm.environment.set('otherCustomerPassword', 'MvpTest1234!');",
+                          "pm.environment.unset('otherCustomerAccessToken');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"username\": \"{{otherCustomerUsername}}\",\n  \"password\": \"{{otherCustomerPassword}}\",\n  \"name\": \"구매확정 소유권 확인 고객\",\n  \"slackId\": \"{{otherCustomerUsername}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/auth/signup",
+                    "description": "구매확정 소유권 검증에 사용할 별도 고객을 생성합니다."
+                  }
+                },
+                {
+                  "name": "31-20-02 다른 고객 로그인",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "['otherCustomerUsername', 'otherCustomerPassword'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "const token = body.data?.access_token ?? body.data?.accessToken;",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('다른 고객 Access Token이 있다', () => pm.expect(token).to.be.a('string').and.not.empty);",
+                          "if (token) pm.environment.set('otherCustomerAccessToken', token);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"username\": \"{{otherCustomerUsername}}\",\n  \"password\": \"{{otherCustomerPassword}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/auth/login/user",
+                    "description": "다른 고객의 Access Token을 저장합니다."
+                  }
+                },
+                {
+                  "name": "31-20-03 배송 완료 전 구매확정 거부",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "['customerAccessToken', 'orderId', 'orderItemId'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('ORDER_ITEM_CONFIRMATION_NOT_ALLOWED', () => pm.expect(body.code).to.eql('ORDER_ITEM_CONFIRMATION_NOT_ALLOWED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{customerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "PATCH",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
+                    "description": "배송 그룹이 PREPARING인 주문상품의 구매확정이 409 ORDER_ITEM_CONFIRMATION_NOT_ALLOWED로 거부되는지 확인합니다."
+                  }
+                },
+                {
+                  "name": "31-20-04 다른 고객의 구매확정 거부",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "['otherCustomerAccessToken', 'orderId', 'orderItemId'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
+                          "pm.test('ORDER_ACCESS_DENIED', () => pm.expect(body.code).to.eql('ORDER_ACCESS_DENIED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{otherCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "PATCH",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
+                    "description": "구매자가 아닌 고객의 요청이 403 ORDER_ACCESS_DENIED로 거부되는지 확인합니다."
+                  }
+                }
+              ]
             }
           ]
         },
-      {
-        "name": "31 order",
-        "description": "주문 도메인의 실패, 예외와 멱등성 케이스를 검증합니다. 구매확정 핵심 실패는 03-04 직후 31-20을 실행하고 04-01로 돌아갑니다.",
-        "item": [
-          {
-            "name": "31-20 구매확정 핵심 검증",
-            "description": "선행 실행: 01-01부터 01-09, 02-01부터 02-04, 03-01부터 03-04. 이 폴더를 실행한 뒤 04-01로 돌아갑니다. 실패 요청은 주문과 주문상품 상태를 변경하지 않습니다.",
-            "item": [
-              {
-                "name": "31-20-01 다른 고객 회원가입",
-                "event": [
-                  {
-                    "listen": "prerequest",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const suffix = String(Date.now()).slice(-10);",
-                        "pm.environment.set('otherCustomerUsername', `pc_${suffix}`);",
-                        "if (!pm.environment.get('otherCustomerPassword')) pm.environment.set('otherCustomerPassword', 'MvpTest1234!');",
-                        "pm.environment.unset('otherCustomerAccessToken');"
-                      ]
-                    }
-                  },
-                  {
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
-                      ]
-                    }
-                  }
-                ],
-                "request": {
-                  "method": "POST",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": {
-                    "mode": "raw",
-                    "raw": "{\n  \"username\": \"{{otherCustomerUsername}}\",\n  \"password\": \"{{otherCustomerPassword}}\",\n  \"name\": \"구매확정 소유권 확인 고객\",\n  \"slackId\": \"{{otherCustomerUsername}}\"\n}",
-                    "options": {
-                      "raw": {
-                        "language": "json"
-                      }
-                    }
-                  },
-                  "url": "{{gatewayBaseUrl}}/api/v1/auth/signup",
-                  "description": "구매확정 소유권 검증에 사용할 별도 고객을 생성합니다."
-                }
-              },
-              {
-                "name": "31-20-02 다른 고객 로그인",
-                "event": [
-                  {
-                    "listen": "prerequest",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "['otherCustomerUsername', 'otherCustomerPassword'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
-                      ]
-                    }
-                  },
-                  {
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "const token = body.data?.access_token ?? body.data?.accessToken;",
-                        "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                        "pm.test('다른 고객 Access Token이 있다', () => pm.expect(token).to.be.a('string').and.not.empty);",
-                        "if (token) pm.environment.set('otherCustomerAccessToken', token);"
-                      ]
-                    }
-                  }
-                ],
-                "request": {
-                  "method": "POST",
-                  "header": [
-                    {
-                      "key": "Content-Type",
-                      "value": "application/json"
-                    }
-                  ],
-                  "body": {
-                    "mode": "raw",
-                    "raw": "{\n  \"username\": \"{{otherCustomerUsername}}\",\n  \"password\": \"{{otherCustomerPassword}}\"\n}",
-                    "options": {
-                      "raw": {
-                        "language": "json"
-                      }
-                    }
-                  },
-                  "url": "{{gatewayBaseUrl}}/api/v1/auth/login/user",
-                  "description": "다른 고객의 Access Token을 저장합니다."
-                }
-              },
-              {
-                "name": "31-20-03 배송 완료 전 구매확정 거부",
-                "event": [
-                  {
-                    "listen": "prerequest",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "['customerAccessToken', 'orderId', 'orderItemId'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
-                      ]
-                    }
-                  },
-                  {
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                        "pm.test('ORDER_ITEM_CONFIRMATION_NOT_ALLOWED', () => pm.expect(body.code).to.eql('ORDER_ITEM_CONFIRMATION_NOT_ALLOWED'));"
-                      ]
-                    }
-                  }
-                ],
-                "request": {
-                  "auth": {
-                    "type": "bearer",
-                    "bearer": [
-                      {
-                        "key": "token",
-                        "value": "{{customerAccessToken}}",
-                        "type": "string"
-                      }
-                    ]
-                  },
-                  "method": "PATCH",
-                  "header": [],
-                  "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
-                  "description": "배송 그룹이 PREPARING인 주문상품의 구매확정이 409 ORDER_ITEM_CONFIRMATION_NOT_ALLOWED로 거부되는지 확인합니다."
-                }
-              },
-              {
-                "name": "31-20-04 다른 고객의 구매확정 거부",
-                "event": [
-                  {
-                    "listen": "prerequest",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "['otherCustomerAccessToken', 'orderId', 'orderItemId'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
-                      ]
-                    }
-                  },
-                  {
-                    "listen": "test",
-                    "script": {
-                      "type": "text/javascript",
-                      "exec": [
-                        "const body = pm.response.json();",
-                        "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
-                        "pm.test('ORDER_ACCESS_DENIED', () => pm.expect(body.code).to.eql('ORDER_ACCESS_DENIED'));"
-                      ]
-                    }
-                  }
-                ],
-                "request": {
-                  "auth": {
-                    "type": "bearer",
-                    "bearer": [
-                      {
-                        "key": "token",
-                        "value": "{{otherCustomerAccessToken}}",
-                        "type": "string"
-                      }
-                    ]
-                  },
-                  "method": "PATCH",
-                  "header": [],
-                  "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/items/{{orderItemId}}/confirm",
-                  "description": "구매자가 아닌 고객의 요청이 403 ORDER_ACCESS_DENIED로 거부되는지 확인합니다."
-                }
-              }
-            ]
-          }
-        ]
-      },
         {
           "name": "32 payment",
           "description": "시연 각본에 등장할 만한 결제 관련 실패·예외만 추립니다(위변조 방어, 중복 준비/승인 방지). 존재하지 않는 리소스에 대한 단순 404류는 parut.postman_collection.json에서 다룹니다.",
