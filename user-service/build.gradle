@@ -14,6 +14,10 @@ java {
     }
 }
 
+ext {
+    set('springCloudVersion', "2025.1.3")
+}
+
 repositories {
     mavenCentral()
 }
@@ -46,6 +50,15 @@ dependencies {
 
     // 유효성 검사 (Validation) 의존성 추가
     implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // OpenFeign 의존성 추가
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
 }
 
 tasks.named('test') {
