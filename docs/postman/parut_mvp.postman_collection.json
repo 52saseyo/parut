@@ -5904,17 +5904,27 @@
         {
           "name": "24 timedeal",
           "description": "기존 06·07 플로우와 분리한 타임딜 추가 검증. 정상 응답뿐 아니라 입력 검증, 권한, 상태 전이, 재고·구매 경계조건을 확인한다. 실패 케이스는 요청 설명의 기대 HTTP/code를 검증한다.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{sellerAccessToken}}",
+                "type": "string"
+              }
+            ]
+          },
           "item": [
             {
-              "name": "24-01 조회·권한",
-              "description": "공개 조회와 판매자 재고 조회의 정상·실패 케이스",
+              "name": "24-01 Gateway 조회·권한",
+              "description": "Gateway를 통한 공개 조회와 판매자 재고 조회의 정상·실패 케이스. 인증 정보는 Bearer 토큰에서 Gateway가 주입한다.",
               "item": [
                 {
                   "name": "24-01-01 ACTIVE 목록 정상 조회",
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals?status=ACTIVE&size=10",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals?status=ACTIVE&size=10",
                     "description": "정상: 인증 없이 ACTIVE 목록을 조회한다. 200 OK와 CURSOR 응답을 기대한다."
                   },
                   "event": [
@@ -5936,7 +5946,7 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals?status=ACTIVE&size=20",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals?status=ACTIVE&size=20",
                     "description": "실패: size는 10·30·50만 허용된다. 400 INVALID_PAGE_SIZE를 기대한다."
                   },
                   "event": [
@@ -5958,7 +5968,7 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{$guid}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{$guid}}",
                     "description": "실패: 존재하지 않는 UUID는 404 TIME_DEAL_NOT_FOUND를 반환해야 한다."
                   },
                   "event": [
@@ -5979,17 +5989,8 @@
                   "name": "24-01-04 판매자 재고 정상 조회",
                   "request": {
                     "method": "GET",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
                     "description": "정상: 실제 판매자 ID로 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
                   },
                   "event": [
@@ -6005,14 +6006,23 @@
                       }
                     }
                   ]
-                },
+                }
+              ]
+            },
+            {
+              "name": "24-01-D 상품 서비스 직접 계약·권한 검증",
+              "description": "Gateway를 거치지 않고 product-service의 내부 계약을 직접 검증하는 보조 시나리오. 일반 사용자 흐름 실행 시에는 제외하고, 상품 서비스의 헤더 필수·판매자 소유권 검증이 필요할 때 실행한다.",
+              "auth": {
+                "type": "noauth"
+              },
+              "item": [
                 {
-                  "name": "24-01-05 재고 조회 헤더 누락",
+                  "name": "24-01-D-01 재고 조회 헤더 누락",
                   "request": {
                     "method": "GET",
                     "header": [],
                     "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
-                    "description": "실패: X-User-Id·X-User-Role 없이 보호된 재고 API를 호출한다. 400 INVALID_INPUT_VALUE를 기대한다."
+                    "description": "[product-service 직접 호출] X-User-Id·X-User-Role 없이 보호된 재고 API를 호출한다. 400 INVALID_INPUT_VALUE를 기대한다. Gateway 경유 시에는 Gateway 인증 단계에서 401이 반환되므로 이 계약은 직접 호출에서만 검증한다."
                   },
                   "event": [
                     {
@@ -6029,7 +6039,7 @@
                   ]
                 },
                 {
-                  "name": "24-01-06 타 판매자 재고 조회 권한 거부",
+                  "name": "24-01-D-02 타 판매자 재고 조회 권한 거부",
                   "request": {
                     "method": "GET",
                     "header": [
@@ -6043,7 +6053,7 @@
                       }
                     ],
                     "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
-                    "description": "실패: 요청자 UUID를 다른 값으로 바꿔 판매자 소유권 검사를 확인한다. 403 TIME_DEAL_ACCESS_DENIED를 기대한다."
+                    "description": "[product-service 직접 호출] 요청자 UUID를 다른 값으로 바꿔 상품 서비스의 판매자 소유권 검사를 확인한다. 403 TIME_DEAL_ACCESS_DENIED를 기대한다. Gateway E2E에서 검증하려면 다른 판매자의 실제 Bearer 토큰이 필요하다."
                   },
                   "event": [
                     {
@@ -6082,14 +6092,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6101,7 +6103,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
                     "description": "정상: 판매자가 독립 타임딜을 SCHEDULED로 생성하고 scenarioId를 저장한다."
                   },
                   "event": [
@@ -6138,14 +6140,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6157,7 +6151,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
                     "description": "정상: SCHEDULED 상태에서는 일부 필드만 수정할 수 있고 200 OK를 반환한다."
                   },
                   "event": [
@@ -6191,14 +6185,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6210,7 +6196,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
                     "description": "정상: SCHEDULED에서는 상품명·설명·품질·산지·수확일·가격·할인율·판매기간·1인 최대 구매수량을 변경할 수 있다. 타임딜 재고와 일반 상품 재고는 차감·증감하지 않는다."
                   },
                   "event": [
@@ -6244,14 +6230,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6263,7 +6241,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
                     "description": "실패: 할인율은 0 이상 100 미만이어야 한다. 400 TIME_DEAL_INVALID_DISCOUNT_RATE를 기대한다."
                   },
                   "event": [
@@ -6288,14 +6266,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6307,7 +6277,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
                     "description": "실패: endAt은 startAt 이후여야 한다. 400 TIME_DEAL_INVALID_PERIOD를 기대한다."
                   },
                   "event": [
@@ -6332,14 +6302,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6351,7 +6313,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
                     "description": "실패: 06 플로우로 판매 중인 타임딜은 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다. 06-01~06-06 이후 실행한다."
                   },
                   "event": [
@@ -6372,17 +6334,8 @@
                   "name": "24-02-08 시나리오 타임딜 정리 삭제",
                   "request": {
                     "method": "DELETE",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
                     "description": "정리: 앞 단계에서 직접 생성한 SCHEDULED 타임딜과 재고를 soft delete한다. 선점·판매 수량이 없어야 200 OK다."
                   },
                   "event": [
@@ -6617,8 +6570,55 @@
             },
             {
               "name": "24-04 일반상품 연동 재고 이관",
-              "description": "이미 일반상품에서 전환되어 productId가 연결된 타임딜의 재고를 일반상품 재고와 양방향으로 이동한다.",
+              "description": "06의 ACTIVE 타임딜과 분리한 전용 SCHEDULED fixture를 준비한 뒤, 연결된 일반상품과 타임딜 사이의 재고를 양방향으로 이동한다.",
               "item": [
+                {
+                  "name": "24-04-00 연동 재고용 SCHEDULED fixture 준비",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"productId\": \"{{secondProductId}}\",\n  \"quantity\": 1,\n  \"discountRate\": 20,\n  \"startAt\": \"{{timeDealTransferStartAt}}\",\n  \"endAt\": \"{{timeDealTransferEndAt}}\",\n  \"maxPurchaseQuantity\": 1,\n  \"lowStockThreshold\": 0\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
+                    "description": "24-04 전용 fixture입니다. 06의 ACTIVE 타임딜을 재사용하지 않고, 두 번째 일반상품에서 SCHEDULED 타임딜을 한 번 생성해 이후 재실행에도 같은 ID를 재사용합니다. timeDealTransferScenarioId가 이미 있으면 요청을 건너뜁니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "['sellerAccessToken', 'sellerId', 'secondProductId'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 환경변수가 필요합니다. 01과 02-02를 먼저 실행하세요.`); });",
+                          "if (pm.environment.get('timeDealTransferScenarioId')) { pm.execution.skipRequest(); } else { const now = Date.now(); pm.environment.set('timeDealTransferStartAt', new Date(now + 86400000).toISOString()); pm.environment.set('timeDealTransferEndAt', new Date(now + 172800000).toISOString()); }"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('SCHEDULED 연동 fixture 생성', () => { pm.expect(body.data?.status).to.eql('SCHEDULED'); pm.expect(body.data?.productId).to.eql(pm.environment.get('secondProductId')); });",
+                          "pm.environment.set('timeDealTransferScenarioId', body.data.timeDealId);"
+                        ]
+                      }
+                    }
+                  ]
+                },
                 {
                   "name": "24-04-01 일반상품 재고에서 타임딜 재고로 이관",
                   "request": {
@@ -6627,26 +6627,18 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}",
+                      "raw": "{\n  \"productId\": \"{{secondProductId}}\",\n  \"quantity\": 1\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "정상: 연결된 일반상품 재고 1개를 타임딜 재고로 이관한다. 일반상품 가용 재고는 감소하고 타임딜 가용 재고는 증가한다. HTTP 200을 기대한다."
                   },
                   "event": [
@@ -6657,7 +6649,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('연결된 상품과 타임딜의 재고 이관 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.quantity).to.eql(1); });"
+                          "pm.test('연결된 상품과 타임딜의 재고 이관 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealTransferScenarioId')); pm.expect(body.data.productId).to.eql(pm.environment.get('secondProductId')); pm.expect(body.data.quantity).to.eql(1); });"
                         ]
                       }
                     }
@@ -6671,26 +6663,18 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": -1\n}",
+                      "raw": "{\n  \"productId\": \"{{secondProductId}}\",\n  \"quantity\": -1\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "정상: 타임딜 재고 1개를 연결된 일반상품 재고로 되돌린다. 앞 단계의 재고 이동을 원복하고 HTTP 200을 기대한다."
                   },
                   "event": [
@@ -6701,7 +6685,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('재고 이관 원복 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.quantity).to.eql(-1); });"
+                          "pm.test('재고 이관 원복 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealTransferScenarioId')); pm.expect(body.data.productId).to.eql(pm.environment.get('secondProductId')); pm.expect(body.data.quantity).to.eql(-1); });"
                         ]
                       }
                     }
@@ -6715,14 +6699,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6734,7 +6710,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 타임딜에 연결된 원본 상품이 아닌 productId로 이관한다. 상품 재고를 건드리지 않고 409 TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
@@ -6759,26 +6735,18 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 999999\n}",
+                      "raw": "{\n  \"productId\": \"{{secondProductId}}\",\n  \"quantity\": 999999\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 일반상품의 가용 재고보다 큰 수량을 타임딜로 이관한다. 일반상품 재고 부족으로 HTTP 409 PRODUCT_STOCK_SHORTAGE를 기대한다."
                   },
                   "event": [
@@ -6803,26 +6771,18 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": -999999\n}",
+                      "raw": "{\n  \"productId\": \"{{secondProductId}}\",\n  \"quantity\": -999999\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 타임딜 가용 재고가 0개 이하가 되도록 일반상품으로 반환한다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -6843,8 +6803,55 @@
             },
             {
               "name": "24-05 독립 타임딜 재고 수정 경계조건",
-              "description": "일반상품과 분리된 타임딜 전용 재고의 증량과 하한 검증을 확인한다.",
+              "description": "24-05 전용 SCHEDULED 타임딜 fixture를 사용해 일반상품과 분리된 타임딜 재고의 증량과 하한 검증을 확인하고 마지막에 fixture를 정리한다.",
               "item": [
+                {
+                  "name": "24-05-00 독립 재고용 SCHEDULED fixture 준비",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"재고 조정 시나리오용 타임딜\",\n  \"description\": \"24-05 전용 독립 재고 fixture\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealStockScenarioStartAt}}\",\n  \"endAt\": \"{{timeDealStockScenarioEndAt}}\",\n  \"maxPurchaseQuantity\": 1,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "24-05 전용 독립 재고 fixture입니다. 06의 ACTIVE 타임딜과 분리해 SCHEDULED 상태에서 재고 조정을 검증합니다. 이미 ID가 있으면 기존 fixture를 재사용합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01을 먼저 실행하세요.');",
+                          "if (pm.environment.get('timeDealStockScenarioId')) { pm.execution.skipRequest(); } else { const now = Date.now(); pm.environment.set('timeDealStockScenarioStartAt', new Date(now + 86400000).toISOString()); pm.environment.set('timeDealStockScenarioEndAt', new Date(now + 172800000).toISOString()); }"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('SCHEDULED 독립 재고 fixture 생성', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                          "pm.environment.set('timeDealStockScenarioId', body.data.timeDealId);"
+                        ]
+                      }
+                    }
+                  ]
+                },
                 {
                   "name": "24-05-01 타임딜 재고 정상 증량",
                   "request": {
@@ -6853,14 +6860,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6872,8 +6871,8 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
-                    "description": "정상: 타임딜 전용 재고에 1개를 독립적으로 추가한다. 연결된 일반상품 재고는 변경하지 않고 HTTP 200을 기대한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
+                    "description": "정상: 24-05 전용 SCHEDULED 타임딜 재고에 1개를 독립적으로 추가한다. 연결된 일반상품 재고는 없으며 HTTP 200을 기대한다."
                   },
                   "event": [
                     {
@@ -6883,7 +6882,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('독립 재고 조정 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(body.data.availableQuantity).to.be.a('number'); });"
+                          "pm.test('독립 재고 조정 결과', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealStockScenarioId')); pm.expect(body.data.availableQuantity).to.be.a('number'); });"
                         ]
                       }
                     }
@@ -6897,14 +6896,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6916,7 +6907,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
                     "description": "실패: 독립 재고 조정 delta는 0일 수 없다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -6941,14 +6932,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -6960,7 +6943,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
                     "description": "실패: 기존 가용 재고를 초과 회수해 0개 이하로 만들 수 없다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -6976,12 +6959,44 @@
                       }
                     }
                   ]
+                },
+                {
+                  "name": "24-05-04 독립 재고 fixture 정리",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}",
+                    "description": "24-05 전용 fixture를 정리한다. 24-05-01의 +1 조정 이후 재고 자체는 남아 있으므로 삭제만 수행하며, 선점·판매 이력은 없다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealStockScenarioId')) throw new Error('timeDealStockScenarioId 환경변수가 없습니다. 24-05-00을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('독립 재고 fixture 삭제', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data).to.eql(null); });",
+                          "pm.environment.unset('timeDealStockScenarioId');"
+                        ]
+                      }
+                    }
+                  ]
                 }
               ]
             },
             {
               "name": "24-06 상태 픽스처 생성·확인 후 실패 케이스",
-              "description": "상태를 가정하지 않는다. ENDED 픽스처는 endAt을 10초 뒤로 만들고 스케줄러(기본 주기 1분)의 실제 전환을 확인한다. 자동 전환되지 않으면 24-06-02에서 컬렉션이 멈추므로 DB에서 ENDED로 변경한 뒤 해당 요청부터 다시 실행한다. STOPPED 픽스처는 ACTIVE 확인 후 stop API를 호출한다.",
+              "description": "상태를 가정하지 않는다. ENDED 픽스처는 endAt을 10초 뒤로 만들고 스케줄러(기본 주기 1분)의 실제 전환을 확인한다. 생성 후 최소 1분을 기다린 뒤 24-06-02를 실행한다. STOPPED 픽스처도 생성 후 최소 1분을 기다려 ACTIVE 전환을 확인한 뒤 stop API를 호출한다.",
               "item": [
                 {
                   "name": "24-06-01 ENDED 픽스처 생성",
@@ -6991,14 +7006,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7010,7 +7017,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
                     "description": "테스트 전용 직접 등록 타임딜을 만든다. endAt은 10초 뒤이며, ENDED 상태는 스케줄러가 전환한다."
                   },
                   "event": [
@@ -7045,8 +7052,8 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
-                    "description": "endAt(생성 후 10초)이 지난 뒤 실행한다. 기본 스케줄러 주기는 1분이다. 아직 ENDED가 아니면 이 요청에서 컬렉션이 멈추므로, 스케줄러를 기다리거나 DB에서 해당 픽스처 상태를 ENDED로 변경한 뒤 다시 실행한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                    "description": "endAt(생성 후 10초)이 지나고 스케줄러 주기 1분이 지난 뒤 실행한다. 아직 ENDED가 아니면 스케줄러가 해당 상태를 반영할 때까지 기다린 뒤 이 요청부터 다시 실행한다."
                   },
                   "event": [
                     {
@@ -7081,14 +7088,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7100,7 +7099,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
                     "description": "실패: 실제 ENDED 픽스처에서 정보 변경을 시도한다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
@@ -7126,14 +7125,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7145,7 +7136,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}/stock",
                     "description": "실패: 실제 ENDED 타임딜 재고 조정을 시도한다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
@@ -7171,14 +7162,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7190,7 +7173,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
                     "description": "테스트 전용 타임딜을 만들고 스케줄러가 ACTIVE로 바꿀 때까지 기다린다."
                   },
                   "event": [
@@ -7227,8 +7210,8 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
-                    "description": "생성 후 스케줄러가 ACTIVE로 바꾼 뒤 실행한다. 아직 ACTIVE가 아니면 이 요청에서 컬렉션이 멈추므로, 스케줄러를 기다리거나 DB에서 해당 픽스처 상태를 ACTIVE로 변경한 뒤 다시 실행한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                    "description": "생성 후 최소 1분이 지나 스케줄러가 ACTIVE로 바꾼 뒤 실행한다. 아직 ACTIVE가 아니면 스케줄러가 해당 상태를 반영할 때까지 기다린 뒤 이 요청부터 다시 실행한다."
                   },
                   "event": [
                     {
@@ -7251,16 +7234,8 @@
                   "request": {
                     "method": "PATCH",
                     "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
                     ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stop",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stop",
                     "description": "실제 ACTIVE 픽스처를 stop API로 STOPPED로 전환한다."
                   },
                   "event": [
@@ -7286,14 +7261,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7305,7 +7272,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
                     "description": "실패: 실제 STOPPED 타임딜의 정보 변경은 불가하다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
@@ -7331,14 +7298,6 @@
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -7350,7 +7309,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stock",
                     "description": "실패: 실제 STOPPED 타임딜의 재고 조정은 불가하다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
