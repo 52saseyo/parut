@@ -294,6 +294,10 @@
                       {
                         "key": "X-User-Id",
                         "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -328,6 +332,10 @@
                       {
                         "key": "X-User-Id",
                         "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
                       }
                     ],
                     "url": {
