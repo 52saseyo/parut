@@ -56,14 +56,11 @@ public class ProductStockReservationExpirationScheduler {
                 } catch (BusinessException e) {
                     log.warn("[ExpirationScheduler] 예약 만료 처리 실패: reservationId={}, errorCode={}, message={}",
                             reservation.getId(), e.getErrorCode(), e.getMessage());
-                    try {
-                        productStockReservationExpirationProcessor.expirationFailed(reservation.getId());
-                    } catch (Exception ex) {
-                        log.error("[ExpirationScheduler] 격리 처리 자체도 실패: reservationId={}", reservation.getId(), ex);
-                    }
+                    tryMarkExpirationFailed(reservation.getId());
                 } catch (Exception e) {
                     log.error("[ExpirationScheduler] 예상하지 못한 예약 만료 처리 실패: reservationId={}",
                             reservation.getId(), e);
+                    tryMarkExpirationFailed(reservation.getId());
                 } finally {
                     AuditorContext.clear();
                 }
@@ -72,5 +69,13 @@ public class ProductStockReservationExpirationScheduler {
             }
         }
         log.info("[ExpirationScheduler] 만료 예약 처리 완료");
+    }
+
+    private void tryMarkExpirationFailed(UUID reservationId) {
+        try {
+            productStockReservationExpirationProcessor.expirationFailed(reservationId);
+        } catch (Exception ex) {
+            log.error("[ExpirationScheduler] 격리 처리 자체도 실패: reservationId={}", reservationId, ex);
+        }
     }
 }
