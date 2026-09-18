@@ -39,6 +39,11 @@ public enum ErrorCode {
             HttpStatus.CONFLICT,
             "이미 사용 중인 Slack ID입니다."
     ),
+
+    USER_DEL_ACCOUNT(
+            HttpStatus.FORBIDDEN,
+            "탈퇴한 계정입니다."
+    ),
     // E: USER
 
     // S: SELLER
@@ -52,6 +57,20 @@ public enum ErrorCode {
             "판매자 관리 권한이 없습니다."
     ),
 
+    SELLER_EXIST_ORDERS(
+            HttpStatus.FORBIDDEN,
+            "진행 중인 주문이 있어 탈퇴할 수 없습니다."
+    ),
+
+    ORDER_SERVICE_UNAVAILABLE(
+            HttpStatus.FORBIDDEN,
+            "주문 데이터 조회 오류가 발생했습니다."
+    ),
+
+    SELLER_DEL_ACCOUNT(
+            HttpStatus.FORBIDDEN,
+            "탈퇴한 계정입니다."
+    ),
     // E: SELLER
 
     // S: ADMIN

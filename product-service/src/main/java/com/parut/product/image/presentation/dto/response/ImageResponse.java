@@ -6,18 +6,12 @@ import java.util.UUID;
 
 public record ImageResponse(
         UUID imageId,
-        String imageKey,
-        String originalName,
-        String contentType,
-        long fileSize
+        String imageUrl
 ) {
     public static ImageResponse from(Image image) {
         return new ImageResponse(
                 image.getId(),
-                image.getImageKey(),
-                image.getOriginalName(),
-                image.getContentType(),
-                image.getFileSize()
+                image.getImageUrl()
         );
     }
 }

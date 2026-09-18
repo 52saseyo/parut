@@ -7,12 +7,9 @@ import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.parut.product.product.application.product.service.ProductService;
-import com.parut.product.product.presentation.product.dto.request.CreateProductRequest;
-import com.parut.product.product.presentation.product.dto.request.SellerProductSearchRequest;
-import com.parut.product.product.presentation.product.dto.request.UpdateProductRequest;
-import com.parut.product.product.presentation.product.dto.request.UpdateProductStatusRequest;
-import com.parut.product.product.presentation.product.dto.response.ProductDetailResponse;
+import com.parut.product.product.presentation.product.dto.request.*;
 import com.parut.product.product.presentation.product.dto.response.ProductResponse;
+import com.parut.product.product.presentation.product.dto.response.SellerProductDetailResponse;
 import com.parut.product.product.presentation.product.dto.response.SellerProductListResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -42,10 +39,11 @@ public class SellerProductController {
      */
     @PostMapping
     public ResponseEntity<ApiResponse<ProductResponse>> create(
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody CreateProductRequest request
     ){
-        ProductResponse response = productService.createProduct(sellerId, request);
+        ProductResponse response = productService.createProduct(requesterId, requesterRole, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response, null));
     }
 
@@ -56,10 +54,11 @@ public class SellerProductController {
     @PatchMapping("/{productId}")
     public ResponseEntity<ApiResponse<ProductResponse>> update(
             @PathVariable UUID productId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody UpdateProductRequest request
     ){
-        ProductResponse response = productService.updateProduct(productId, sellerId, request);
+        ProductResponse response = productService.updateProduct(productId, requesterId, requesterRole, request);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
@@ -70,9 +69,10 @@ public class SellerProductController {
     @DeleteMapping("/{productId}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @PathVariable UUID productId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
     ){
-        productService.deleteProduct(productId, sellerId);
+        productService.deleteProduct(productId, requesterId, requesterRole);
         return ResponseEntity.ok(ApiResponse.success(null, null));
     }
 
@@ -84,12 +84,14 @@ public class SellerProductController {
     @PatchMapping("/{productId}/status")
     public ResponseEntity<ApiResponse<ProductResponse>> updateStatus(
             @PathVariable UUID productId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @Valid @RequestBody UpdateProductStatusRequest request
     ){
         ProductResponse response = productService.updateProductStatus(
                 productId,
-                sellerId,
+                requesterId,
+                requesterRole,
                 request.status()
         );
         return ResponseEntity.ok(ApiResponse.success(response, null));
@@ -100,17 +102,19 @@ public class SellerProductController {
      * 공개 조회와 달리 판매 준비, 판매 중지 상태의 상품도 조회할 수 있다.
      */
     @GetMapping("/{productId}")
-    public ResponseEntity<ApiResponse<ProductDetailResponse>> getOne(
+    public ResponseEntity<ApiResponse<SellerProductDetailResponse>> getOne(
             @PathVariable UUID productId,
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole
     ){
-        ProductDetailResponse response = productService.getMyProduct(sellerId, productId);
+        SellerProductDetailResponse response = productService.getMyProduct(productId, requesterId, requesterRole);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
     @GetMapping
     public ResponseEntity<ApiResponse<OffsetResponse<SellerProductListResponse>>> search(
-            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
             @ModelAttribute SellerProductSearchRequest request,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -126,7 +130,7 @@ public class SellerProductController {
                 Sort.by(resolvedDirection.toSpringDirection(), SELLER_PRODUCT_SORT)
         );
 
-        Page<SellerProductQueryResult> result = productService.searchSellerProducts(sellerId, request.toCondition(), pageable);
+        Page<SellerProductQueryResult> result = productService.searchSellerProducts(requesterId, requesterRole, request.toCondition(), pageable);
 
 
         OffsetResponse<SellerProductListResponse> response = new OffsetResponse<>(
@@ -146,4 +150,21 @@ public class SellerProductController {
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }
 
+
+    @PostMapping("/{productId}/images")
+    public ResponseEntity<ApiResponse<Void>> addImage(
+            @RequestHeader(HeaderConstants.USER_ID) UUID requesterId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @PathVariable UUID productId,
+            @Valid @RequestBody RegisterProductImageRequest request
+    ) {
+        productService.registerImage(
+                productId,
+                requesterId,
+                requesterRole,
+                request.imageId()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(null, null));
+    }
 }

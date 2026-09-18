@@ -345,7 +345,21 @@
           ],
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{adminUsername}}\",\n    \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": "{{gatewayBaseUrl}}/api/v1/auth/login/admin",
             "description": "임시 관리자 토큰과 JWT subject인 adminId를 자동 저장합니다."
           }
@@ -3286,7 +3300,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
+                      "if (!pm.environment.get('sellerPendingAccessToken')) throw new Error('sellerPendingAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
                     ]
                   }
                 },
@@ -3315,7 +3329,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -3334,7 +3348,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -3367,7 +3381,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerAccessToken}}",
+                      "value": "{{sellerPendingAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -4341,7 +4355,839 @@
         },
         {
           "name": "23 stock",
-          "item": []
+          "item": [
+            {
+              "name": "23-00-01 상품+재고 생성, 게이트웨이 우회",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-User-Id", "value": "{{sellerId}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"stock 단독 테스트 상품\",\n  \"description\": \"23번 재고 API 단독 테스트용\",\n  \"price\": 10000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1,\n  \"totalQuantity\": 100,\n  \"lowStockThreshold\": 10\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/seller/products",
+                "description": "게이트웨이/로그인 없이 product-service를 직접 호출해 상품+초기 재고를 생성합니다. sellerId는 실제 가입된 판매자가 아니어도 됩니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('sellerId')) pm.environment.set('sellerId', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "const id = body.data?.productId ?? body.data?.id;",
+                      "pm.test('productId가 있다', () => pm.expect(id).to.exist);",
+                      "if (id) pm.environment.set('productId', id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-00-02 재고 예약, 내부 API 직접 호출",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\",\n      \"quantity\": 5\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/reserve",
+                "description": "23-01 이력 조회에서 확인할 RESERVE 이벤트를 만들기 위해 내부 예약 API를 직접 호출합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 23-00-01부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 로컬 .env의 INTERNAL_SERVICE_KEY 값을 채워주세요.');",
+                      "pm.environment.set('stockTestOrderId', pm.variables.replaceIn('{{$guid}}'));",
+                      "pm.environment.set('stockTestOrderItemId', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-00-03 재고 확정, 내부 API 직접 호출",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/confirm",
+                "description": "23-00-02에서 예약한 항목을 확정해 CONFIRM 이벤트까지 만듭니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('stockTestOrderId')) throw new Error('stockTestOrderId 환경변수가 없습니다. 23-00-02부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('stockTestOrderItemId')) throw new Error('stockTestOrderItemId 환경변수가 없습니다. 23-00-02부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-01-01 이력 정상 조회",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=20",
+                "description": "판매자 본인 상품의 재고 변동 이력을 조회합니다. RESERVE/CONFIRM 이벤트가 최신순으로 반환되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (body.data?.nextCursor) pm.environment.set('historyCursor', body.data.nextCursor);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-01-02 타 판매자 상품 이력 조회 거부",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{otherSellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories",
+                "description": "본인 소유가 아닌 상품의 이력을 조회합니다. 소유권 검증이 동작하는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "pm.environment.set('otherSellerId', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-01-03 페이지 크기 미달 거부",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=0",
+                "description": "size=0으로 조회합니다. 최소 페이지 크기 검증이 동작하는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-01-04 커서 기반 다음 페이지 조회",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories?cursor={{historyCursor}}&size=20",
+                "description": "23-01-01 응답의 nextCursor로 다음 페이지를 요청합니다. 이전 페이지와 겹치지 않고 이어지는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('historyCursor')) throw new Error('historyCursor 환경변수가 없습니다. 23-01-01부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (body.data?.nextCursor) pm.environment.set('historyCursor', body.data.nextCursor);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-02-01 격리 예약 조회 - ADMIN",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{adminId}}" },
+                  { "key": "X-User-Role", "value": "ADMIN" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/reservations/isolated",
+                "description": "관리자가 전체 격리(EXPIRATION_FAILED) 예약을 조회합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('adminId')) throw new Error('adminId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-02-02 격리 예약 조회 - SELLER 범위 제한",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/reservations/isolated",
+                "description": "판매자가 조회하면 본인 상품에 해당하는 격리 예약만 반환되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-02-03 격리 예약 복구 - ADMIN 성공",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{adminId}}" },
+                  { "key": "X-User-Role", "value": "ADMIN" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
+                "description": "관리자가 격리된 예약을 복구합니다. 예약 상태가 EXPIRED로 전환되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('reservationId')) throw new Error('reservationId 환경변수가 없습니다. 격리(EXPIRATION_FAILED) 상태 예약을 DB에서 직접 만들거나 스케줄러 3주기 실패를 기다린 뒤 값을 채우세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-02-04 격리 예약 복구 - SELLER 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{sellerId}}" },
+                  { "key": "X-User-Role", "value": "SELLER" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
+                "description": "판매자가 복구를 시도하면 관리자 전용 API라 거부되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-02-05 이미 처리된 예약 재복구 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "X-User-Id", "value": "{{adminId}}" },
+                  { "key": "X-User-Role", "value": "ADMIN" }
+                ],
+                "url": "{{productBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
+                "description": "23-02-03에서 이미 복구된 예약을 다시 복구 요청합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-03-01 이력 정상 조회, 게이트웨이 경유",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{sellerAccessToken}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=20",
+                "description": "01~03 플로우로 로그인/주문까지 마친 뒤, 실제 판매자 JWT로 게이트웨이를 거쳐 이력을 조회합니다. 통합 검증용이며, 게이트웨이가 로그인 이후 요청마다 재검증하는 로직이 판매자 계정을 못 찾는 버그가 있는 동안은 401이 날 수 있습니다(버그 수정 후 재확인 필요)."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01번(로그인)부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 02번(상품 등록)부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-03-02 격리 예약 조회 - ADMIN, 게이트웨이 경유",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{adminAccessToken}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/stocks/reservations/isolated",
+                "description": "관리자 JWT로 게이트웨이를 거쳐 격리 예약을 조회합니다. 통합 검증용, 게이트웨이 재검증 버그가 남아있는 동안은 401이 날 수 있습니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('adminAccessToken')) throw new Error('adminAccessToken 환경변수가 없습니다. 01번(관리자 로그인)부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-03-03 격리 예약 조회 - SELLER, 게이트웨이 경유",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{sellerAccessToken}}", "type": "string" }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/stocks/reservations/isolated",
+                "description": "판매자 JWT로 게이트웨이를 거쳐 본인 상품 범위의 격리 예약을 조회합니다. 통합 검증용, 게이트웨이 재검증 버그가 남아있는 동안은 401이 날 수 있습니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-03-04 격리 예약 복구 - ADMIN, 게이트웨이 경유",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    { "key": "token", "value": "{{adminAccessToken}}", "type": "string" }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
+                "description": "관리자 JWT로 게이트웨이를 거쳐 격리 예약을 복구합니다. 통합 검증용, 게이트웨이 재검증 버그가 남아있는 동안은 401이 날 수 있습니다. reservationId는 23-02-03과 별개로 DB에서 새로 EXPIRATION_FAILED 상태를 만들어야 의미 있게 동작합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('reservationId')) throw new Error('reservationId 환경변수가 없습니다. DB에서 EXPIRATION_FAILED 상태 예약을 만들고 값을 채우세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-01 가용 재고 초과 예약 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{$guid}}\",\n      \"quantity\": 999999\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/reserve",
+                "description": "가용 재고(100)보다 훨씬 많은 수량을 예약 요청합니다. PRODUCT_STOCK_SHORTAGE(409)로 거부되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 23-00-01부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                      "pm.test('code가 PRODUCT_STOCK_SHORTAGE이다', () => pm.expect(body.code).to.eql('PRODUCT_STOCK_SHORTAGE'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-02 존재하지 않는 상품으로 예약 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{$guid}}\",\n      \"orderItemId\": \"{{$guid}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/reserve",
+                "description": "존재하지 않는 productId로 예약을 요청합니다. PRODUCT_STOCK_NOT_FOUND(404)로 거부되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
+                      "pm.test('code가 PRODUCT_STOCK_NOT_FOUND이다', () => pm.expect(body.code).to.eql('PRODUCT_STOCK_NOT_FOUND'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-03 이미 처리된 항목 재예약 시 멱등 처리",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\",\n      \"quantity\": 5\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/reserve",
+                "description": "23-00-02에서 이미 RESERVE 처리된 orderItemId로 다시 예약을 요청합니다. 멱등 처리되어 재고가 중복 차감되지 않고 200이 반환되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('stockTestOrderItemId')) throw new Error('stockTestOrderItemId 환경변수가 없습니다. 23-00-02부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-04 예약 없는 항목 확정 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{$guid}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/confirm",
+                "description": "예약(RESERVE) 이력이 없는 orderItemId로 확정을 요청합니다. PRODUCT_STOCK_RESERVATION_NOT_FOUND(404)로 거부되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
+                      "pm.test('code가 PRODUCT_STOCK_RESERVATION_NOT_FOUND이다', () => pm.expect(body.code).to.eql('PRODUCT_STOCK_RESERVATION_NOT_FOUND'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-05 이미 확정된 항목 재확정 시 멱등 처리",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/confirm",
+                "description": "23-00-03에서 이미 CONFIRM 처리된 orderItemId로 다시 확정을 요청합니다. 멱등 처리되어 재고가 중복 반영되지 않고 200이 반환되는지 확인합니다."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('stockTestOrderItemId')) throw new Error('stockTestOrderItemId 환경변수가 없습니다. 23-00-02, 23-00-03부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-06 격리된 예약 복구(restore) 시도 거부",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{isolatedOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{isolatedOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                "description": "격리(EXPIRATION_FAILED) 상태인 예약에 일반 restore를 시도합니다. PRODUCT_STOCK_RESERVATION_ISOLATED(409)로 거부되는지 확인합니다. isolatedOrderId/isolatedOrderItemId는 23-02-03에서 DB로 EXPIRATION_FAILED를 만들 때 쓴 orderId/orderItemId와 같은 값을 직접 채워야 합니다(reservationId와 별개로 관리)."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('isolatedOrderId')) throw new Error('isolatedOrderId 환경변수가 없습니다. 격리 예약을 만들 때 쓴 orderId를 채우세요.');",
+                      "if (!pm.environment.get('isolatedOrderItemId')) throw new Error('isolatedOrderItemId 환경변수가 없습니다. 격리 예약을 만들 때 쓴 orderItemId를 채우세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                      "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                      "pm.test('code가 PRODUCT_STOCK_RESERVATION_ISOLATED이다', () => pm.expect(body.code).to.eql('PRODUCT_STOCK_RESERVATION_ISOLATED'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-07 이미 만료 처리된 예약 재요청 시 멱등 처리",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{isolatedOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{isolatedOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                "description": "23-02-03(격리 예약 복구)로 EXPIRED 상태가 된 예약에 restore를 재요청합니다. 이미 처리된 상태라 재처리 없이 200으로 조용히 반환되는지 확인합니다. 23-02-03을 먼저 실행해야 의미가 있습니다."
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-08 RESERVED 예약 정상 복구",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                "description": "결제 전(RESERVED) 취소를 확인합니다. 직접 실행 순서: ① 23-00-02(재고 예약)를 다시 실행해 새 RESERVED 예약을 만듭니다(23-00-03 확정은 실행하지 마세요) ② 이 요청을 실행합니다. 예약이 CANCELLED로 바뀌고 availableQuantity가 복원되는지(23-01-01 이력 조회의 RESTORE 이벤트로) 확인하세요."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('stockTestOrderItemId')) throw new Error('stockTestOrderItemId 환경변수가 없습니다. 23-00-02부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "23-04-09 CONFIRMED 예약 환불 처리",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "X-Service-Key", "value": "{{serviceKey}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{stockTestOrderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{stockTestOrderItemId}}\"\n    }\n  ]\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                "description": "결제 완료 후(CONFIRMED) 취소 → 환불(REFUND) 처리를 확인합니다. 직접 실행 순서: ① 23-00-02, 23-00-03을 순서대로 다시 실행해 새 CONFIRMED 예약을 만듭니다 ② 이 요청을 실행합니다. 예약이 CANCELLED로 바뀌고 total/availableQuantity가 함께 복원되며 REFUND 이벤트로 기록되는지 23-01-01(이력 조회)로 확인하세요."
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('stockTestOrderItemId')) throw new Error('stockTestOrderItemId 환경변수가 없습니다. 23-00-02, 23-00-03부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "24 timedeal",

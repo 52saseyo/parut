@@ -25,9 +25,6 @@ public class Product extends DeletableEntity {
     @Column(name = "seller_id", nullable = false, updatable = false)
     private UUID sellerId;
 
-    @Column(name = "image_id")
-    private UUID imageId;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "category", nullable = false, length = 30)
     private ProductCategory category;
@@ -201,7 +198,6 @@ public class Product extends DeletableEntity {
         if (status != ProductStatus.DRAFT) {
             throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
-        validateImageExists();
         this.status = ProductStatus.ON_SALE;
     }
 
@@ -225,7 +221,6 @@ public class Product extends DeletableEntity {
         if (status != ProductStatus.SOLD_OUT) {
             throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
-        validateImageExists();
         this.status = ProductStatus.ON_SALE;
     }
 
@@ -250,7 +245,6 @@ public class Product extends DeletableEntity {
         if (status != ProductStatus.SUSPENDED) {
             throw new BusinessException(ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
         }
-        validateImageExists();
         this.status = ProductStatus.ON_SALE;
     }
 
@@ -291,65 +285,6 @@ public class Product extends DeletableEntity {
             throw new BusinessException(
                     ErrorCode.PRODUCT_NOT_MODIFIABLE
             );
-        }
-    }
-
-
-
-    public void addImage(UUID imageId) {
-        validateModifiable();
-        validateImageId(imageId);
-
-        if (this.imageId != null) {
-            throw new BusinessException(
-                    ErrorCode.PRODUCT_IMAGE_ALREADY_EXISTS
-            );
-        }
-        this.imageId = imageId;
-    }
-
-
-    public UUID changeImage(UUID newImageId) {
-        validateModifiable();
-        validateImageId(newImageId);
-
-        if (this.imageId == null) {
-            throw new BusinessException(
-                    ErrorCode.PRODUCT_IMAGE_NOT_FOUND
-            );
-        }
-
-        UUID previousImageId = this.imageId;
-        this.imageId = newImageId;
-
-        return previousImageId;
-    }
-
-
-    public UUID removeImage() {
-        validateModifiable();
-        if (this.imageId == null) {
-            throw new BusinessException(
-                    ErrorCode.PRODUCT_IMAGE_NOT_FOUND
-            );
-        }
-        UUID removedImageId = this.imageId;
-        this.imageId = null;
-
-        return removedImageId;
-    }
-
-    private void validateImageId(UUID imageId) {
-        if (imageId == null) {
-            throw new BusinessException(
-                    ErrorCode.PRODUCT_IMAGE_ID_REQUIRED
-            );
-        }
-    }
-
-    private void validateImageExists(){
-        if(imageId == null){
-            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
         }
     }
 

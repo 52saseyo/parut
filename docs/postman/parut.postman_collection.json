@@ -40,11 +40,27 @@
       "item": [
         {
           "name": "product",
-          "description": "상품 컨텍스트. 상품 본체와 재고(ProductStock) API. 아래 요청은 폴더 규칙·변수 사용법을 보여주는 예시이며, 담당자가 확인 후 이어서 채운다.",
+          "description": "상품 컨텍스트. 상품 본체 API. 재고(ProductStock) API는 별도 stock 폴더 참고. 담당자가 확인 후 이어서 채운다.",
           "item": [
             {
               "name": "internal",
               "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다.",
+              "item": []
+            },
+            {
+              "name": "external",
+              "description": "/api/v1/** — 클라이언트 공개 경로.",
+              "item": []
+            }
+          ]
+        },
+        {
+          "name": "stock",
+          "description": "재고(ProductStock) 컨텍스트. com.parut.product.product.*.stock 하위 패키지와 대응된다.",
+          "item": [
+            {
+              "name": "internal",
+              "description": "/api/v1/internal/** — X-Service-Key 검증 대상. 이 폴더의 auth 가 하위 요청에 상속된다. reserve/confirm/restore는 orderId 하나에 items 배열(벌크)로 묶어서 보낸다.",
               "auth": {
                 "type": "apikey",
                 "apikey": [
@@ -75,7 +91,7 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\",\n  \"quantity\": 1\n}",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{orderItemId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -83,7 +99,7 @@
                       }
                     },
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/reserve",
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/reserve",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
@@ -92,11 +108,10 @@
                         "v1",
                         "internal",
                         "stocks",
-                        "{{productId}}",
                         "reserve"
                       ]
                     },
-                    "description": "availableQuantity 를 차감하고 예약(RESERVED)을 생성한다. orderItemId 기준으로 멱등 처리된다."
+                    "description": "items 배열의 각 productId 재고에서 availableQuantity 를 차감하고 예약(RESERVED)을 생성한다. orderItemId 기준으로 멱등 처리된다."
                   }
                 },
                 {
@@ -111,7 +126,7 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\"\n}",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{orderItemId}}\"\n    }\n  ]\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -119,7 +134,7 @@
                       }
                     },
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/confirm",
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/confirm",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
@@ -128,15 +143,14 @@
                         "v1",
                         "internal",
                         "stocks",
-                        "{{productId}}",
                         "confirm"
                       ]
                     },
-                    "description": "결제 완료 후 totalQuantity 를 확정 차감한다."
+                    "description": "결제 완료 후 totalQuantity 를 확정 차감한다. RESERVED 예약이 있어야 하며, 이미 CONFIRM 처리된 orderItemId는 멱등하게 무시한다."
                   }
                 },
                 {
-                  "name": "재고 복구",
+                  "name": "재고 복구 (RESERVED)",
                   "request": {
                     "method": "POST",
                     "header": [
@@ -147,7 +161,7 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"orderItemId\": \"{{orderItemId}}\"\n}",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{orderItemId}}\"\n    }\n  ]\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -155,7 +169,7 @@
                       }
                     },
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/{{productId}}/restore",
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
@@ -164,11 +178,45 @@
                         "v1",
                         "internal",
                         "stocks",
-                        "{{productId}}",
                         "restore"
                       ]
                     },
-                    "description": "결제 실패·주문 취소 시 선점을 취소하고 availableQuantity 를 되돌린다."
+                    "description": "결제 전(RESERVED) 취소. 예약을 CANCELLED로 바꾸고 availableQuantity 를 되돌린다(RESTORE 이벤트). 대상 orderItemId가 결제 완료(CONFIRMED)된 상태면 대신 아래 '재고 환불 (CONFIRMED)'과 동일하게 동작한다 — 같은 엔드포인트, 서버가 예약 상태로 자동 분기."
+                  }
+                },
+                {
+                  "name": "재고 환불 (CONFIRMED)",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"orderItemId\": \"{{orderItemId}}\"\n    }\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/stocks/restore",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "stocks",
+                        "restore"
+                      ]
+                    },
+                    "description": "결제 완료 후(CONFIRMED) 취소. 예약을 CANCELLED로 바꾸고 totalQuantity/availableQuantity 를 함께 되돌리며 REFUND 이벤트로 기록한다. 재고가 SOLD_OUT 상태였다면 상품 상태를 ON_SALE로 되돌리는 알림도 호출된다. 요청 형식은 위 '재고 복구 (RESERVED)'와 동일하고, 대상 orderItemId의 예약 상태에 따라 서버가 자동 분기한다."
                   }
                 }
               ]
@@ -177,6 +225,203 @@
               "name": "external",
               "description": "/api/v1/** — 클라이언트 공개 경로.",
               "item": [
+                {
+                  "name": "01 이미지 Presigned URL 발급",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 102400\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "images", "presigned-url"]
+                    },
+                    "description": "판매자가 S3 업로드용 Presigned URL을 발급받고 imageKey와 uploadUrl을 환경 변수에 저장한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('Presigned URL 발급 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.imageKey).to.exist; pm.expect(body.data.uploadUrl).to.exist; });",
+                        "if (pm.response.code === 200 && body.data) { pm.environment.set('imageKey', body.data.imageKey); pm.environment.set('uploadUrl', body.data.uploadUrl); }"
+                      ]
+                    }
+                  }]
+                },
+                {
+                  "name": "02 S3 이미지 업로드",
+                  "request": {
+                    "method": "PUT",
+                    "header": [{ "key": "Content-Type", "value": "image/jpeg" }],
+                    "body": { "mode": "file", "file": { "src": "" } },
+                    "url": { "raw": "{{uploadUrl}}", "host": ["{{uploadUrl}}"] },
+                    "description": "Body에서 실제 JPEG 파일을 선택한 뒤 실행한다. Presigned 요청과 동일한 Content-Type을 사용해야 한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": ["pm.test('S3 이미지 업로드 성공', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"]
+                    }
+                  }]
+                },
+                {
+                  "name": "03 이미지 업로드 완료",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"imageKey\": \"{{imageKey}}\",\n  \"originalName\": \"apple.jpg\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/images/complete",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "images", "complete"]
+                    },
+                    "description": "S3 객체를 검증하고 Image를 저장한 뒤 생성된 imageId를 환경 변수에 저장한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('이미지 등록 성공', () => { pm.response.to.have.status(201); pm.expect(body.data.imageId).to.exist; pm.expect(body.data.imageUrl).to.exist; });",
+                        "if (pm.response.code === 201 && body.data) pm.environment.set('imageId', body.data.imageId);"
+                      ]
+                    }
+                  }]
+                },
+                {
+                  "name": "04 이미지와 함께 상품 등록",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"Postman 테스트 사과\",\n  \"description\": \"이미지 및 재고 상세 테스트\",\n  \"price\": 10000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1.00,\n  \"totalQuantity\": 100,\n  \"lowStockThreshold\": 10,\n  \"imageId\": \"{{imageId}}\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/seller/products",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "seller", "products"]
+                    },
+                    "description": "상품, 초기 재고, 업로드한 이미지 연결을 생성하고 productId를 환경 변수에 저장한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('상품 등록 성공', () => { pm.response.to.have.status(201); pm.expect(body.data.productId).to.exist; pm.expect(body.data.status).to.eql('DRAFT'); });",
+                        "if (pm.response.code === 201 && body.data) pm.environment.set('productId', body.data.productId);"
+                      ]
+                    }
+                  }]
+                },
+                {
+                  "name": "05 판매자 상품 상세 및 재고 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/seller/products/{{productId}}",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "seller", "products", "{{productId}}"]
+                    },
+                    "description": "판매자 본인 상품과 전체·가용 재고, 부족 기준, 재고 상태를 조회한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('판매자 상품 상세 및 재고 조회 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.totalQuantity).to.eql(100); pm.expect(body.data.availableQuantity).to.eql(100); pm.expect(body.data.lowStockThreshold).to.eql(10); pm.expect(body.data.stockStatus).to.eql('AVAILABLE'); pm.expect(body.data.url).to.exist; });"
+                      ]
+                    }
+                  }]
+                },
+                {
+                  "name": "06 상품 판매 시작",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{userId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"ON_SALE\"\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/seller/products/{{productId}}/status",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "seller", "products", "{{productId}}", "status"]
+                    },
+                    "description": "이미지와 판매 가능한 재고가 있는 DRAFT 상품을 ON_SALE로 변경한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('상품 판매 시작 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.status).to.eql('ON_SALE'); });"
+                      ]
+                    }
+                  }]
+                },
+                {
+                  "name": "07 공개 상품 상세 및 가용 재고 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/products/{{productId}}",
+                      "host": ["{{productBaseUrl}}"],
+                      "path": ["api", "v1", "products", "{{productId}}"]
+                    },
+                    "description": "ON_SALE 또는 SOLD_OUT 상품의 공개 상세를 조회하며 availableQuantity만 공개한다."
+                  },
+                  "event": [{
+                    "listen": "test",
+                    "script": {
+                      "type": "text/javascript",
+                      "exec": [
+                        "const body = pm.response.json();",
+                        "pm.test('공개 상품 상세 및 가용 재고 조회 성공', () => { pm.response.to.have.status(200); pm.expect(body.data.productId).to.eql(pm.environment.get('productId')); pm.expect(body.data.status).to.eql('ON_SALE'); pm.expect(body.data.availableQuantity).to.eql(100); pm.expect(body.data.stockId).to.be.undefined; pm.expect(body.data.totalQuantity).to.be.undefined; pm.expect(body.data.lowStockThreshold).to.be.undefined; pm.expect(body.data.stockStatus).to.be.undefined; });"
+                      ]
+                    }
+                  }]
+                },
                 {
                   "name": "재고 수정",
                   "request": {
@@ -258,6 +503,110 @@
                         }
                       ]
                     }
+                  }
+                },
+                {
+                  "name": "재고 변동 이력 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=20",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "stocks",
+                        "{{productId}}",
+                        "histories"
+                      ],
+                      "query": [
+                        {
+                          "key": "size",
+                          "value": "20",
+                          "description": "1 이상, 기본값 20"
+                        },
+                        {
+                          "key": "cursor",
+                          "value": "",
+                          "disabled": true,
+                          "description": "이전 응답의 nextCursor 값"
+                        }
+                      ]
+                    },
+                    "description": "재고 변동 이력(RESERVE/CONFIRM/RESTORE/REFUND/ALLOCATE/DEALLOCATE)을 최신순으로 조회한다. 200 OK, SELLER는 본인 상품만 가능(타인 상품이면 403), size<1이면 400."
+                  }
+                },
+                {
+                  "name": "격리 예약 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "ADMIN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/stocks/reservations/isolated",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "stocks",
+                        "reservations",
+                        "isolated"
+                      ]
+                    },
+                    "description": "EXPIRATION_FAILED(격리) 상태 예약을 조회한다. 200 OK, ADMIN은 전체, SELLER는 본인 상품 범위만."
+                  }
+                },
+                {
+                  "name": "격리 예약 복구",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "ADMIN"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/stocks/reservations/{{reservationId}}/recover",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "stocks",
+                        "reservations",
+                        "{{reservationId}}",
+                        "recover"
+                      ]
+                    },
+                    "description": "격리(EXPIRATION_FAILED)된 예약을 관리자가 수동 복구한다. ADMIN 전용, 200 OK, 이미 처리된 예약이면 409."
                   }
                 }
               ]
@@ -3118,7 +3467,287 @@
         {
           "name": "external",
           "description": "/api/v1/** — 클라이언트 공개 경로.",
-          "item": []
+          "item": [
+            {
+              "name": "고객 회원가입",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"test_user\",\n  \"password\": \"Test1234!\",\n  \"name\": \"일반 고객\",\n  \"slackId\": \"test-customer\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/auth/signup",
+                "description": "신규 고객 회원가입을 처리합니다."
+              }
+            },
+            {
+              "name": "고객 로그인",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"test_user\",\n  \"password\": \"Test1234!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/auth/login/user",
+                "description": "고객 계정으로 로그인하여 Access Token을 발급받습니다."
+              }
+            },
+            {
+              "name": "판매자 입점 신청",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"loginId\": \"test_seller\",\n  \"password\": \"Test1234!\",\n  \"companyName\": \"테스트 농장\",\n  \"bizRegNo\": \"1234567890\",\n  \"repName\": \"대표자명\",\n  \"bizAddress\": \"서울시 송파구\",\n  \"managerName\": \"담당자명\",\n  \"managerPhone\": \"010-1234-5678\",\n  \"managerEmail\": \"seller@example.com\",\n  \"slackId\": \"test-seller\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/sellers/apply",
+                "description": "새로운 판매자 입점 신청을 접수합니다. (기본 PENDING 상태로 생성)"
+              }
+            },
+            {
+              "name": "판매자 로그인",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"test_seller\",\n  \"password\": \"Test1234!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/auth/login/seller",
+                "description": "판매자 계정으로 로그인합니다. 입점 승인 상태(PENDING / APPROVED / REJECTED)에 따라 권한이 다르게 발급됩니다."
+              }
+            },
+            {
+              "name": "관리자 로그인",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/auth/login/admin",
+                "description": "시스템 관리자 계정으로 로그인합니다."
+              }
+            },
+            {
+              "name": "판매자 입점 상태 조회",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/sellers/me/application",
+                "description": "판매자 본인의 입점 신청 상태 및 거절 사유 등을 조회합니다."
+              }
+            },
+            {
+              "name": "판매자 입점 상태 변경(관리자)",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"APPROVED\",\n  \"rejectReason\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/sellers/applications/{{sellerApplicationId}}",
+                "description": "관리자가 PENDING 상태인 판매자의 입점을 승인(APPROVED)하거나 사유와 함께 거절(REJECTED)합니다."
+              }
+            },
+            {
+              "name": "토큰 재발급",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{userBaseUrl}}/api/v1/auth/reissue",
+                "description": "Refresh Token을 이용하여 Access Token을 재발급 받습니다."
+              }
+            },
+            {
+              "name": "로그아웃",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/auth/logout",
+                "description": "현재 로그인된 사용자의 토큰을 블랙리스트에 등록하여 만료 처리합니다."
+              }
+            },
+            {
+              "name": "고객 내 정보 조회",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/users/me",
+                "description": "고객 본인의 상세 정보를 조회합니다."
+              }
+            },
+            {
+              "name": "고객 정보 수정",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"수정된 고객명\",\n  \"slackId\": \"updated-slack-id\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/users/{{customerId}}",
+                "description": "고객 본인의 정보를 수정합니다."
+              }
+            },
+            {
+              "name": "고객 계정 탈퇴",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/users/{{customerId}}",
+                "description": "고객 본인의 계정을 탈퇴(소프트 딜리트) 처리합니다."
+              }
+            },
+            {
+              "name": "고객 단건 조회(관리자)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/users/{{customerId}}",
+                "description": "관리자 권한으로 특정 고객의 상세 정보를 조회합니다."
+              }
+            },
+            {
+              "name": "고객 목록 조회(관리자)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/users?page=0&size=10&search=MVP",
+                "description": "관리자 권한으로 전체 고객 목록을 페이징 및 검색어로 조회합니다."
+              }
+            },
+            {
+              "name": "판매자 내 정보 조회",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/sellers/me",
+                "description": "판매자 본인의 상세 정보를 조회합니다."
+              }
+            },
+            {
+              "name": "판매자 정보 수정",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"companyName\": \"수정된 농장명\",\n  \"managerName\": \"새 담당자\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{userBaseUrl}}/api/v1/sellers/{{sellerId}}",
+                "description": "판매자 본인의 정보를 수정합니다."
+              }
+            },
+            {
+              "name": "판매자 계정 탈퇴",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/sellers/{{sellerId}}",
+                "description": "판매자 계정을 탈퇴(소프트 딜리트) 처리합니다."
+              }
+            },
+            {
+              "name": "판매자 가입 신청 목록 조회(관리자)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{userBaseUrl}}/api/v1/sellers/applications?page=0&size=10&status=PENDING",
+                "description": "관리자가 상태(PENDING 등)에 따른 판매자 가입 신청 목록을 페이징하여 조회합니다."
+              }
+            }
+          ]
         }
       ]
     },
