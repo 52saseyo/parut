@@ -30,3 +30,12 @@ internal:
 parut:
   time-deal:
     sale-period-interval: ${TIME_DEAL_SALE_PERIOD_INTERVAL:1m}
+
+
+cloud:
+  aws:
+    region: ${AWS_REGION}
+    s3:
+      bucket: ${S3_BUCKET}
+      base-url: ${S3_BASE_URL}
+      presigned-expiration-seconds: ${IMAGE_PRESIGNED_EXPIRATION_SECONDS:600}

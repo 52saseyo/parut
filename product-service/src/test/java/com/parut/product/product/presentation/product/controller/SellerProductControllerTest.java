@@ -36,6 +36,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class SellerProductControllerTest {
 
+    private static final String SELLER_ROLE = "SELLER";
+
     @Mock
     private ProductService productService;
 
@@ -62,15 +64,16 @@ class SellerProductControllerTest {
 
         given(productService.searchSellerProducts(
                 eq(sellerId),
+                eq(SELLER_ROLE),
                 any(SellerProductSearchCondition.class),
                 any(Pageable.class)
         )).willAnswer(invocation -> {
-            Pageable pageable = invocation.getArgument(2);
+            Pageable pageable = invocation.getArgument(3);
             return new PageImpl<>(List.of(item), pageable, 1);
         });
 
         ResponseEntity<ApiResponse<OffsetResponse<SellerProductListResponse>>> response =
-                sellerProductController.search(sellerId, request, 1, 10, "asc");
+                sellerProductController.search(sellerId, SELLER_ROLE, request, 1, 10, "asc");
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).isNotNull();
@@ -83,6 +86,7 @@ class SellerProductControllerTest {
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(productService).searchSellerProducts(
                 eq(sellerId),
+                eq(SELLER_ROLE),
                 eq(request.toCondition()),
                 pageableCaptor.capture()
         );
@@ -104,18 +108,20 @@ class SellerProductControllerTest {
 
         given(productService.searchSellerProducts(
                 eq(sellerId),
+                eq(SELLER_ROLE),
                 any(SellerProductSearchCondition.class),
                 any(Pageable.class)
         )).willAnswer(invocation -> {
-            Pageable pageable = invocation.getArgument(2);
+            Pageable pageable = invocation.getArgument(3);
             return new PageImpl<>(List.of(), pageable, 0);
         });
 
-        sellerProductController.search(sellerId, request, 1, 10, "desc");
+        sellerProductController.search(sellerId, SELLER_ROLE, request, 1, 10, "desc");
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(productService).searchSellerProducts(
                 eq(sellerId),
+                eq(SELLER_ROLE),
                 eq(request.toCondition()),
                 pageableCaptor.capture()
         );
@@ -136,6 +142,7 @@ class SellerProductControllerTest {
 
         assertThatThrownBy(() -> sellerProductController.search(
                 sellerId,
+                SELLER_ROLE,
                 request,
                 0,
                 10,
@@ -158,6 +165,7 @@ class SellerProductControllerTest {
 
         assertThatThrownBy(() -> sellerProductController.search(
                 sellerId,
+                SELLER_ROLE,
                 request,
                 1,
                 20,
