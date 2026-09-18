@@ -2,7 +2,6 @@ package com.parut.product.product.domain.product;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
-import com.parut.product.product.domain.product.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -231,7 +230,6 @@ class ProductTest {
         @DisplayName("ON_SALE 상태에서는 상품 정보를 수정할 수 없다")
         void 판매_중_상품_수정_실패() {
             Product product = newProduct();
-            product.addImage(UUID.randomUUID());
             product.startSale();
 
             assertBusinessException(
@@ -248,7 +246,6 @@ class ProductTest {
         @DisplayName("SUSPENDED 상태에서는 상품 정보를 수정할 수 있다")
         void 판매_중지_상품_수정_성공() {
             Product product = newProduct();
-            product.addImage(UUID.randomUUID());
             product.startSale();
             product.suspend();
 
@@ -308,135 +305,25 @@ class ProductTest {
     }
 
     @Nested
-    @DisplayName("상품 이미지")
-    class ProductImage {
-
-        @Test
-        @DisplayName("이미지가 없는 상품에 최초 이미지를 등록한다")
-        void 최초_이미지_등록_성공() {
-            Product product = newProduct();
-            UUID imageId = UUID.randomUUID();
-
-            product.addImage(imageId);
-
-            assertThat(product.getImageId()).isEqualTo(imageId);
-        }
-
-        @Test
-        @DisplayName("이미지 ID가 없으면 최초 이미지를 등록할 수 없다")
-        void 이미지_ID가_없는_최초_등록_실패() {
-            Product product = newProduct();
-
-            assertBusinessException(
-                    () -> product.addImage(null),
-                    ErrorCode.PRODUCT_IMAGE_ID_REQUIRED
-            );
-            assertThat(product.getImageId()).isNull();
-        }
-
-        @Test
-        @DisplayName("이미지가 이미 등록된 상품에는 최초 등록을 다시 할 수 없다")
-        void 이미지_중복_등록_실패() {
-            Product product = newProduct();
-            UUID firstImageId = UUID.randomUUID();
-            product.addImage(firstImageId);
-
-            assertBusinessException(
-                    () -> product.addImage(UUID.randomUUID()),
-                    ErrorCode.PRODUCT_IMAGE_ALREADY_EXISTS
-            );
-            assertThat(product.getImageId()).isEqualTo(firstImageId);
-        }
-
-        @Test
-        @DisplayName("기존 이미지를 변경하면 이전 이미지 ID를 반환한다")
-        void 이미지_변경_성공() {
-            Product product = newProduct();
-            UUID previousImageId = UUID.randomUUID();
-            UUID newImageId = UUID.randomUUID();
-            product.addImage(previousImageId);
-
-            UUID result = product.changeImage(newImageId);
-
-            assertThat(result).isEqualTo(previousImageId);
-            assertThat(product.getImageId()).isEqualTo(newImageId);
-        }
-
-        @Test
-        @DisplayName("기존 이미지가 없으면 이미지를 변경할 수 없다")
-        void 기존_이미지가_없는_변경_실패() {
-            Product product = newProduct();
-
-            assertBusinessException(
-                    () -> product.changeImage(UUID.randomUUID()),
-                    ErrorCode.PRODUCT_IMAGE_NOT_FOUND
-            );
-            assertThat(product.getImageId()).isNull();
-        }
-
-        @Test
-        @DisplayName("이미지를 제거하면 기존 이미지 ID를 반환하고 연결을 해제한다")
-        void 이미지_제거_성공() {
-            Product product = newProduct();
-            UUID imageId = UUID.randomUUID();
-            product.addImage(imageId);
-
-            UUID result = product.removeImage();
-
-            assertThat(result).isEqualTo(imageId);
-            assertThat(product.getImageId()).isNull();
-        }
-
-        @Test
-        @DisplayName("기존 이미지가 없으면 이미지를 제거할 수 없다")
-        void 기존_이미지가_없는_제거_실패() {
-            Product product = newProduct();
-
-            assertBusinessException(
-                    product::removeImage,
-                    ErrorCode.PRODUCT_IMAGE_NOT_FOUND
-            );
-        }
-
-        @Test
-        @DisplayName("판매 중인 상품의 이미지는 변경할 수 없다")
-        void 판매_중_이미지_변경_실패() {
-            Product product = newProduct();
-            UUID imageId = UUID.randomUUID();
-            product.addImage(imageId);
-            product.startSale();
-
-            assertBusinessException(
-                    () -> product.changeImage(UUID.randomUUID()),
-                    ErrorCode.PRODUCT_NOT_MODIFIABLE
-            );
-            assertThat(product.getImageId()).isEqualTo(imageId);
-        }
-    }
-
-    @Nested
     @DisplayName("상품 판매 상태 전환")
     class SaleStatusTransition {
 
         @Test
-        @DisplayName("이미지가 없으면 판매를 시작할 수 없다")
-        void 이미지가_없는_판매_시작_실패() {
+        @DisplayName("DRAFT 상품은 판매를 시작할 수 있다")
+        void 판매_시작_성공() {
             Product product = newProduct();
 
-            assertBusinessException(
-                    product::startSale,
-                    ErrorCode.PRODUCT_IMAGE_REQUIRED
-            );
-            assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
+            assertThatCode(product::startSale).doesNotThrowAnyException();
+            assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
         }
 
         @Test
-        @DisplayName("이미지가 있으면 판매를 시작할 수 있다")
-        void 이미지가_있는_판매_시작_성공() {
+        @DisplayName("ON_SALE 상품은 다시 판매를 시작할 수 없다")
+        void 판매_중_재시작_실패() {
             Product product = newProduct();
-            product.addImage(UUID.randomUUID());
+            product.startSale();
 
-            assertThatCode(product::startSale).doesNotThrowAnyException();
+            assertBusinessException(product::startSale, ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED);
             assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
         }
     }

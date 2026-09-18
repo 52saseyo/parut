@@ -16,9 +16,10 @@ public class UserInternalController {
     // Gateway 전용 검증 API
     @GetMapping("/{userId}/verify")
     public ResponseEntity<UserVerifyResponse> verifyUser(
-            @PathVariable String userId
+            @PathVariable String userId,
+            @RequestParam(required = false) String role
     ) {
-        UserVerifyResponse response = userService.verifyUserStatus(userId);
+        UserVerifyResponse response = userService.verifyUserStatus(userId, role);
         return ResponseEntity.ok(response);
     }
 }

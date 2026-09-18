@@ -1,9 +1,11 @@
 package com.parut.product.product.presentation.product.dto.response;
 
 import com.parut.product.product.domain.product.*;
+import com.parut.product.product.domain.stock.entity.ProductStock;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public record ProductDetailResponse(
@@ -17,10 +19,12 @@ public record ProductDetailResponse(
         LocalDate harvestDate,
         SaleUnit saleUnit,
         BigDecimal unitQuantity,
-        ProductStatus status
+        ProductStatus status,
+        int availableQuantity,
+        String imageUrl
 
 ) {
-    public static ProductDetailResponse from(Product product) {
+    public static ProductDetailResponse from(Product product, ProductStock stock, String imageUrl) {
         return new ProductDetailResponse(
                 product.getId(),
                 product.getCategory(),
@@ -32,7 +36,9 @@ public record ProductDetailResponse(
                 product.getHarvestDate(),
                 product.getSaleUnit(),
                 product.getUnitQuantity(),
-                product.getStatus()
+                product.getStatus(),
+                stock.getAvailableQuantity(),
+                imageUrl
         );
     }
 }

@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.Set;
+import java.util.UUID;
 
 @Getter
 @Entity
@@ -19,6 +20,7 @@ import java.util.Set;
 public class Image extends DeletableEntity {
 
     private static final int MAX_IMAGE_KEY_LENGTH = 500;
+    private static final int MAX_IMAGE_URL_LENGTH = 1000;
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
     private static final Set<String> SUPPORTED_CONTENT_TYPES = Set.of(
@@ -27,9 +29,14 @@ public class Image extends DeletableEntity {
             "image/webp"
     );
 
+    @Column(name = "uploader_id", nullable = false, updatable = false)
+    private UUID uploaderId;
 
     @Column(name = "image_key", nullable = false, updatable = false, length = 500)
     private String imageKey;
+
+    @Column(name = "image_url", nullable = false, updatable = false, length = 1000)
+    private String imageUrl;
 
     /** 사용자가 업로드한 원본 파일명 */
     @Column(name = "original_name", nullable = false, updatable = false, length = 255)
@@ -44,17 +51,23 @@ public class Image extends DeletableEntity {
     private long fileSize;
 
     private Image(
+            UUID uploaderId,
             String imageKey,
+            String imageUrl,
             String originalName,
             String contentType,
             long fileSize
     ) {
+        validateUploaderId(uploaderId);
         validateImageKey(imageKey);
+        validateImageUrl(imageUrl);
         validateOriginalName(originalName);
         validateContentType(contentType);
         validateFileSize(fileSize);
 
+        this.uploaderId = uploaderId;
         this.imageKey = imageKey;
+        this.imageUrl = imageUrl;
         this.originalName = originalName;
         this.contentType = contentType;
         this.fileSize = fileSize;
@@ -62,12 +75,21 @@ public class Image extends DeletableEntity {
 
 
     public static Image create(
+            UUID uploaderId,
             String imageKey,
+            String imageUrl,
             String originalName,
             String contentType,
             long fileSize
     ) {
-        return new Image(imageKey, originalName, contentType, fileSize);
+        return new Image(
+                uploaderId,
+                imageKey,
+                imageUrl,
+                originalName,
+                contentType,
+                fileSize
+        );
     }
 
 
@@ -76,6 +98,19 @@ public class Image extends DeletableEntity {
             return;
         }
         softDelete(deletedBy);
+    }
+
+    private static void validateUploaderId(UUID uploaderId) {
+        if (uploaderId == null) {
+            throw new BusinessException(ErrorCode.IMAGE_INVALID_UPLOADER_ID);
+        }
+    }
+    private static void validateImageUrl(String imageUrl) {
+        if (imageUrl == null
+                || imageUrl.isBlank()
+                || imageUrl.length() > MAX_IMAGE_URL_LENGTH) {
+            throw new BusinessException(ErrorCode.IMAGE_INVALID_URL);
+        }
     }
 
     private static void validateImageKey(String imageKey) {
