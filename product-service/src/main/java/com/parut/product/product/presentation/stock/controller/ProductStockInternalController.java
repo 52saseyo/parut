@@ -2,6 +2,7 @@ package com.parut.product.product.presentation.stock.controller;
 
 
 import com.parut.product.global.common.ApiResponse;
+import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockConfirmRequest;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockReserveRequest;
@@ -25,7 +26,7 @@ public class ProductStockInternalController {
             @Valid @RequestBody ProductStockReserveRequest request
     ) {
         productStockService.reserve(request.orderId(), request.toItems());
-        return ResponseEntity.ok(ApiResponse.success(null, null));
+        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
     }
 
     @PostMapping("/confirm")
@@ -33,7 +34,7 @@ public class ProductStockInternalController {
             @Valid @RequestBody ProductStockConfirmRequest request
     ) {
         productStockService.confirm(request.orderId(), request.toItems());
-        return ResponseEntity.ok(ApiResponse.success(null, null));
+        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
     }
 
     @PostMapping("/restore")
@@ -41,7 +42,7 @@ public class ProductStockInternalController {
             @Valid @RequestBody ProductStockRestoreRequest request
     ) {
         productStockService.restore(request.orderId(), request.toItems());
-        return ResponseEntity.ok(ApiResponse.success(null, null));
+        return ResponseEntity.ok(ApiResponse.success(null, TraceIdContext.currentTraceId()));
     }
 
 }
