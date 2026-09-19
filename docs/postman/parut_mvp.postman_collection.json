@@ -739,7 +739,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                     ]
                   }
                 },
@@ -760,21 +760,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -786,7 +785,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                 "description": "첫 번째 상품의 JPEG 파일 크기와 contentType을 검증하고 S3 PUT용 imageKey·Presigned URL을 발급합니다. 성공 시 firstProductImageKey와 firstProductUploadUrl을 저장합니다. 파일 크기(byte): macOS `stat -f%z 파일`, Linux `stat -c%s 파일`, PowerShell `(Get-Item \"파일\").Length`."
               }
             },
@@ -841,7 +840,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                       "if (!pm.environment.get('firstProductImageKey')) throw new Error('firstProductImageKey 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                     ]
                   }
@@ -863,21 +862,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -889,7 +887,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/images/complete",
+                "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                 "description": "firstProductImageKey로 S3 객체의 존재·소유자·실제 형식·크기를 확인한 뒤 이미지 메타데이터를 DB에 저장합니다. HTTP 201 응답의 imageId를 firstProductImageId로 저장합니다."
               }
             },
@@ -901,7 +899,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                       "if (!pm.environment.get('firstProductImageId')) throw new Error('firstProductImageId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                     ]
                   }
@@ -923,21 +921,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -949,7 +946,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/seller/products",
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
                 "description": "못난이 사과 정보, 초기 재고 100개, firstProductImageId를 한 요청으로 등록합니다. 상품은 DRAFT로 생성되며 productId를 firstProductId와 후속 주문용 productId에 저장합니다."
               }
             }
@@ -966,7 +963,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                     ]
                   }
                 },
@@ -987,21 +984,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -1013,7 +1009,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                 "description": "두 번째 상품의 PNG 파일 크기와 contentType을 검증하고 별도의 imageKey·Presigned URL을 발급합니다. 성공 시 secondProductImageKey와 secondProductUploadUrl을 저장합니다. 앞 상품의 키나 URL을 재사용하지 않습니다."
               }
             },
@@ -1068,7 +1064,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                       "if (!pm.environment.get('secondProductImageKey')) throw new Error('secondProductImageKey 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                     ]
                   }
@@ -1089,21 +1085,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -1115,7 +1110,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/images/complete",
+                "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                 "description": "secondProductImageKey로 두 번째 S3 객체를 검증하고 별도의 이미지 메타데이터를 저장합니다. HTTP 201 응답의 imageId를 secondProductImageId로 저장합니다."
               }
             },
@@ -1127,7 +1122,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                       "if (!pm.environment.get('secondProductImageId')) throw new Error('secondProductImageId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                     ]
                   }
@@ -1148,21 +1143,20 @@
               ],
               "request": {
                 "auth": {
-                  "type": "noauth"
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
                 },
                 "method": "POST",
                 "header": [
                   {
                     "key": "Content-Type",
                     "value": "application/json"
-                  },
-                  {
-                    "key": "X-User-Id",
-                    "value": "{{sellerId}}"
-                  },
-                  {
-                    "key": "X-User-Role",
-                    "value": "SELLER"
                   }
                 ],
                 "body": {
@@ -1174,7 +1168,7 @@
                     }
                   }
                 },
-                "url": "{{productBaseUrl}}/api/v1/seller/products",
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
                 "description": "프리미엄 배 정보, 초기 재고 50개, secondProductImageId를 등록합니다. 첫 번째 상품과 검색 조건이 구분되는 DRAFT 상품을 만들고 secondProductId를 저장합니다."
               }
             }
@@ -1188,7 +1182,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                   "if (!pm.environment.get('firstProductId')) throw new Error('firstProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                 ]
               }
@@ -1208,21 +1202,20 @@
           ],
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{sellerId}}"
-              },
-              {
-                "key": "X-User-Role",
-                "value": "SELLER"
               }
             ],
             "body": {
@@ -1234,7 +1227,7 @@
                 }
               }
             },
-            "url": "{{productBaseUrl}}/api/v1/seller/products/{{firstProductId}}/status",
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{firstProductId}}/status",
             "description": "firstProductId 상품의 가용 재고와 대표 이미지 연결을 검증한 뒤 상태를 DRAFT에서 ON_SALE로 변경합니다. 이미지 또는 판매 가능한 재고가 없으면 판매를 시작할 수 없습니다."
           }
         },
@@ -1246,7 +1239,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                   "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                 ]
               }
@@ -1266,21 +1259,20 @@
           ],
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{sellerAccessToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "PATCH",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{sellerId}}"
-              },
-              {
-                "key": "X-User-Role",
-                "value": "SELLER"
               }
             ],
             "body": {
@@ -1292,7 +1284,7 @@
                 }
               }
             },
-            "url": "{{productBaseUrl}}/api/v1/seller/products/{{secondProductId}}/status",
+            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{secondProductId}}/status",
             "description": "secondProductId 상품의 소유권·가용 재고·대표 이미지를 검증하고 ON_SALE로 변경합니다. 응답의 상품 상태가 ON_SALE인지 확인합니다."
           }
         },
@@ -1304,6 +1296,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                   "if (!pm.environment.get('firstProductId')) throw new Error('firstProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
                   "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                 ]
@@ -1325,11 +1318,18 @@
           ],
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
-            "url": "{{productBaseUrl}}/api/v1/products?keyword=사과&category=FRUIT&appearanceType=UGLY&status=ON_SALE&minPrice=5000&maxPrice=15000&size=10&sort=price&direction=asc",
+            "url": "{{gatewayBaseUrl}}/api/v1/products?keyword=사과&category=FRUIT&appearanceType=UGLY&status=ON_SALE&minPrice=5000&maxPrice=15000&size=10&sort=price&direction=asc",
             "description": "상품명 사과, FRUIT, UGLY, ON_SALE, 5,000~15,000원 조건을 적용하고 가격 오름차순으로 조회합니다. 첫 번째 상품만 포함되고 두 번째 상품은 제외되는지 확인한 뒤 selectedProductId를 저장합니다."
           }
         },
@@ -1341,6 +1341,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                   "if (!pm.environment.get('selectedProductId')) throw new Error('selectedProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                 ]
               }
@@ -1360,11 +1361,18 @@
           ],
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "GET",
             "header": [],
-            "url": "{{productBaseUrl}}/api/v1/products/{{selectedProductId}}",
+            "url": "{{gatewayBaseUrl}}/api/v1/products/{{selectedProductId}}",
             "description": "selectedProductId로 공개 상세를 조회해 상품 기본 정보, ON_SALE 상태, 판매 가능 수량과 대표 이미지 URL이 함께 반환되는지 확인합니다."
           }
         }
@@ -3939,6 +3947,177 @@
           "description": "사전 조건: 01과 02 완료. 정상 흐름 이후 Presigned URL 입력, S3 미업로드, 키 소유권, 파일명, 중복 등록 오류를 검증합니다.",
           "item": [
             {
+              "name": "21-00 다른 판매자 토큰 준비",
+              "description": "01 공통 시작을 마친 뒤 순서대로 실행합니다. 21-02-02와 22-01-02의 소유권 예외 검증에 사용할 실제 판매자 토큰을 발급합니다.",
+              "item": [
+                {
+                  "name": "21-00-01 다른 판매자 입점 신청",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 01을 먼저 실행하세요.');",
+                          "pm.environment.unset('otherSellerAccessToken');",
+                          "pm.environment.set('otherSellerUsername', 'mvp_o_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6));",
+                          "pm.environment.set('otherSellerBizRegNo', String(Math.floor(1000000000 + Math.random() * 9000000000)));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) {",
+                          "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "}",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                          "pm.test('판매자 상태가 PENDING이다', () => pm.expect(body.data?.status).to.eql('PENDING'));",
+                          "pm.test('sellerId가 있다', () => pm.expect(body.data?.id).to.exist);",
+                          "if (body.data?.id) { pm.environment.set('otherSellerId', body.data.id); pm.environment.set('otherSellerApplicationId', body.data.id); }"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"loginId\": \"{{otherSellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\",\n  \"companyName\": \"MVP 농장\",\n  \"bizRegNo\": \"{{otherSellerBizRegNo}}\",\n  \"repName\": \"판매자\",\n  \"bizAddress\": \"서울시 송파구\",\n  \"managerName\": \"담당자\",\n  \"managerPhone\": \"010-1234-5678\",\n  \"managerEmail\": \"mvp-seller@example.com\",\n  \"slackId\": \"mvp-seller\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/sellers/apply",
+                    "description": "소유권 예외 검증용 별도 판매자를 신청하고 응답 ID를 otherSellerApplicationId에 저장합니다.",
+                    "auth": {
+                      "type": "noauth"
+                    }
+                  }
+                },
+                {
+                  "name": "21-00-02 다른 판매자 입점 승인",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('adminAccessToken')) throw new Error('adminAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('otherSellerApplicationId')) throw new Error('otherSellerApplicationId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) {",
+                          "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "}",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                          "pm.test('판매자 상태가 APPROVED이다', () => pm.expect(body.data?.status).to.eql('APPROVED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{adminAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"APPROVED\",\n  \"rejectReason\": null\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/sellers/applications/{{otherSellerApplicationId}}",
+                    "description": "관리자 토큰으로 별도 판매자를 승인합니다."
+                  }
+                },
+                {
+                  "name": "21-00-03 다른 판매자 로그인",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('otherSellerUsername')) throw new Error('otherSellerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) {",
+                          "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "}",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                          "pm.test('판매자 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                          "const token = body.data?.access_token ?? body.data?.accessToken; if (token) pm.environment.set('otherSellerAccessToken', token);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"username\": \"{{otherSellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/auth/login/seller",
+                    "description": "승인된 별도 판매자로 로그인하고 Access Token을 otherSellerAccessToken에 저장합니다."
+                  }
+                }
+              ]
+            },
+            {
               "name": "21-01 Presigned URL 입력 검증",
               "item": [
                 {
@@ -3949,7 +4128,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -3968,21 +4147,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -3994,7 +4172,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                     "description": "application/pdf와 정상 크기로 Presigned URL 발급을 요청해 지원하지 않는 형식이 HTTP 400·IMAGE_INVALID_CONTENT_TYPE으로 거부되는지 확인합니다."
                   }
                 },
@@ -4006,7 +4184,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4025,21 +4203,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4051,7 +4228,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                     "description": "image/jpeg의 fileSize를 0으로 전달해 빈 파일이 HTTP 400·INVALID_INPUT_VALUE로 거부되고 업로드 URL이 발급되지 않는지 확인합니다."
                   }
                 },
@@ -4063,7 +4240,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4082,21 +4259,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4108,7 +4284,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                     "description": "최대 허용값보다 1byte 큰 10,485,761byte JPEG로 요청해 HTTP 400·INVALID_INPUT_VALUE가 반환되는지 확인합니다."
                   }
                 },
@@ -4120,7 +4296,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4139,21 +4315,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4165,7 +4340,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                     "description": "contentType을 빈 문자열로 전달해 필수 입력 검증이 동작하고 HTTP 400·INVALID_INPUT_VALUE가 반환되는지 확인합니다."
                   }
                 }
@@ -4182,7 +4357,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4201,21 +4376,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4227,7 +4401,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/presigned-url",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/presigned-url",
                     "description": "S3 PUT 생략 상황을 만들기 위해 정상 imageKey만 발급합니다. 반환된 키를 unuploadedImageKey에 저장하며 uploadUrl에는 파일을 전송하지 않습니다."
                   }
                 },
@@ -4239,7 +4413,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('unuploadedImageKey')) throw new Error('unuploadedImageKey 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4259,21 +4433,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4285,7 +4458,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/complete",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                     "description": "실제 S3 객체가 없는 unuploadedImageKey로 완료 요청을 보내 HTTP 404·IMAGE_UPLOAD_NOT_FOUND가 반환되고 DB에 메타데이터가 생성되지 않는지 확인합니다."
                   }
                 },
@@ -4297,8 +4470,8 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if(!pm.environment.get('unuploadedImageKey')) throw new Error('21-02-01을 먼저 실행하세요.');",
-                          "if(!pm.environment.get('otherSellerId')) pm.environment.set('otherSellerId',pm.variables.replaceIn('{{$guid}}'));"
+                          "if (!pm.environment.get('otherSellerAccessToken')) throw new Error('otherSellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
+                          "if(!pm.environment.get('unuploadedImageKey')) throw new Error('21-02-01을 먼저 실행하세요.');"
                         ]
                       }
                     },
@@ -4317,21 +4490,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{otherSellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{otherSellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4343,8 +4515,8 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/complete",
-                    "description": "첫 판매자 경로로 발급된 unuploadedImageKey를 otherSellerId 헤더로 완료 처리해 소유자 불일치가 HTTP 400·IMAGE_INVALID_KEY로 차단되는지 확인합니다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
+                    "description": "첫 판매자 경로로 발급된 unuploadedImageKey를 다른 판매자의 Bearer 토큰으로 완료 처리해 소유자 불일치가 HTTP 400·IMAGE_INVALID_KEY로 차단되는지 확인합니다."
                   }
                 },
                 {
@@ -4355,7 +4527,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('firstProductImageKey')) throw new Error('firstProductImageKey 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4375,21 +4547,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4401,7 +4572,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/complete",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                     "description": "이미 등록된 키와 빈 originalName을 전달해 서비스 실행 전에 요청 검증이 동작하고 HTTP 400·INVALID_INPUT_VALUE가 반환되는지 확인합니다."
                   }
                 },
@@ -4413,6 +4584,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "pm.environment.set('overlongOriginalName','a'.repeat(252)+'.jpg');"
                         ]
                       }
@@ -4432,21 +4604,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4458,7 +4629,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/complete",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                     "description": "허용 길이 255자를 초과한 256자 originalName을 전달해 HTTP 400·INVALID_INPUT_VALUE로 거부되는지 확인합니다."
                   }
                 },
@@ -4470,7 +4641,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('firstProductImageKey')) throw new Error('firstProductImageKey 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4490,21 +4661,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4516,7 +4686,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/images/complete",
+                    "url": "{{gatewayBaseUrl}}/api/v1/images/complete",
                     "description": "02-01-03에서 이미 저장한 firstProductImageKey로 완료 요청을 반복해 HTTP 409·IMAGE_KEY_ALREADY_EXISTS가 반환되고 중복 행이 생성되지 않는지 확인합니다."
                   }
                 }
@@ -4529,62 +4699,18 @@
           "description": "사전 조건: 01과 02 완료. 판매자 조회 권한, 공개 범위, 이미지 없는 상품의 판매 제한을 검증합니다.",
           "item": [
             {
-              "name": "22-01 판매자 상품 조회와 권한",
+              "name": "22-01 판매자 상품 조회 예외",
               "item": [
                 {
-                  "name": "22-01-01 판매자 상품 상세 정상 조회",
+                  "name": "22-01-01 타 판매자의 상품 상세 조회 거부",
                   "event": [
                     {
                       "listen": "prerequest",
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
-                          "if (!pm.environment.get('firstProductId')) throw new Error('firstProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
-                        ]
-                      }
-                    },
-                    {
-                      "listen": "test",
-                      "script": {
-                        "type": "text/javascript",
-                        "exec": [
-                          "let body = {};",
-                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('상품·재고·이미지가 있다',()=>{pm.expect(body.data?.stockId).to.exist;pm.expect(body.data?.url).to.exist;});"
-                        ]
-                      }
-                    }
-                  ],
-                  "request": {
-                    "auth": {
-                      "type": "noauth"
-                    },
-                    "method": "GET",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/seller/products/{{firstProductId}}",
-                    "description": "소유 판매자 ID로 첫 번째 상품을 조회해 상품 기본 정보, 이미지 URL, stockId, 전체·가용 재고, 부족 기준과 재고 상태가 반환되는지 확인합니다."
-                  }
-                },
-                {
-                  "name": "22-01-02 타 판매자의 상품 상세 조회 거부",
-                  "event": [
-                    {
-                      "listen": "prerequest",
-                      "script": {
-                        "type": "text/javascript",
-                        "exec": [
-                          "if(!pm.environment.get('otherSellerId')) pm.environment.set('otherSellerId',pm.variables.replaceIn('{{$guid}}'));"
+                          "if (!pm.environment.get('otherSellerAccessToken')) throw new Error('otherSellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
+                          "if (!pm.environment.get('firstProductId')) throw new Error('firstProductId 환경변수가 없습니다. 02를 먼저 실행하세요.');"
                         ]
                       }
                     },
@@ -4603,32 +4729,30 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{otherSellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "GET",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{otherSellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/seller/products/{{firstProductId}}",
-                    "description": "무관한 otherSellerId로 첫 번째 상품의 판매자 상세 API를 호출해 HTTP 403·PRODUCT_ACCESS_DENIED가 반환되는지 확인합니다."
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{firstProductId}}",
+                    "description": "다른 판매자의 Bearer 토큰으로 첫 번째 상품의 판매자 상세 API를 호출해 HTTP 403·PRODUCT_ACCESS_DENIED가 반환되는지 확인합니다."
                   }
                 },
                 {
-                  "name": "22-01-03 일반 사용자의 판매자 상세 조회 거부",
+                  "name": "22-01-02 일반 고객의 판매자 상세 조회 거부",
                   "event": [
                     {
                       "listen": "prerequest",
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                          "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('firstProductId')) throw new Error('firstProductId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4648,32 +4772,30 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{customerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "GET",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{$guid}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "CUSTOMER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/seller/products/{{firstProductId}}",
-                    "description": "customerId와 CUSTOMER 역할로 판매자 전용 상세 API를 호출해 HTTP 403·PRODUCT_ACCESS_DENIED가 반환되는지 확인합니다."
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{firstProductId}}",
+                    "description": "고객 Bearer 토큰으로 판매자 전용 상세 API를 호출해 HTTP 403·PRODUCT_ACCESS_DENIED가 반환되는지 확인합니다."
                   }
                 },
                 {
-                  "name": "22-01-04 판매자 상품 목록 범위 확인",
+                  "name": "22-01-03 허용되지 않은 페이지 크기로 판매자 상품 목록 조회",
                   "event": [
                     {
                       "listen": "prerequest",
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4684,29 +4806,27 @@
                         "exec": [
                           "let body = {};",
                           "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('02의 두 상품이 포함된다',()=>{const ids=(body.data?.content??[]).map(x=>x.productId);pm.expect(ids).to.include(pm.environment.get('firstProductId'));pm.expect(ids).to.include(pm.environment.get('secondProductId'));});"
+                          "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
+                          "pm.test('INVALID_PAGE_SIZE', () => pm.expect(body.code).to.eql('INVALID_PAGE_SIZE'));"
                         ]
                       }
                     }
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "GET",
-                    "header": [
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
-                      }
-                    ],
-                    "url": "{{productBaseUrl}}/api/v1/seller/products?page=1&size=10&direction=desc",
-                    "description": "소유 판매자의 삭제되지 않은 상품 목록을 최신순으로 조회해 02에서 생성한 두 상품이 모두 포함되는지 확인합니다. 판매자 목록은 DRAFT·ON_SALE·SOLD_OUT·SUSPENDED를 조회할 수 있습니다."
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/seller/products?page=1&size=20&direction=desc",
+                    "description": "판매자 상품 목록 조회에서 size=20을 전달해 HTTP 400·INVALID_PAGE_SIZE를 확인합니다."
                   }
                 }
               ]
@@ -4722,7 +4842,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');"
                         ]
                       }
                     },
@@ -4742,21 +4862,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "POST",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4768,7 +4887,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/seller/products",
+                    "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
                     "description": "imageId를 생략하고 감자 상품과 초기 재고 20개를 생성합니다. HTTP 201과 DRAFT 상태를 확인하고 productWithoutImageId를 저장합니다."
                   }
                 },
@@ -4780,6 +4899,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
+                          "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('productWithoutImageId')) throw new Error('productWithoutImageId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4799,11 +4919,18 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{customerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/products/{{productWithoutImageId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/products/{{productWithoutImageId}}",
                     "description": "이미지 없이 생성된 DRAFT 상품을 공개 상세 API로 조회해 존재를 노출하지 않고 HTTP 404·PRODUCT_NOT_FOUND를 반환하는지 확인합니다."
                   }
                 },
@@ -4815,7 +4942,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');",
+                          "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 로그인 또는 환경 설정을 확인하세요.');",
                           "if (!pm.environment.get('productWithoutImageId')) throw new Error('productWithoutImageId 환경변수가 없습니다. 이전 번호 요청부터 실행하세요.');"
                         ]
                       }
@@ -4835,21 +4962,20 @@
                   ],
                   "request": {
                     "auth": {
-                      "type": "noauth"
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{sellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
                     },
                     "method": "PATCH",
                     "header": [
                       {
                         "key": "Content-Type",
                         "value": "application/json"
-                      },
-                      {
-                        "key": "X-User-Id",
-                        "value": "{{sellerId}}"
-                      },
-                      {
-                        "key": "X-User-Role",
-                        "value": "SELLER"
                       }
                     ],
                     "body": {
@@ -4861,7 +4987,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/seller/products/{{productWithoutImageId}}/status",
+                    "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{productWithoutImageId}}/status",
                     "description": "가용 재고는 있지만 대표 이미지가 없는 DRAFT 상품을 ON_SALE로 변경해 HTTP 409·PRODUCT_IMAGE_REQUIRED가 반환되고 상태가 유지되는지 확인합니다."
                   }
                 }
