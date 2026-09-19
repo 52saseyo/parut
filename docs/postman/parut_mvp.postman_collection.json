@@ -2701,17 +2701,12 @@
           ]
         },
         {
-          "name": "06-02 내부 타임딜 상세 조회",
+          "name": "06-02 외부 타임딜 상세 조회",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}",
-            "description": "PR #81의 내부 조회 API로 주문 스냅샷에 사용할 상품명, 판매자, 정가와 할인가를 확인합니다."
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+            "description": "외부 공개 타임딜 상세 조회 API로 상품명, 판매자, 정가, 할인가와 재고 정보를 확인합니다."
           },
           "event": [
             {
@@ -2719,7 +2714,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
                   "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
                 ]
               }
