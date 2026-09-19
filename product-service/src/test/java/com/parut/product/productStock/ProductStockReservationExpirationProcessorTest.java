@@ -79,7 +79,7 @@ public class ProductStockReservationExpirationProcessorTest {
 
             verify(productStockReservationRepository).saveAndFlush(reservation);
             verify(productStockRepository).saveAndFlush(stock);
-            verify(productStockEventLogRepository).save(any(ProductStockEventLog.class));
+            verify(productStockEventLogRepository).saveAndFlush(any(ProductStockEventLog.class));
         }
 
         @Test
