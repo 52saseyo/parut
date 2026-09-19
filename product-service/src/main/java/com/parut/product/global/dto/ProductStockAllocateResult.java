@@ -9,6 +9,7 @@ import java.util.UUID;
 public record ProductStockAllocateResult(
         UUID productId,
         UUID sellerId,
+        UUID imageId,
         String imageUrl,
         Integer quantity,
         String productName,

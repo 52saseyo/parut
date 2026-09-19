@@ -12,6 +12,8 @@ import com.parut.product.product.application.authorization.stock.ProductStockAut
 import com.parut.product.product.application.stock.dto.*;
 import com.parut.product.product.application.product.manager.ProductStateManager;
 import com.parut.product.product.application.product.reader.ProductReader;
+import com.parut.product.product.application.product.port.out.ProductImagePort;
+import com.parut.product.product.application.product.port.out.dto.ProductImageResult;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.stock.entity.ProductStock;
@@ -61,6 +63,7 @@ public class ProductStockServiceImpl implements ProductStockService{
     private final ProductStateManager productStateManager;
     private final ProductStockAuthorizationChecker authorizationChecker;
     private final ProductStockAllocationLogRepository productStockAllocationLogRepository;
+    private final ProductImagePort productImagePort;
 
     // 상품 등록 시 재고 등록
     @Override
@@ -564,10 +567,14 @@ public class ProductStockServiceImpl implements ProductStockService{
         if (stock.getStatus() == StockStatus.SOLD_OUT) {
             notifySoldOut(command.productId());
         }
+        ProductImageResult image = productImagePort == null
+                ? null
+                : productImagePort.findImage(product.getId()).orElse(null);
         return new ProductStockAllocateResult(
                 product.getId(),
                 product.getSellerId(),
-                null,   // 추후 수정 (상품ID를 통해 imageUrl을 받아옴)
+                image == null ? null : image.imageId(),
+                image == null ? null : image.imageUrl(),
                 command.quantity(),
                 product.getName(),
                 product.getDescription(),
