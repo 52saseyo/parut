@@ -7,6 +7,8 @@ import com.parut.product.image.domain.image.Image;
 import com.parut.product.image.domain.timeDealImage.TimeDealImage;
 import com.parut.product.image.infrastructure.persistence.ImageRepository;
 import com.parut.product.image.infrastructure.persistence.TimeDealImageRepository;
+import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
+import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,16 @@ public class TimeDealImageService {
     private final ImageService imageService;
     private final TimeDealImageRepository timeDealImageRepository;
     private final ImageRepository imageRepository;
+    private final TimeDealRepository timeDealRepository;
+    private final TimeDealAuthorizationChecker authorizationChecker;
+
+    @Transactional
+    public void registerImage(UUID requesterId, String requesterRole, UUID timeDealId, UUID imageId){
+        var timeDeal = timeDealRepository.findById(timeDealId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
+        authorizationChecker.requireSellerOwnerOrAdmin(requesterId, requesterRole, timeDeal.getSellerId());
+        registerImage(requesterId, timeDealId, imageId);
+    }
 
 
     @Transactional
