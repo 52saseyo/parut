@@ -2534,7 +2534,7 @@
         },
         {
           "name": "refund",
-          "description": "환불 컨텍스트. 주문상품 행 단위 환불 요청·취소·승인·거절(REQUESTED / APPROVED / REJECTED / CANCELED).",
+          "description": "환불은 주문상품 한 건 단위로 처리합니다. 주문 고객은 배송 완료 후 7일 이내에 요청과 처리 전 취소를 실행하고, 해당 상품 판매자는 승인 또는 거절합니다. 배송 중에는 요청할 수 없으며 환불 후 일반 재고와 타임딜 재고는 복원하지 않습니다.",
           "item": [
             {
               "name": "internal",
@@ -2580,7 +2580,7 @@
                 ],
                 "item": [
                   {
-                    "name": "빈 환불 사유 거부",
+                    "name": "[주문 고객] 빈 환불 사유 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2624,7 +2624,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 역할의 환불 요청 거부",
+                    "name": "[판매자] 환불 요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2668,7 +2668,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문상품 환불 요청",
+                    "name": "[주문 고객] 존재하지 않는 주문상품 환불 요청",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2712,7 +2712,7 @@
                     ]
                   },
                   {
-                    "name": "다른 고객의 환불 요청 거부",
+                    "name": "[다른 고객] 환불 요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2756,7 +2756,7 @@
                     ]
                   },
                   {
-                    "name": "고객 환불 요청",
+                    "name": "[주문 고객] 환불 요청",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2801,7 +2801,7 @@
                     ]
                   },
                   {
-                    "name": "환불 진행 상태 재요청 거부",
+                    "name": "[주문 고객] 환불 진행 상태 재요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2856,7 +2856,7 @@
                       "type": "text/javascript",
                       "exec": [
                         "const refundId = pm.collectionVariables.get('refundRequestFixtureId');",
-                        "const needsRequestedRefund = pm.info.requestName !== '존재하지 않는 환불 요청 취소';",
+                        "const needsRequestedRefund = pm.info.requestName !== '[주문 고객] 존재하지 않는 환불 요청 취소';",
                         "if (needsRequestedRefund && !refundId) throw new Error('먼저 고객 환불 요청 폴더의 정상 요청을 실행하세요.');",
                         "if (refundId) pm.variables.set('refundId', refundId);",
                         "pm.variables.set('buyerId', '11111111-1111-1111-1111-111111111111');",
@@ -2867,7 +2867,7 @@
                 ],
                 "item": [
                   {
-                    "name": "다른 고객의 환불 요청 취소 거부",
+                    "name": "[다른 고객] 환불 요청 취소 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2929,7 +2929,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 요청 취소",
+                    "name": "[주문 고객] 존재하지 않는 환불 요청 취소",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2960,7 +2960,7 @@
                     ]
                   },
                   {
-                    "name": "고객 환불 요청 취소",
+                    "name": "[주문 고객] 환불 요청 취소",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2991,7 +2991,7 @@
                     ]
                   },
                   {
-                    "name": "취소한 환불 재취소 거부",
+                    "name": "[주문 고객] 취소한 환불 재취소 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3085,7 +3085,7 @@
                     ]
                   },
                   {
-                    "name": "중복 환불 ID 승인 거부",
+                    "name": "[해당 상품 판매자] 중복 환불 ID 승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3173,7 +3173,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 승인",
+                    "name": "[해당 상품 판매자] 존재하지 않는 환불 승인",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3217,7 +3217,7 @@
                     ]
                   },
                   {
-                    "name": "다른 판매자의 환불 승인 거부",
+                    "name": "[다른 판매자] 환불 승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3261,7 +3261,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 환불 승인",
+                    "name": "[해당 상품 판매자] 환불 승인",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3305,7 +3305,7 @@
                     ]
                   },
                   {
-                    "name": "승인 완료 환불 재승인 거부",
+                    "name": "[해당 상품 판매자] 승인 완료 환불 재승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3456,7 +3456,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 거절",
+                    "name": "[해당 상품 판매자] 존재하지 않는 환불 거절",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3500,7 +3500,7 @@
                     ]
                   },
                   {
-                    "name": "다른 판매자의 환불 거절 거부",
+                    "name": "[다른 판매자] 환불 거절 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3544,7 +3544,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 환불 거절",
+                    "name": "[해당 상품 판매자] 환불 거절",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3588,7 +3588,7 @@
                     ]
                   },
                   {
-                    "name": "거절 완료 환불 재거절 거부",
+                    "name": "[해당 상품 판매자] 거절 완료 환불 재거절 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
