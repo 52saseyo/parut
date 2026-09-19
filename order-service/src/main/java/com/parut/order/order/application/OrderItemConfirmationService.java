@@ -16,6 +16,7 @@ import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
 import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
 import com.parut.order.order.infrastructure.persistence.OrderRepository;
+import com.parut.order.settlement.application.port.in.SettlementCreateUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +33,7 @@ public class OrderItemConfirmationService {
     private final OrderRepository orderRepository;
     private final OrderDeliveryGroupRepository orderDeliveryGroupRepository;
     private final OrderItemRepository orderItemRepository;
+    private final SettlementCreateUseCase settlementCreateUseCase;
 
     /**
      * 배송 완료된 본인 주문상품을 구매 확정한다.
@@ -67,7 +69,10 @@ public class OrderItemConfirmationService {
             throw new BusinessException(ErrorCode.ORDER_ITEM_CONFIRMATION_NOT_ALLOWED);
         }
 
-        orderItem.confirm(Instant.now());
+        Instant confirmedAt = Instant.now();
+        // 구매확정과 상품 정산 생성을 같은 트랜잭션에서 처리한다.
+        orderItem.confirm(confirmedAt);
+        settlementCreateUseCase.createSettlement(orderItem.getId());
         return orderItem;
     }
 }

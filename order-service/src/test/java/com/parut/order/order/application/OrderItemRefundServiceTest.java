@@ -27,6 +27,7 @@ import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.order.domain.OrderType;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
 import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
+import com.parut.order.settlement.application.port.in.SettlementCreateUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class OrderItemRefundServiceTest {
@@ -40,6 +41,9 @@ class OrderItemRefundServiceTest {
 
     @Mock
     private OrderDeliveryGroupRepository orderDeliveryGroupRepository;
+
+    @Mock
+    private SettlementCreateUseCase settlementCreateUseCase;
 
     @InjectMocks
     private OrderItemRefundService orderItemRefundService;

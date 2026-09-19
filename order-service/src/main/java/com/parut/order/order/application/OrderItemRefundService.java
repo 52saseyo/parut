@@ -18,6 +18,7 @@ import com.parut.order.order.domain.OrderItem;
 import com.parut.order.order.domain.OrderItemStatus;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
 import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
+import com.parut.order.settlement.application.port.in.SettlementCreateUseCase;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,6 +29,7 @@ public class OrderItemRefundService implements OrderItemRefundUseCase {
 
     private final OrderItemRepository orderItemRepository;
     private final OrderDeliveryGroupRepository orderDeliveryGroupRepository;
+    private final SettlementCreateUseCase settlementCreateUseCase;
 
     @Override
     @Transactional
@@ -66,7 +68,11 @@ public class OrderItemRefundService implements OrderItemRefundUseCase {
         List<OrderItem> items = findAllOrThrow(orderItemIds);
         verifyAllInStatus(items, OrderItemStatus.REFUND_REQUESTED);
         Instant confirmedAt = Instant.now();
-        items.forEach(item -> item.confirm(confirmedAt));
+        // 환불 거절은 구매확정으로 전환한 뒤 같은 트랜잭션에서 정산을 생성한다.
+        items.forEach(item -> {
+            item.confirm(confirmedAt);
+            settlementCreateUseCase.createSettlement(item.getId());
+        });
     }
 
     private List<OrderItem> findAllOrThrow(List<UUID> orderItemIds) {
