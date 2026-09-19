@@ -2969,203 +2969,6 @@
       ]
     },
     {
-      "name": "07 시연 제외, 타임딜 Product 개별 기능",
-      "description": "메인 시연에서는 실행하지 않습니다. Order 주문 취소가 아니라 Product 내부 선점, 확정과 재고 복원 기능을 개별 확인하는 요청입니다.",
-      "item": [
-        {
-          "name": "07-01 타임딜 구매 선점, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{customerId}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. ACTIVE 타임딜에서 타임딜 가용 수량이 감소하고 reserved 수량이 증가하며 구매 이력이 RESERVED로 생성됩니다. 일반 상품 재고는 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "pm.environment.set('timeDealConfirmOrderId', pm.variables.replaceIn('{{$guid}}'));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-02 타임딜 구매 확정, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
-            "description": "선점된 구매를 확정해 RESERVED → CONFIRMED를 검증합니다. 타임딜 reserved 수량은 감소하고 sold 수량은 증가하며, 이미 선점 시 차감된 가용 수량이나 일반 상품 재고를 다시 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealConfirmOrderId')) throw new Error('timeDealConfirmOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-03 취소 확인용 타임딜 구매 선점, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{customerId}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{timeDealCancelOrderId}}\",\n  \"quantity\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다. 타임딜 가용 수량이 감소하지만 일반 상품 재고는 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "pm.environment.set('timeDealCancelOrderId', pm.variables.replaceIn('{{$guid}}'));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-04 타임딜 구매 취소, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"MVP_CANCEL\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
-            "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 타임딜 reserved → available 복원을 확인합니다. 일반 상품 재고는 변경하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealCancelOrderId')) throw new Error('timeDealCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "08 환불 요청과 처리",
       "description": "기존 구매확정 주문과 분리한 환불 전용 주문으로 고객 요청, 고객 취소, 재요청, 판매자 승인과 결제 부분 취소를 검증합니다.",
       "item": [
@@ -5897,7 +5700,7 @@
         },
         {
           "name": "24 timedeal",
-          "description": "기존 06·07 플로우와 분리한 타임딜 추가 검증. 정상 응답뿐 아니라 입력 검증, 권한, 상태 전이, 재고·구매 경계조건을 확인한다. 실패 케이스는 요청 설명의 기대 HTTP/code를 검증한다.",
+          "description": "06 통합 흐름과 연계한 타임딜 추가 검증. 정상 응답뿐 아니라 입력 검증, 권한, 상태 전이, 재고·구매 경계조건을 확인한다. 실패 케이스는 요청 설명의 기대 HTTP/code를 검증한다.",
           "auth": {
             "type": "bearer",
             "bearer": [
@@ -7322,11 +7125,209 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "24-07 Product 내부 구매 상태 전이",
+              "description": "06-01~06-06에서 생성한 ACTIVE 타임딜의 timeDealId를 사용합니다. Product 내부 선점, 확정과 재고 복원 기능을 개별 확인하는 요청입니다.",
+              "item": [
+                {
+                  "name": "24-07-01 타임딜 구매 선점, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+                    "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. ACTIVE 타임딜에서 타임딜 가용 수량이 감소하고 reserved 수량이 증가하며 구매 이력이 RESERVED로 생성됩니다. 일반 상품 재고는 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "pm.environment.set('timeDealConfirmOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-02 타임딜 구매 확정, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
+                    "description": "선점된 구매를 확정해 RESERVED → CONFIRMED를 검증합니다. 타임딜 reserved 수량은 감소하고 sold 수량은 증가하며, 이미 선점 시 차감된 가용 수량이나 일반 상품 재고를 다시 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealConfirmOrderId')) throw new Error('timeDealConfirmOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-03 취소 확인용 타임딜 구매 선점, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealCancelOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+                    "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다. 타임딜 가용 수량이 감소하지만 일반 상품 재고는 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "pm.environment.set('timeDealCancelOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-04 타임딜 구매 취소, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"MVP_CANCEL\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
+                    "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 타임딜 reserved → available 복원을 확인합니다. 일반 상품 재고는 변경하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealCancelOrderId')) throw new Error('timeDealCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
             }
+
           ]
-        }
-      ],
-      "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다."
+       }
+     ],
+     "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다."
     },
     {
       "name": "30 order-service",
