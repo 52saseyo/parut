@@ -11,6 +11,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -48,6 +49,12 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
             "/api/v1/sellers/apply"      // 판매자 입점 신청
     );
 
+    /** 상품·타임딜 목록과 1단계 상세 조회는 비로그인 공개 API로 제공한다. */
+    private static final List<String> PUBLIC_READ_PATHS = List.of(
+            "/api/v1/products",
+            "/api/v1/time-deals"
+    );
+
 
     // @Autowired 대신 생성자 주입 방식 사용 (권장)
     public JwtAuthFilter(WebClient.Builder webClientBuilder, ReactiveStringRedisTemplate redisTemplate) {
@@ -73,6 +80,25 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
             }
 
             final String finalTraceId = traceId; // 람다식 내부 사용을 위한 final 처리
+
+            // CORS preflight는 인증 대상이 아니다. CorsWebFilter가 응답을 처리하지 못한 경우에도
+            // JWT 필터가 OPTIONS 요청을 401로 막지 않도록 먼저 통과시킨다.
+            if (isCorsPreflight(request)) {
+                return chain.filter(exchange);
+            }
+
+            // 상품·타임딜 목록/상세 조회는 각 Controller 정책에 맞춰 비로그인 공개 API로 통과시킨다.
+            // 상품·타임딜 등록/수정/삭제, 재고·구매 API는 기존처럼 JWT 인증을 거친다.
+            if (isPublicRead(request)) {
+                ServerHttpRequest mutatedRequest = request.mutate()
+                        .headers(headers -> {
+                            headers.remove("X-User-Id");
+                            headers.remove("X-User-Role");
+                            headers.set("X-Trace-Id", finalTraceId);
+                        })
+                        .build();
+                return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            }
 
             // 2. 오픈 API 경로 처리 (인증 생략, 단 Trace ID는 헤더에 추가하여 전달)
             if (isOpenApi(path)) {
@@ -153,6 +179,30 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
 
     private boolean isOpenApi(String path) {
         return OPEN_API_PATHS.stream().anyMatch(path::startsWith);
+    }
+
+    private boolean isCorsPreflight(ServerHttpRequest request) {
+        return request.getMethod() == HttpMethod.OPTIONS
+                && StringUtils.hasText(request.getHeaders().getFirst(HttpHeaders.ORIGIN))
+                && StringUtils.hasText(request.getHeaders().getFirst(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD));
+    }
+
+    private boolean isPublicRead(ServerHttpRequest request) {
+        if (request.getMethod() != HttpMethod.GET) {
+            return false;
+        }
+
+        String path = request.getPath().value();
+        return PUBLIC_READ_PATHS.stream().anyMatch(basePath -> isCollectionOrDetailPath(path, basePath));
+    }
+
+    private boolean isCollectionOrDetailPath(String path, String basePath) {
+        if (path.equals(basePath)) {
+            return true;
+        }
+
+        String remainder = path.substring(Math.min(path.length(), basePath.length() + 1));
+        return path.startsWith(basePath + "/") && !remainder.contains("/");
     }
 
     private Claims validateToken(String token) {
