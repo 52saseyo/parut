@@ -91,7 +91,7 @@ class OrderFacadeTest {
 
     private CreateTimeDealOrderCommand createTimeDealCommand(int quantity) {
         return new CreateTimeDealOrderCommand(
-                USER_ID, IDEMPOTENCY_KEY, TIME_DEAL_ID, PRODUCT_ID, quantity,
+                USER_ID, IDEMPOTENCY_KEY, TIME_DEAL_ID, quantity,
                 "홍길동", "01012345678", "06234", "서울특별시 강남구 테헤란로 123", "5층 501호", null
         );
     }

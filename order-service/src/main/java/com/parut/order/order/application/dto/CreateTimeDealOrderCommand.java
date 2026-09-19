@@ -9,7 +9,6 @@ public record CreateTimeDealOrderCommand(
         UUID userId,
         String idempotencyKey,
         UUID timeDealId,
-        UUID productId,
         int quantity,
         String recipientName,
         String recipientPhone,
