@@ -1,6 +1,6 @@
 package com.parut.order.settlement.domain;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.parut.order.global.common.entity.UpdatableEntity;
@@ -21,8 +21,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Settlement extends UpdatableEntity {
 
-    @Column(name = "delivery_group_id", nullable = false)
-    private UUID deliveryGroupId;
+    @Column(name = "order_item_id", nullable = false)
+    private UUID orderItemId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -35,10 +35,10 @@ public class Settlement extends UpdatableEntity {
     private Long settlementAmount;
 
     @Column(name = "eligible_at", nullable = false)
-    private OffsetDateTime eligibleAt;
+    private Instant eligibleAt;
 
     @Column(name = "settled_at")
-    private OffsetDateTime settledAt;
+    private Instant settledAt;
 
     @Column(name = "processed_by")
     private UUID processedBy;
@@ -48,22 +48,22 @@ public class Settlement extends UpdatableEntity {
     private Long version;
 
     public static Settlement create(
-            UUID deliveryGroupId,
+            UUID orderItemId,
             long salesAmount,
             long settlementAmount,
-            OffsetDateTime eligibleAt
+            Instant eligibleAt
     ) {
-        return new Settlement(deliveryGroupId, salesAmount, settlementAmount, eligibleAt);
+        return new Settlement(orderItemId, salesAmount, settlementAmount, eligibleAt);
     }
 
     private Settlement(
-            UUID deliveryGroupId,
+            UUID orderItemId,
             long salesAmount,
             long settlementAmount,
-            OffsetDateTime eligibleAt
+            Instant eligibleAt
     ) {
-        if (deliveryGroupId == null) {
-            throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
+        if (orderItemId == null) {
+            throw new IllegalArgumentException("주문상품 ID는 필수입니다.");
         }
         if (salesAmount < 0) {
             throw new IllegalArgumentException("판매 금액은 0 이상이어야 합니다.");
@@ -75,14 +75,14 @@ public class Settlement extends UpdatableEntity {
             throw new IllegalArgumentException("정산 가능 시각은 필수입니다.");
         }
 
-        this.deliveryGroupId = deliveryGroupId;
+        this.orderItemId = orderItemId;
         this.salesAmount = salesAmount;
         this.settlementAmount = settlementAmount;
         this.eligibleAt = eligibleAt;
         this.status = SettlementStatus.PENDING;
     }
 
-    public void complete(OffsetDateTime settledAt, UUID processedBy) {
+    public void complete(Instant settledAt, UUID processedBy) {
         if (status != SettlementStatus.PENDING) {
             throw new IllegalStateException("정산 대기 상태에서만 정산을 완료할 수 있습니다.");
         }
