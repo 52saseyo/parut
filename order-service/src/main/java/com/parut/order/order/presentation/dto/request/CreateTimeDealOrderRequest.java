@@ -25,7 +25,6 @@ public record CreateTimeDealOrderRequest(
                 userId,
                 idempotencyKey,
                 timeDealId,
-                productId,
                 quantity,
                 recipient.recipientName(),
                 recipient.recipientPhone(),
