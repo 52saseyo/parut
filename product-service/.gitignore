@@ -45,3 +45,7 @@ AGENTS.md
 
 ### Environment ###
 .env
+
+### Performance Test Results ###
+/jmeter.log
+/test-results/
