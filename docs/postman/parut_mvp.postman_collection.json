@@ -2701,17 +2701,12 @@
           ]
         },
         {
-          "name": "06-02 내부 타임딜 상세 조회",
+          "name": "06-02 외부 타임딜 상세 조회",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}",
-            "description": "PR #81의 내부 조회 API로 주문 스냅샷에 사용할 상품명, 판매자, 정가와 할인가를 확인합니다."
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+            "description": "외부 공개 타임딜 상세 조회 API로 상품명, 판매자, 정가, 할인가와 재고 정보를 확인합니다."
           },
           "event": [
             {
@@ -2719,7 +2714,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
                   "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
                 ]
               }
@@ -2971,203 +2965,6 @@
             "url": "{{gatewayBaseUrl}}/api/v1/orders/{{timeDealOrderId}}",
             "description": "타임딜 주문 스냅샷, Payment DONE과 Order PAID를 확인합니다."
           }
-        }
-      ]
-    },
-    {
-      "name": "07 시연 제외, 타임딜 Product 개별 기능",
-      "description": "메인 시연에서는 실행하지 않습니다. Order 주문 취소가 아니라 Product 내부 선점, 확정과 재고 복원 기능을 개별 확인하는 요청입니다.",
-      "item": [
-        {
-          "name": "07-01 타임딜 구매 선점, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{customerId}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. ACTIVE 타임딜에서 타임딜 가용 수량이 감소하고 reserved 수량이 증가하며 구매 이력이 RESERVED로 생성됩니다. 일반 상품 재고는 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "pm.environment.set('timeDealConfirmOrderId', pm.variables.replaceIn('{{$guid}}'));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-02 타임딜 구매 확정, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
-            "description": "선점된 구매를 확정해 RESERVED → CONFIRMED를 검증합니다. 타임딜 reserved 수량은 감소하고 sold 수량은 증가하며, 이미 선점 시 차감된 가용 수량이나 일반 상품 재고를 다시 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealConfirmOrderId')) throw new Error('timeDealConfirmOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-03 취소 확인용 타임딜 구매 선점, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              },
-              {
-                "key": "X-User-Id",
-                "value": "{{customerId}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{timeDealCancelOrderId}}\",\n  \"quantity\": 1\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-            "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다. 타임딜 가용 수량이 감소하지만 일반 상품 재고는 차감하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "pm.environment.set('timeDealCancelOrderId', pm.variables.replaceIn('{{$guid}}'));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "07-04 타임딜 구매 취소, 내부 기능",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Service-Key",
-                "value": "{{serviceKey}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"MVP_CANCEL\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
-            "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 타임딜 reserved → available 복원을 확인합니다. 일반 상품 재고는 변경하지 않습니다."
-          },
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('timeDealCancelOrderId')) throw new Error('timeDealCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
-                ]
-              }
-            }
-          ]
         }
       ]
     },
@@ -4135,6 +3932,7 @@
     },
     {
       "name": "20 product-service",
+      "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다.",
       "item": [
         {
           "name": "21 image",
@@ -4856,7 +4654,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{customerId}}"
+                        "value": "{{$guid}}"
                       },
                       {
                         "key": "X-User-Role",
@@ -5909,7 +5707,7 @@
         },
         {
           "name": "24 timedeal",
-          "description": "기존 06·07 플로우와 분리한 타임딜 추가 검증. 정상 응답뿐 아니라 입력 검증, 권한, 상태 전이, 재고·구매 경계조건을 확인한다. 실패 케이스는 요청 설명의 기대 HTTP/code를 검증한다.",
+          "description": "06 통합 흐름과 연계한 타임딜 추가 검증. 정상 응답뿐 아니라 입력 검증, 권한, 상태 전이, 재고·구매 경계조건을 확인한다. 실패 케이스는 요청 설명의 기대 HTTP/code를 검증한다.",
           "auth": {
             "type": "bearer",
             "bearer": [
@@ -5923,8 +5721,53 @@
           "item": [
             {
               "name": "24-01 Gateway 조회·권한",
-              "description": "Gateway를 통한 공개 조회와 판매자 재고 조회의 정상·실패 케이스. 인증 정보는 Bearer 토큰에서 Gateway가 주입한다.",
+              "description": "24-01 전용 ACTIVE 픽스처를 기준으로 Gateway 공개 조회와 판매자 재고 조회의 정상·실패 케이스를 검증한다. 인증 정보는 Bearer 토큰에서 Gateway가 주입한다.",
               "item": [
+                {
+                  "name": "24-01-00 조회용 타임딜 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Gateway 조회 검증용 타임딜\",\n  \"description\": \"24-01 전용 조회 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealQueryFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealQueryFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-01 전용 조회 픽스처를 생성합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('timeDealQueryFixtureStartAt', new Date(now + 3000).toISOString());",
+                      "pm.environment.set('timeDealQueryFixtureEndAt', new Date(now + 600000).toISOString());",
+                      "pm.environment.unset('timeDealQueryFixtureId');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "pm.test('조회 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('timeDealQueryFixtureId', body.data.timeDealId);",
+                      "pm.execution.setNextRequest('24-01-00 조회용 타임딜 픽스처 ACTIVE 대기');"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-01-00 조회용 타임딜 픽스처 ACTIVE 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+                    "const body = pm.response.json();",
+                    "const status = body.data?.status;",
+                    "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                    "pm.test('조회 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                    "if (status === 'ACTIVE') pm.execution.setNextRequest('24-01-01 ACTIVE 목록 정상 조회'); else pm.execution.setNextRequest(null);"
+                  ]}}]
+                },
                 {
                   "name": "24-01-01 ACTIVE 목록 정상 조회",
                   "request": {
@@ -5996,8 +5839,8 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
-                    "description": "정상: 실제 판매자 ID로 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
+                    "description": "정상: 24-01 전용 ACTIVE 픽스처의 판매자 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
                   },
                   "event": [
                     {
@@ -6007,7 +5850,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('재고 필드 반환', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); ['availableQuantity','reservedQuantity','soldQuantity','lowStockThreshold'].forEach(k => pm.expect(body.data[k]).to.be.a('number')); });"
+                          "pm.test('재고 필드 반환', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealQueryFixtureId')); ['availableQuantity','reservedQuantity','soldQuantity','lowStockThreshold'].forEach(k => pm.expect(body.data[k]).to.be.a('number')); });"
                         ]
                       }
                     }
@@ -6017,7 +5860,7 @@
             },
             {
               "name": "24-01-D 상품 서비스 직접 계약·권한 검증",
-              "description": "Gateway를 거치지 않고 product-service의 내부 계약을 직접 검증하는 보조 시나리오. 일반 사용자 흐름 실행 시에는 제외하고, 상품 서비스의 헤더 필수·판매자 소유권 검증이 필요할 때 실행한다.",
+              "description": "24-01에서 생성한 timeDealQueryFixtureId를 그대로 사용해 Gateway를 거치지 않고 product-service의 내부 계약을 직접 검증하는 보조 시나리오. 일반 사용자 흐름 실행 시에는 제외하고, 상품 서비스의 헤더 필수·판매자 소유권 검증이 필요할 때 실행한다.",
               "auth": {
                 "type": "noauth"
               },
@@ -6027,10 +5870,19 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] X-User-Id·X-User-Role 없이 보호된 재고 API를 호출한다. 400 INVALID_INPUT_VALUE를 기대한다. Gateway 경유 시에는 Gateway 인증 단계에서 401이 반환되므로 이 계약은 직접 호출에서만 검증한다."
                   },
                   "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealQueryFixtureId')) throw new Error('24-01-00 조회용 타임딜 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
                     {
                       "listen": "test",
                       "script": {
@@ -6058,7 +5910,7 @@
                         "value": "SELLER"
                       }
                     ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] 요청자 UUID를 다른 값으로 바꿔 상품 서비스의 판매자 소유권 검사를 확인한다. 403 TIME_DEAL_ACCESS_DENIED를 기대한다. Gateway E2E에서 검증하려면 다른 판매자의 실제 Bearer 토큰이 필요하다."
                   },
                   "event": [
@@ -6067,6 +5919,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
+                          "if (!pm.environment.get('timeDealQueryFixtureId')) throw new Error('24-01-00 조회용 타임딜 픽스처를 먼저 실행하세요.');",
                           "pm.environment.set('timeDealScenarioWrongUserId', pm.variables.replaceIn('{{$guid}}')); "
                         ]
                       }
@@ -6301,6 +6154,51 @@
                   ]
                 },
                 {
+                  "name": "24-02-06-00 ACTIVE 수정 거부용 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"ACTIVE 수정 거부 검증용 타임딜\",\n  \"description\": \"24-02-06 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealActiveUpdateFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealActiveUpdateFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-02-06 전용 픽스처를 생성합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('timeDealActiveUpdateFixtureStartAt', new Date(now + 3000).toISOString());",
+                      "pm.environment.set('timeDealActiveUpdateFixtureEndAt', new Date(now + 600000).toISOString());",
+                      "pm.environment.unset('timeDealActiveUpdateFixtureId');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "pm.test('ACTIVE 수정 거부 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('timeDealActiveUpdateFixtureId', body.data.timeDealId);",
+                      "pm.execution.setNextRequest('24-02-06-00 ACTIVE 수정 거부용 픽스처 대기');"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-02-06-00 ACTIVE 수정 거부용 픽스처 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealActiveUpdateFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+                    "const body = pm.response.json();",
+                    "const status = body.data?.status;",
+                    "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                    "pm.test('수정 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                    "if (status === 'ACTIVE') pm.execution.setNextRequest('24-02-06 ACTIVE 타임딜 수정 거부'); else pm.execution.setNextRequest(null);"
+                  ]}}]
+                },
+                {
                   "name": "24-02-06 ACTIVE 타임딜 수정 거부",
                   "request": {
                     "method": "PATCH",
@@ -6319,10 +6217,19 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
-                    "description": "실패: 06 플로우로 판매 중인 타임딜은 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다. 06-01~06-06 이후 실행한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealActiveUpdateFixtureId}}",
+                    "description": "실패: 24-02-06 전용 ACTIVE 픽스처는 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealActiveUpdateFixtureId')) throw new Error('24-02-06-00 ACTIVE 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
                     {
                       "listen": "test",
                       "script": {
@@ -6366,15 +6273,120 @@
                       }
                     }
                   ]
+                },
+                {
+                  "name": "24-02-08-01 삭제된 타임딜 직접 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "description": "soft delete된 타임딜은 DB 행은 남아 있어도 일반 조회에서는 제외되어 404 TIME_DEAL_NOT_FOUND가 반환되어야 합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
+                          "pm.test('삭제된 타임딜은 조회되지 않음', () => pm.expect(body.code).to.eql('TIME_DEAL_NOT_FOUND'));"
+                        ]
+                      }
+                    }
+                  ]
                 }
               ]
             },
             {
               "name": "24-03 재고·구매 경계조건",
-              "description": "재고 조정, 구매 수량, 중복·존재하지 않는 구매 상태를 검증한다.",
+              "description": "전용 ACTIVE 픽스처를 기준으로 재고 부족, 구매 수량, 1인 구매 상한, 중복·존재하지 않는 구매 상태를 검증한다.",
               "item": [
                 {
-                  "name": "24-03-01 가용 재고를 초과한 예약",
+                  "name": "24-03-00 공통 구매 경계조건 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"최대 구매 수량 검증용 타임딜\",\n  \"description\": \"24-03 전용 구매 경계조건 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealBoundaryFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealBoundaryFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 3,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-03 전용 픽스처를 생성합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const now = Date.now();",
+                          "pm.environment.set('timeDealBoundaryFixtureStartAt', new Date(now + 3000).toISOString());",
+                          "pm.environment.set('timeDealBoundaryFixtureEndAt', new Date(now + 600000).toISOString());",
+                          "pm.environment.unset('timeDealBoundaryFixtureId');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                          "pm.environment.set('timeDealBoundaryFixtureId', body.data.timeDealId);",
+                          "pm.execution.setNextRequest('24-03-00 공통 구매 경계조건 픽스처 ACTIVE 대기');"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-03-00 공통 구매 경계조건 픽스처 ACTIVE 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealBoundaryFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealBoundaryFixtureId')) throw new Error('24-03-00 픽스처 생성을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "const status = body.data?.status;",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                          "if (status === 'ACTIVE') pm.execution.setNextRequest('24-03-00 1인 최대 구매 수량 초과 거부'); else pm.execution.setNextRequest(null);"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-03-00 1인 최대 구매 수량 초과 거부",
                   "request": {
                     "method": "POST",
                     "header": [
@@ -6393,15 +6405,74 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 999999\n}",
+                      "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 4\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-                    "description": "실패: 가용 재고보다 큰 수량 예약은 409 TIME_DEAL_STOCK_INSUFFICIENT를 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "maxPurchaseQuantity가 3인 전용 픽스처에 4개 예약을 요청합니다. 409 TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY를 기대합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('1인 최대 구매 수량 초과 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY'));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-03-01-00 공통 픽스처 재고 소진",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json"},
+                      {"key": "X-Service-Key", "value": "{{serviceKey}}"},
+                      {"key": "X-User-Id", "value": "{{customerId}}"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 2\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "공통 픽스처의 초기 재고 3개 중 2개를 선점해 가용 재고 1개를 남깁니다. 다음 요청에서 2개 예약을 거부할 수 있고, 이후 중복 예약용 1개를 선점할 수 있습니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"]}}]
+                },
+                {
+                  "name": "24-03-01 가용 재고를 초과한 예약",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{$guid}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 2\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "공통 픽스처의 가용 재고 1개보다 큰 2개를 다른 사용자가 예약합니다. 409 TIME_DEAL_STOCK_INSUFFICIENT를 기대합니다."
                   },
                   "event": [
                     {
@@ -6444,7 +6515,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
                     "description": "실패: 구매 수량은 1개 이상이어야 한다. 400 TIME_DEAL_INVALID_PURCHASE_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -6456,6 +6527,57 @@
                           "const body = pm.response.json();",
                           "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
                           "pm.test('구매 수량 검증', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_PURCHASE_QUANTITY')); "
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-03-03-00 중복 예약용 구매 선점",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealBoundaryOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "중복 예약 검증에 사용할 RESERVED 구매를 전용 ACTIVE 픽스처에 생성합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.environment.set('timeDealBoundaryOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
                         ]
                       }
                     }
@@ -6481,15 +6603,15 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
+                      "raw": "{\n  \"orderId\": \"{{timeDealBoundaryOrderId}}\",\n  \"quantity\": 2\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-                    "description": "실패: 07-02에서 이미 확정한 주문 ID를 다시 예약한다. 409 상태 전이 또는 중복 구매 오류를 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "실패: 같은 orderId에 다른 수량으로 다시 예약한다. 409 TIME_DEAL_PURCHASE_ALREADY_EXISTS를 기대한다."
                   },
                   "event": [
                     {
@@ -6499,7 +6621,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                          "pm.test('중복·상태 오류 코드', () => pm.expect(['TIME_DEAL_PURCHASE_ALREADY_EXISTS','TIME_DEAL_INVALID_STATUS_TRANSITION']).to.include(body.code)); "
+                          "pm.test('중복 구매 오류', () => pm.expect(body.code).to.eql('TIME_DEAL_PURCHASE_ALREADY_EXISTS')); "
                         ]
                       }
                     }
@@ -6555,8 +6677,8 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
-                    "description": "실패: reason은 30자를 넘을 수 없다. 400 TIME_DEAL_INVALID_CANCEL_REASON을 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealBoundaryOrderId}}/cancel",
+                    "description": "24-03 전용 RESERVED 구매에 30자를 초과하는 reason을 전달합니다. 400 TIME_DEAL_INVALID_CANCEL_REASON을 기대한다."
                   },
                   "event": [
                     {
@@ -7334,11 +7456,568 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "24-07 타임딜 내부 구매 상태 전이",
+              "description": "24-07 전용 ACTIVE 픽스처를 먼저 생성·확인한 뒤 타임딜 내부 선점, 확정과 재고 복원 기능을 검증합니다.",
+              "item": [
+                {
+                  "name": "24-07-00 ACTIVE 구매용 타임딜 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"내부 구매 상태 전이 검증용 타임딜\",\n  \"description\": \"24-07 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealPurchaseFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealPurchaseFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 1,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "24-07 전용 픽스처를 생성합니다. 스크립트가 startAt을 생성 후 약 3초 뒤, endAt을 생성 후 약 10분 뒤로 설정하므로 처음에는 SCHEDULED로 생성됩니다. 다음 상태 확인 요청은 스케줄러가 ACTIVE로 전환할 때까지 기다린 뒤 실행합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const now = Date.now();",
+                          "pm.environment.set('timeDealPurchaseFixtureStartAt', new Date(now + 3000).toISOString());",
+                          "pm.environment.set('timeDealPurchaseFixtureEndAt', new Date(now + 600000).toISOString());",
+                          "pm.environment.unset('timeDealPurchaseFixtureId');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('구매용 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                          "pm.environment.set('timeDealPurchaseFixtureId', body.data.timeDealId);",
+                          "pm.execution.setNextRequest('24-07-00 ACTIVE 구매용 타임딜 상태 대기');"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-00 ACTIVE 구매용 타임딜 상태 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealPurchaseFixtureId}}",
+                    "description": "startAt(생성 후 약 3초)이 지난 뒤 스케줄러가 ACTIVE로 전환할 때까지 기다립니다. 기본 스케줄러 주기가 약 1분이므로 생성 후 최소 1분을 기다린 뒤 이 GET 요청을 실행하고, 아직 ACTIVE가 아니면 같은 요청부터 다시 실행합니다. endAt은 생성 후 약 10분이므로 ACTIVE 전환 확인 후 내부 구매 상태 전이 테스트를 이어서 실행해야 합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealPurchaseFixtureId')) throw new Error('24-07-00 픽스처 생성을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "const status = body.data?.status;",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('구매용 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                          "if (status === 'ACTIVE') pm.execution.setNextRequest('24-07-01 타임딜 구매 선점, 내부 기능'); else pm.execution.setNextRequest(null);"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-01 타임딜 구매 선점, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealPurchaseFixtureId}}/purchases",
+                    "description": "Order 외부 연결 전 Product 내부 선점 기능만 검증합니다. ACTIVE 타임딜에서 타임딜 가용 수량이 감소하고 reserved 수량이 증가하며 구매 이력이 RESERVED로 생성됩니다. 일반 상품 재고는 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealPurchaseFixtureId')) throw new Error('timeDealPurchaseFixtureId 환경변수가 없습니다. 24-07-00을 먼저 실행하세요.');",
+                          "pm.environment.set('timeDealConfirmOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-02 타임딜 구매 확정, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
+                    "description": "선점된 구매를 확정해 RESERVED → CONFIRMED를 검증합니다. 타임딜 reserved 수량은 감소하고 sold 수량은 증가하며, 이미 선점 시 차감된 가용 수량이나 일반 상품 재고를 다시 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealConfirmOrderId')) throw new Error('timeDealConfirmOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-02-01 이미 확정된 구매 재확정 멱등 처리",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
+                    "description": "CONFIRMED 구매를 다시 확정해도 204를 반환하고 재고를 중복 차감하지 않는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-02-02 확정된 구매 취소",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"CONFIRMED_CANCEL\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/cancel",
+                    "description": "CONFIRMED 구매도 배송 시작 전에는 취소할 수 있고 판매 재고가 복구되는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-02-03 취소된 구매 확정 거부",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealConfirmOrderId}}/confirm",
+                    "description": "CANCELLED 구매를 다시 확정할 수 없어야 합니다. 409 TIME_DEAL_INVALID_STATUS_TRANSITION을 기대합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('취소 후 확정 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS_TRANSITION'));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-03 취소 확인용 타임딜 구매 선점, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealCancelOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealPurchaseFixtureId}}/purchases",
+                    "description": "취소 흐름을 확인할 별도 주문 ID로 타임딜 구매를 선점합니다. 타임딜 가용 수량이 감소하지만 일반 상품 재고는 차감하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealPurchaseFixtureId')) throw new Error('timeDealPurchaseFixtureId 환경변수가 없습니다. 24-07-00을 먼저 실행하세요.');",
+                          "pm.environment.set('timeDealCancelOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-04 타임딜 구매 취소, 내부 기능",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"MVP_CANCEL\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
+                    "description": "별도 선점 구매를 취소해 구매 상태 CANCELLED와 타임딜 reserved → available 복원을 확인합니다. 일반 상품 재고는 변경하지 않습니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('serviceKey')) throw new Error('serviceKey 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('timeDealCancelOrderId')) throw new Error('timeDealCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-07-04-01 이미 취소된 구매 재취소 멱등 처리",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"RETRY_CANCEL\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
+                    "description": "CANCELLED 구매를 다시 취소해도 204를 반환하고 재고를 이중 복구하지 않는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 204', () => pm.expect(pm.response.code).to.eql(204));"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "24-08 삭제·soft delete 불변식",
+                  "description": "삭제 시나리오에서 사용할 상태 픽스처를 먼저 준비한다. 타임딜과 재고는 함께 soft delete되며 재고만 단독 삭제하지 않는다.",
+                  "item": [
+                    {
+                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 생성",
+                      "request": {
+                        "method": "POST",
+                        "header": [{"key": "Content-Type", "value": "application/json"}],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"name\": \"ACTIVE 삭제 거부 검증용 타임딜\",\n  \"description\": \"24-08 삭제 불변식 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealDeleteFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealDeleteFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                          "options": {"raw": {"language": "json"}}
+                        },
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                        "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 삭제 검증 전용 픽스처를 생성합니다. 생성 직후 삭제하지 말고 ACTIVE 대기 요청을 먼저 실행합니다."
+                      },
+                      "event": [
+                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                          "const now = Date.now();",
+                          "pm.environment.set('timeDealDeleteFixtureStartAt', new Date(now + 3000).toISOString());",
+                          "pm.environment.set('timeDealDeleteFixtureEndAt', new Date(now + 600000).toISOString());",
+                          "pm.environment.unset('timeDealDeleteFixtureId');"
+                        ]}},
+                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('삭제 검증 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                          "pm.environment.set('timeDealDeleteFixtureId', body.data.timeDealId);",
+                          "pm.execution.setNextRequest('24-08-00 ACTIVE 삭제 거부용 픽스처 대기');"
+                        ]}}
+                      ]
+                    },
+                    {
+                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 대기",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                        "description": "생성 후 최소 1분을 기다립니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                      },
+                      "event": [
+                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                          "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처 생성을 먼저 실행하세요.');"
+                        ]}},
+                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                          "const body = pm.response.json();",
+                          "const status = body.data?.status;",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('삭제 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                          "if (status === 'ACTIVE') pm.execution.setNextRequest('24-08-01 ACTIVE 타임딜 삭제 거부'); else pm.execution.setNextRequest(null);"
+                        ]}}
+                      ]
+                    },
+                    {
+                      "name": "24-08-01 ACTIVE 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                        "description": "24-08 전용 ACTIVE 픽스처 삭제를 시도합니다. 409 TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('ACTIVE 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED'));"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "24-08-02 STOPPED 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                        "description": "24-06에서 STOPPED로 전환한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('stoppedFixtureId')) throw new Error('24-06 STOPPED 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('STOPPED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "24-08-03 ENDED 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                        "description": "24-06에서 ENDED로 확인한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('endedFixtureId')) throw new Error('24-06 ENDED 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('ENDED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
-          ]
-        }
-      ],
-      "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다."
+
+      ]
     },
     {
       "name": "30 order-service",
