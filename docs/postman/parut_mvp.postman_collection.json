@@ -3926,6 +3926,7 @@
     },
     {
       "name": "20 product-service",
+      "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다.",
       "item": [
         {
           "name": "21 image",
@@ -7857,12 +7858,160 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "24-08 삭제·soft delete 불변식",
+                  "description": "삭제 시나리오에서 사용할 상태 픽스처를 먼저 준비한다. 타임딜과 재고는 함께 soft delete되며 재고만 단독 삭제하지 않는다.",
+                  "item": [
+                    {
+                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 생성",
+                      "request": {
+                        "method": "POST",
+                        "header": [{"key": "Content-Type", "value": "application/json"}],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"name\": \"ACTIVE 삭제 거부 검증용 타임딜\",\n  \"description\": \"24-08 삭제 불변식 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealDeleteFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealDeleteFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                          "options": {"raw": {"language": "json"}}
+                        },
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                        "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 삭제 검증 전용 픽스처를 생성합니다. 생성 직후 삭제하지 말고 ACTIVE 대기 요청을 먼저 실행합니다."
+                      },
+                      "event": [
+                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                          "const now = Date.now();",
+                          "pm.environment.set('timeDealDeleteFixtureStartAt', new Date(now + 3000).toISOString());",
+                          "pm.environment.set('timeDealDeleteFixtureEndAt', new Date(now + 600000).toISOString());",
+                          "pm.environment.unset('timeDealDeleteFixtureId');"
+                        ]}},
+                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                          "pm.test('삭제 검증 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                          "pm.environment.set('timeDealDeleteFixtureId', body.data.timeDealId);",
+                          "pm.execution.setNextRequest('24-08-00 ACTIVE 삭제 거부용 픽스처 대기');"
+                        ]}}
+                      ]
+                    },
+                    {
+                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 대기",
+                      "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                        "description": "생성 후 최소 1분을 기다립니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                      },
+                      "event": [
+                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                          "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처 생성을 먼저 실행하세요.');"
+                        ]}},
+                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                          "const body = pm.response.json();",
+                          "const status = body.data?.status;",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('삭제 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                          "if (status === 'ACTIVE') pm.execution.setNextRequest('24-08-01 ACTIVE 타임딜 삭제 거부'); else pm.execution.setNextRequest(null);"
+                        ]}}
+                      ]
+                    },
+                    {
+                      "name": "24-08-01 ACTIVE 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                        "description": "24-08 전용 ACTIVE 픽스처 삭제를 시도합니다. 409 TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('ACTIVE 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED'));"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "24-08-02 STOPPED 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                        "description": "24-06에서 STOPPED로 전환한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('stoppedFixtureId')) throw new Error('24-06 STOPPED 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('STOPPED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "name": "24-08-03 ENDED 타임딜 삭제 거부",
+                      "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                        "description": "24-06에서 ENDED로 확인한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                      },
+                      "event": [
+                        {
+                          "listen": "prerequest",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "if (!pm.environment.get('endedFixtureId')) throw new Error('24-06 ENDED 픽스처를 먼저 실행하세요.');"
+                            ]
+                          }
+                        },
+                        {
+                          "listen": "test",
+                          "script": {
+                            "type": "text/javascript",
+                            "exec": [
+                              "const body = pm.response.json();",
+                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                              "pm.test('ENDED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
             }
 
-          ]
-       }
-     ],
-     "description": "02 정상 통합 흐름을 실행한 뒤 21 이미지 예외 검증과 22 상품 권한·공개 범위 검증을 순서대로 실행합니다."
+      ]
     },
     {
       "name": "30 order-service",
