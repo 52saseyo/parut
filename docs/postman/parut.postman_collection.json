@@ -1359,14 +1359,14 @@
             "item": [
               {
                 "name": "구매확정",
-          "description": "요청 전 스크립트가 테스트 종류에 맞는 구매확정 픽스처를 요청 범위 변수로 자동 설정합니다. 배송 완료 전 실패 요청은 PREPARING인 c...002를 사용하고, 나머지는 DELIVERED이고 ORDERED인 c...001을 사용합니다. 공유 환경변수 값은 변경하지 않습니다.",
+                "description": "주문 고객이 외부 API로 배송 완료된 주문상품을 확정하는 기능입니다. 요청 전 스크립트가 테스트 종류에 맞는 구매확정 픽스처를 요청 범위 변수로 설정합니다. 배송 완료 전 실패 요청은 PREPARING인 c...002를 사용하고, 나머지는 DELIVERED이고 ORDERED인 c...001을 사용합니다. 공유 환경변수 값은 변경하지 않습니다.",
                 "event": [
                   {
                     "listen": "prerequest",
                     "script": {
                       "type": "text/javascript",
                       "exec": [
-                        "const beforeDelivery = pm.info.requestName === '배송 완료 전 구매확정 거부';",
+                        "const beforeDelivery = pm.info.requestName === '[주문 고객] 배송 완료 전 구매확정 거부';",
                         "pm.variables.set('orderId', beforeDelivery ? 'c0000000-0000-0000-0000-000000000002' : 'c0000000-0000-0000-0000-000000000001');",
                         "pm.variables.set('orderItemId', beforeDelivery ? 'c2000000-0000-0000-0000-000000000002' : 'c2000000-0000-0000-0000-000000000001');",
                         "pm.variables.set('buyerId', '11111111-1111-1111-1111-111111111111');",
@@ -1377,7 +1377,7 @@
                 ],
                 "item": [
                   {
-                    "name": "배송 완료 전 구매확정 거부",
+                    "name": "[주문 고객] 배송 완료 전 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1422,7 +1422,7 @@
                     ]
                   },
                   {
-                    "name": "주문상품 수동 구매확정",
+                    "name": "[주문 고객] 주문상품 수동 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1468,7 +1468,7 @@
                     ]
                   },
                   {
-                    "name": "중복 구매확정",
+                    "name": "[주문 고객] 중복 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1513,7 +1513,7 @@
                     ]
                   },
                   {
-                    "name": "다른 고객의 구매확정 거부",
+                    "name": "[다른 고객] 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1558,7 +1558,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 역할의 구매확정 거부",
+                    "name": "[판매자] 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1603,7 +1603,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문 구매확정",
+                    "name": "[주문 고객] 존재하지 않는 주문 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1648,7 +1648,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문상품 구매확정",
+                    "name": "[주문 고객] 존재하지 않는 주문상품 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
