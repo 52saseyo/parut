@@ -5714,8 +5714,53 @@
           "item": [
             {
               "name": "24-01 Gateway 조회·권한",
-              "description": "Gateway를 통한 공개 조회와 판매자 재고 조회의 정상·실패 케이스. 인증 정보는 Bearer 토큰에서 Gateway가 주입한다.",
+              "description": "24-01 전용 ACTIVE 픽스처를 기준으로 Gateway 공개 조회와 판매자 재고 조회의 정상·실패 케이스를 검증한다. 인증 정보는 Bearer 토큰에서 Gateway가 주입한다.",
               "item": [
+                {
+                  "name": "24-01-00 조회용 타임딜 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Gateway 조회 검증용 타임딜\",\n  \"description\": \"24-01 전용 조회 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealQueryFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealQueryFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-01 전용 조회 픽스처를 생성합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('timeDealQueryFixtureStartAt', new Date(now + 3000).toISOString());",
+                      "pm.environment.set('timeDealQueryFixtureEndAt', new Date(now + 600000).toISOString());",
+                      "pm.environment.unset('timeDealQueryFixtureId');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "pm.test('조회 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('timeDealQueryFixtureId', body.data.timeDealId);",
+                      "pm.execution.setNextRequest('24-01-00 조회용 타임딜 픽스처 ACTIVE 대기');"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-01-00 조회용 타임딜 픽스처 ACTIVE 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+                    "const body = pm.response.json();",
+                    "const status = body.data?.status;",
+                    "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                    "pm.test('조회 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                    "if (status === 'ACTIVE') pm.execution.setNextRequest('24-01-01 ACTIVE 목록 정상 조회'); else pm.execution.setNextRequest(null);"
+                  ]}}]
+                },
                 {
                   "name": "24-01-01 ACTIVE 목록 정상 조회",
                   "request": {
@@ -5787,8 +5832,8 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
-                    "description": "정상: 실제 판매자 ID로 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
+                    "description": "정상: 24-01 전용 ACTIVE 픽스처의 판매자 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
                   },
                   "event": [
                     {
@@ -5798,7 +5843,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('재고 필드 반환', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealId')); ['availableQuantity','reservedQuantity','soldQuantity','lowStockThreshold'].forEach(k => pm.expect(body.data[k]).to.be.a('number')); });"
+                          "pm.test('재고 필드 반환', () => { pm.expect(body.data.timeDealId).to.eql(pm.environment.get('timeDealQueryFixtureId')); ['availableQuantity','reservedQuantity','soldQuantity','lowStockThreshold'].forEach(k => pm.expect(body.data[k]).to.be.a('number')); });"
                         ]
                       }
                     }
@@ -5808,7 +5853,7 @@
             },
             {
               "name": "24-01-D 상품 서비스 직접 계약·권한 검증",
-              "description": "Gateway를 거치지 않고 product-service의 내부 계약을 직접 검증하는 보조 시나리오. 일반 사용자 흐름 실행 시에는 제외하고, 상품 서비스의 헤더 필수·판매자 소유권 검증이 필요할 때 실행한다.",
+              "description": "24-01에서 생성한 timeDealQueryFixtureId를 그대로 사용해 Gateway를 거치지 않고 product-service의 내부 계약을 직접 검증하는 보조 시나리오. 일반 사용자 흐름 실행 시에는 제외하고, 상품 서비스의 헤더 필수·판매자 소유권 검증이 필요할 때 실행한다.",
               "auth": {
                 "type": "noauth"
               },
@@ -5818,10 +5863,19 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] X-User-Id·X-User-Role 없이 보호된 재고 API를 호출한다. 400 INVALID_INPUT_VALUE를 기대한다. Gateway 경유 시에는 Gateway 인증 단계에서 401이 반환되므로 이 계약은 직접 호출에서만 검증한다."
                   },
                   "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealQueryFixtureId')) throw new Error('24-01-00 조회용 타임딜 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
                     {
                       "listen": "test",
                       "script": {
@@ -5849,7 +5903,7 @@
                         "value": "SELLER"
                       }
                     ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] 요청자 UUID를 다른 값으로 바꿔 상품 서비스의 판매자 소유권 검사를 확인한다. 403 TIME_DEAL_ACCESS_DENIED를 기대한다. Gateway E2E에서 검증하려면 다른 판매자의 실제 Bearer 토큰이 필요하다."
                   },
                   "event": [
@@ -5858,6 +5912,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
+                          "if (!pm.environment.get('timeDealQueryFixtureId')) throw new Error('24-01-00 조회용 타임딜 픽스처를 먼저 실행하세요.');",
                           "pm.environment.set('timeDealScenarioWrongUserId', pm.variables.replaceIn('{{$guid}}')); "
                         ]
                       }
@@ -6092,6 +6147,51 @@
                   ]
                 },
                 {
+                  "name": "24-02-06-00 ACTIVE 수정 거부용 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"ACTIVE 수정 거부 검증용 타임딜\",\n  \"description\": \"24-02-06 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealActiveUpdateFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealActiveUpdateFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-02-06 전용 픽스처를 생성합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('timeDealActiveUpdateFixtureStartAt', new Date(now + 3000).toISOString());",
+                      "pm.environment.set('timeDealActiveUpdateFixtureEndAt', new Date(now + 600000).toISOString());",
+                      "pm.environment.unset('timeDealActiveUpdateFixtureId');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "pm.test('ACTIVE 수정 거부 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('timeDealActiveUpdateFixtureId', body.data.timeDealId);",
+                      "pm.execution.setNextRequest('24-02-06-00 ACTIVE 수정 거부용 픽스처 대기');"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-02-06-00 ACTIVE 수정 거부용 픽스처 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealActiveUpdateFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+                    "const body = pm.response.json();",
+                    "const status = body.data?.status;",
+                    "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                    "pm.test('수정 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                    "if (status === 'ACTIVE') pm.execution.setNextRequest('24-02-06 ACTIVE 타임딜 수정 거부'); else pm.execution.setNextRequest(null);"
+                  ]}}]
+                },
+                {
                   "name": "24-02-06 ACTIVE 타임딜 수정 거부",
                   "request": {
                     "method": "PATCH",
@@ -6110,10 +6210,19 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
-                    "description": "실패: 06 플로우로 판매 중인 타임딜은 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다. 06-01~06-06 이후 실행한다."
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealActiveUpdateFixtureId}}",
+                    "description": "실패: 24-02-06 전용 ACTIVE 픽스처는 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealActiveUpdateFixtureId')) throw new Error('24-02-06-00 ACTIVE 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
                     {
                       "listen": "test",
                       "script": {
@@ -6153,6 +6262,28 @@
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
                           "pm.test('삭제 응답 data null', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data).to.eql(null); });"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-02-08-01 삭제된 타임딜 직접 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "description": "soft delete된 타임딜은 DB 행은 남아 있어도 일반 조회에서는 제외되어 404 TIME_DEAL_NOT_FOUND가 반환되어야 합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
+                          "pm.test('삭제된 타임딜은 조회되지 않음', () => pm.expect(body.code).to.eql('TIME_DEAL_NOT_FOUND'));"
                         ]
                       }
                     }
