@@ -2457,7 +2457,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"timeDealId\": \"{{timeDealId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
+              "raw": "{\n  \"timeDealId\": \"{{timeDealId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2465,7 +2465,7 @@
               }
             },
             "url": "{{gatewayBaseUrl}}/api/v1/orders/time-deals",
-            "description": "PR #84의 타임딜 주문과 전용 재고 선점을 검증합니다. timeDealId와 PR #87에서 전환한 원본 productId를 함께 전달합니다."
+              "description": "타임딜 주문과 전용 재고 선점을 검증합니다. productId는 timeDealId로 product-service에서 조회하므로 요청에 포함하지 않습니다."
           }
         },
         {
@@ -15169,7 +15169,7 @@
                         ],
                         "body": {
                           "mode": "raw",
-                          "raw": "{\n  \"timeDealId\": \"{{timeDealRefundTimeDealId}}\",\n  \"productId\": \"{{refundScenarioProductId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
+                          "raw": "{\n  \"timeDealId\": \"{{timeDealRefundTimeDealId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
                           "options": {
                             "raw": {
                               "language": "json"
