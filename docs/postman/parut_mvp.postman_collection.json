@@ -4647,7 +4647,7 @@
                     "header": [
                       {
                         "key": "X-User-Id",
-                        "value": "{{customerId}}"
+                        "value": "{{$guid}}"
                       },
                       {
                         "key": "X-User-Role",
@@ -6165,7 +6165,7 @@
               "description": "전용 ACTIVE 픽스처를 기준으로 재고 부족, 구매 수량, 1인 구매 상한, 중복·존재하지 않는 구매 상태를 검증한다.",
               "item": [
                 {
-                  "name": "24-03-00 최대 구매 수량 검증용 픽스처 생성",
+                  "name": "24-03-00 공통 구매 경계조건 픽스처 생성",
                   "request": {
                     "method": "POST",
                     "header": [
@@ -6176,7 +6176,7 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"name\": \"최대 구매 수량 검증용 타임딜\",\n  \"description\": \"24-03 전용 구매 경계조건 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealMaxPurchaseFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealMaxPurchaseFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "raw": "{\n  \"name\": \"최대 구매 수량 검증용 타임딜\",\n  \"description\": \"24-03 전용 구매 경계조건 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealBoundaryFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealBoundaryFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 3,\n  \"lowStockThreshold\": 1\n}",
                       "options": {
                         "raw": {
                           "language": "json"
@@ -6193,9 +6193,9 @@
                         "type": "text/javascript",
                         "exec": [
                           "const now = Date.now();",
-                          "pm.environment.set('timeDealMaxPurchaseFixtureStartAt', new Date(now + 3000).toISOString());",
-                          "pm.environment.set('timeDealMaxPurchaseFixtureEndAt', new Date(now + 600000).toISOString());",
-                          "pm.environment.unset('timeDealMaxPurchaseFixtureId');"
+                          "pm.environment.set('timeDealBoundaryFixtureStartAt', new Date(now + 3000).toISOString());",
+                          "pm.environment.set('timeDealBoundaryFixtureEndAt', new Date(now + 600000).toISOString());",
+                          "pm.environment.unset('timeDealBoundaryFixtureId');"
                         ]
                       }
                     },
@@ -6207,19 +6207,19 @@
                           "const body = pm.response.json();",
                           "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
                           "pm.test('픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
-                          "pm.environment.set('timeDealMaxPurchaseFixtureId', body.data.timeDealId);",
-                          "pm.execution.setNextRequest('24-03-00 최대 구매 수량 검증용 픽스처 ACTIVE 대기');"
+                          "pm.environment.set('timeDealBoundaryFixtureId', body.data.timeDealId);",
+                          "pm.execution.setNextRequest('24-03-00 공통 구매 경계조건 픽스처 ACTIVE 대기');"
                         ]
                       }
                     }
                   ]
                 },
                 {
-                  "name": "24-03-00 최대 구매 수량 검증용 픽스처 ACTIVE 대기",
+                  "name": "24-03-00 공통 구매 경계조건 픽스처 ACTIVE 대기",
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealMaxPurchaseFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealBoundaryFixtureId}}",
                     "description": "생성 후 최소 1분을 기다린 뒤 실행합니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
                   },
                   "event": [
@@ -6228,7 +6228,7 @@
                       "script": {
                         "type": "text/javascript",
                         "exec": [
-                          "if (!pm.environment.get('timeDealMaxPurchaseFixtureId')) throw new Error('24-03-00 픽스처 생성을 먼저 실행하세요.');"
+                          "if (!pm.environment.get('timeDealBoundaryFixtureId')) throw new Error('24-03-00 픽스처 생성을 먼저 실행하세요.');"
                         ]
                       }
                     },
@@ -6274,7 +6274,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealMaxPurchaseFixtureId}}/purchases",
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
                     "description": "maxPurchaseQuantity가 3인 전용 픽스처에 4개 예약을 요청합니다. 409 TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY를 기대합니다."
                   },
                   "event": [
@@ -6292,6 +6292,21 @@
                   ]
                 },
                 {
+                  "name": "24-03-01-00 공통 픽스처 재고 소진",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {"key": "Content-Type", "value": "application/json"},
+                      {"key": "X-Service-Key", "value": "{{serviceKey}}"},
+                      {"key": "X-User-Id", "value": "{{customerId}}"}
+                    ],
+                    "body": {"mode": "raw", "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 2\n}", "options": {"raw": {"language": "json"}}},
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "공통 픽스처의 초기 재고 3개 중 2개를 선점해 가용 재고 1개를 남깁니다. 다음 요청에서 2개 예약을 거부할 수 있고, 이후 중복 예약용 1개를 선점할 수 있습니다."
+                  },
+                  "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"]}}]
+                },
+                {
                   "name": "24-03-01 가용 재고를 초과한 예약",
                   "request": {
                     "method": "POST",
@@ -6306,20 +6321,20 @@
                       },
                       {
                         "key": "X-User-Id",
-                        "value": "{{customerId}}"
+                        "value": "{{$guid}}"
                       }
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 999999\n}",
+                      "raw": "{\n  \"orderId\": \"{{$guid}}\",\n  \"quantity\": 2\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-                    "description": "실패: 가용 재고보다 큰 수량 예약은 409 TIME_DEAL_STOCK_INSUFFICIENT를 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "공통 픽스처의 가용 재고 1개보다 큰 2개를 다른 사용자가 예약합니다. 409 TIME_DEAL_STOCK_INSUFFICIENT를 기대합니다."
                   },
                   "event": [
                     {
@@ -6362,7 +6377,7 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
                     "description": "실패: 구매 수량은 1개 이상이어야 한다. 400 TIME_DEAL_INVALID_PURCHASE_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -6374,6 +6389,57 @@
                           "const body = pm.response.json();",
                           "pm.test('HTTP 400', () => pm.expect(pm.response.code).to.eql(400));",
                           "pm.test('구매 수량 검증', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_PURCHASE_QUANTITY')); "
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-03-03-00 중복 예약용 구매 선점",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-Service-Key",
+                        "value": "{{serviceKey}}"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{customerId}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{timeDealBoundaryOrderId}}\",\n  \"quantity\": 1\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "중복 예약 검증에 사용할 RESERVED 구매를 전용 ACTIVE 픽스처에 생성합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.environment.set('timeDealBoundaryOrderId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));"
                         ]
                       }
                     }
@@ -6399,15 +6465,15 @@
                     ],
                     "body": {
                       "mode": "raw",
-                      "raw": "{\n  \"orderId\": \"{{timeDealConfirmOrderId}}\",\n  \"quantity\": 1\n}",
+                      "raw": "{\n  \"orderId\": \"{{timeDealBoundaryOrderId}}\",\n  \"quantity\": 2\n}",
                       "options": {
                         "raw": {
                           "language": "json"
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}/purchases",
-                    "description": "실패: 07-02에서 이미 확정한 주문 ID를 다시 예약한다. 409 상태 전이 또는 중복 구매 오류를 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealBoundaryFixtureId}}/purchases",
+                    "description": "실패: 같은 orderId에 다른 수량으로 다시 예약한다. 409 TIME_DEAL_PURCHASE_ALREADY_EXISTS를 기대한다."
                   },
                   "event": [
                     {
@@ -6417,7 +6483,7 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                          "pm.test('중복·상태 오류 코드', () => pm.expect(['TIME_DEAL_PURCHASE_ALREADY_EXISTS','TIME_DEAL_INVALID_STATUS_TRANSITION']).to.include(body.code)); "
+                          "pm.test('중복 구매 오류', () => pm.expect(body.code).to.eql('TIME_DEAL_PURCHASE_ALREADY_EXISTS')); "
                         ]
                       }
                     }
@@ -6473,8 +6539,8 @@
                         }
                       }
                     },
-                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealCancelOrderId}}/cancel",
-                    "description": "실패: reason은 30자를 넘을 수 없다. 400 TIME_DEAL_INVALID_CANCEL_REASON을 기대한다."
+                    "url": "{{productBaseUrl}}/api/v1/internal/time-deal-purchases/{{timeDealBoundaryOrderId}}/cancel",
+                    "description": "24-03 전용 RESERVED 구매에 30자를 초과하는 reason을 전달합니다. 400 TIME_DEAL_INVALID_CANCEL_REASON을 기대한다."
                   },
                   "event": [
                     {
