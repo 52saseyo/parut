@@ -2,9 +2,13 @@ package com.parut.order.settlement.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.DisplayName;
@@ -13,12 +17,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.parut.order.global.config.JpaAuditingConfig;
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.order.application.OrderItemConfirmationService;
 import com.parut.order.order.application.OrderItemQueryService;
 import com.parut.order.order.domain.Order;
@@ -66,6 +72,9 @@ class SettlementConfirmationTransactionTest {
     @Autowired
     private OrderDeliveryGroupRepository orderDeliveryGroupRepository;
 
+    @MockitoBean
+    private DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
+
     @Autowired
     private PlatformTransactionManager transactionManager;
 
@@ -85,6 +94,47 @@ class SettlementConfirmationTransactionTest {
         assertThat(settlement.getSettlementAmount()).isEqualTo(30_000L);
         assertThat(settlement.getEligibleAt()).isEqualTo(orderItem.getConfirmedAt());
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("자동 구매확정과 주문상품 정산을 같은 트랜잭션으로 반영한다")
+    void 자동_구매확정_정산_성공() {
+        OrderItem fixture = createOrderItem(15_000L, 2);
+        Instant confirmationTime = Instant.parse("2026-09-20T00:00:01Z");
+        when(deliveryCompletionQueryUseCase.getDeliveredAt(fixture.getDeliveryGroupId()))
+                .thenReturn(Optional.of(confirmationTime.minus(Duration.ofDays(7)).minusSeconds(1)));
+
+        orderItemConfirmationService.confirmEligibleOrderItem(
+                fixture.getId(), confirmationTime, confirmationTime.minus(Duration.ofDays(7)));
+
+        OrderItem orderItem = orderItemRepository.findById(fixture.getId()).orElseThrow();
+        Settlement settlement = findSettlement(orderItem.getId());
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
+        assertThat(orderItem.getConfirmedAt()).isEqualTo(confirmationTime);
+        assertThat(settlement.getOrderItemId()).isEqualTo(orderItem.getId());
+        assertThat(settlement.getSalesAmount()).isEqualTo(30_000L);
+        assertThat(settlement.getSettlementAmount()).isEqualTo(30_000L);
+        assertThat(settlement.getEligibleAt()).isEqualTo(confirmationTime);
+        assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("자동 구매확정 정산 실패 시 구매확정도 롤백한다")
+    void 자동_구매확정_정산_실패_롤백() {
+        OrderItem fixture = createOrderItem(Long.MAX_VALUE, 2);
+        Instant confirmationTime = Instant.parse("2026-09-20T00:00:01Z");
+        when(deliveryCompletionQueryUseCase.getDeliveredAt(fixture.getDeliveryGroupId()))
+                .thenReturn(Optional.of(confirmationTime.minus(Duration.ofDays(7)).minusSeconds(1)));
+
+        assertThatThrownBy(() -> orderItemConfirmationService.confirmEligibleOrderItem(
+                fixture.getId(), confirmationTime, confirmationTime.minus(Duration.ofDays(7))))
+                .isInstanceOf(ArithmeticException.class);
+
+        OrderItem orderItem = orderItemRepository.findById(fixture.getId()).orElseThrow();
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.ORDERED);
+        assertThat(orderItem.getConfirmedAt()).isNull();
+        assertThat(settlementRepository.findAll())
+                .noneMatch(settlement -> fixture.getId().equals(settlement.getOrderItemId()));
     }
 
     @Test

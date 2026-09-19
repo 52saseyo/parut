@@ -13,6 +13,7 @@ import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderDeliveryGroup;
 import com.parut.order.order.domain.OrderItem;
 import com.parut.order.order.domain.OrderItemStatus;
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
 import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
 import com.parut.order.order.infrastructure.persistence.OrderRepository;
@@ -34,6 +35,7 @@ public class OrderItemConfirmationService {
     private final OrderDeliveryGroupRepository orderDeliveryGroupRepository;
     private final OrderItemRepository orderItemRepository;
     private final SettlementCreateUseCase settlementCreateUseCase;
+    private final DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
 
     /**
      * 배송 완료된 본인 주문상품을 구매 확정한다.
@@ -74,5 +76,33 @@ public class OrderItemConfirmationService {
         orderItem.confirm(confirmedAt);
         settlementCreateUseCase.createSettlement(orderItem.getId());
         return orderItem;
+    }
+
+    /**
+     * 자동 구매확정 대상 조건을 재검증하고 구매확정과 상품 정산을 같은 트랜잭션으로 처리한다.
+     *
+     * <p>대상이 아니거나 이미 상태가 바뀐 경우 변경 없이 종료한다.
+     */
+    @Transactional
+    public void confirmEligibleOrderItem(UUID orderItemId, Instant confirmationTime, Instant confirmationThreshold) {
+        if (orderItemId == null || confirmationTime == null || confirmationThreshold == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        OrderItem orderItem = orderItemRepository.findById(orderItemId).orElse(null);
+        if (orderItem == null || orderItem.getItemStatus() != OrderItemStatus.ORDERED) {
+            return;
+        }
+
+        // Delivery가 소유한 실제 배송 완료 시각을 기준으로 대상을 재검증한다.
+        Instant deliveredAt = deliveryCompletionQueryUseCase
+                .getDeliveredAt(orderItem.getDeliveryGroupId())
+                .orElse(null);
+        if (deliveredAt == null || !deliveredAt.isBefore(confirmationThreshold)) {
+            return;
+        }
+
+        // 구매확정과 상품 정산 생성을 같은 트랜잭션에서 처리한다.
+        orderItem.confirm(confirmationTime);
+        settlementCreateUseCase.createSettlement(orderItem.getId());
     }
 }
