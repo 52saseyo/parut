@@ -40,4 +40,10 @@ public interface ProductReader {
      */
     Product getProduct(UUID productId);
 
+
+    /**
+     * 상품 벌크 조회
+     */
+    List<Product> getProducts(List<UUID> productIds);
+
 }
