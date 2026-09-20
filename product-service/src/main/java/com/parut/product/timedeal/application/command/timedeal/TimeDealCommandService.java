@@ -20,6 +20,8 @@ import com.parut.product.timedeal.application.port.out.image.TimeDealImageComman
 import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
+import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockCreatedEvent;
+import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockDeletedEvent;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
@@ -30,46 +32,15 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class TimeDealCommandService implements TimeDealCommandUseCase {
-
-    @Autowired
-    public TimeDealCommandService(
-            TimeDealSalePeriodProcessor timeDealSalePeriodProcessor,
-            TimeDealRepository timeDealRepository,
-            TimeDealStockRepository timeDealStockRepository,
-            TimeDealPolicy timeDealPolicy,
-            ProductStockPort productStockPort,
-            TimeDealAuthorizationChecker authorizationChecker,
-            TimeDealImageCommandPort timeDealImageCommandPort
-    ) {
-        this.timeDealSalePeriodProcessor = timeDealSalePeriodProcessor;
-        this.timeDealRepository = timeDealRepository;
-        this.timeDealStockRepository = timeDealStockRepository;
-        this.timeDealPolicy = timeDealPolicy;
-        this.productStockPort = productStockPort;
-        this.authorizationChecker = authorizationChecker;
-        this.timeDealImageCommandPort = timeDealImageCommandPort;
-    }
-
-    // 기존 배치 단위 테스트와 호출부의 생성 호환성을 유지한다.
-    public TimeDealCommandService(
-            TimeDealSalePeriodProcessor timeDealSalePeriodProcessor,
-            TimeDealRepository timeDealRepository,
-            TimeDealStockRepository timeDealStockRepository,
-            TimeDealPolicy timeDealPolicy,
-            ProductStockPort productStockPort,
-            TimeDealAuthorizationChecker authorizationChecker
-    ) {
-        this(timeDealSalePeriodProcessor, timeDealRepository, timeDealStockRepository,
-                timeDealPolicy, productStockPort, authorizationChecker, null);
-    }
 
     private final TimeDealSalePeriodProcessor timeDealSalePeriodProcessor;
     private final TimeDealRepository timeDealRepository;
@@ -78,6 +49,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     private final ProductStockPort productStockPort;
     private final TimeDealAuthorizationChecker authorizationChecker;
     private final TimeDealImageCommandPort timeDealImageCommandPort;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public void endTimeDeals() {
@@ -135,6 +107,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
         timeDealRepository.save(timeDeal);
         timeDealStockRepository.save(stock);
+        publishDeletedEvent(stock);
     }
 
     @Override
@@ -206,6 +179,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 timeDealCreateCommand.lowStockThreshold()
         );
         timeDealStockRepository.save(timeDealStock);
+        publishCreatedEvent(timeDealStock);
 
         log.info(
                 "[TimeDeal] 직접 등록 완료. timeDealId={}, sellerId={}, initialQuantity={}",
@@ -254,6 +228,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 savedTimeDeal, productStockAllocateResult.quantity(), timeDealConvertCommand.lowStockThreshold());
 
         timeDealStockRepository.save(timeDealStock);
+        publishCreatedEvent(timeDealStock);
 
         if (productStockAllocateResult.imageId() != null) {
             timeDealImageCommandPort.save(new com.parut.product.global.dto.TimeDealImageSaveCommand(
@@ -281,5 +256,15 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PRODUCT_GRADE);
         }
+    }
+
+    private void publishCreatedEvent(TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockCreatedEvent(
+                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity()));
+    }
+
+    private void publishDeletedEvent(TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockDeletedEvent(
+                stock.getTimeDealId(), stock.getId()));
     }
 }

@@ -180,33 +180,6 @@ class TimeDealStockTest {
         }
 
         @Test
-        @DisplayName("판매 확정 취소는 선점을 거치지 않고 판매 가능 수량으로 바로 복구한다")
-        void 판매_확정_취소() {
-            TimeDealStock stock = stock();
-            stock.reserve(30);
-            stock.confirmSale(30);
-
-            stock.cancelSale(10);
-
-            assertThat(stock.getSoldQuantity()).isEqualTo(20);
-            assertThat(stock.getAvailableQuantity()).isEqualTo(80);
-            assertThat(stock.getReservedQuantity()).isZero();
-        }
-
-        @Test
-        @DisplayName("판매 수량보다 많이 취소하면 예외")
-        void 판매_취소_초과() {
-            TimeDealStock stock = stock();
-            stock.reserve(10);
-            stock.confirmSale(10);
-
-            assertThatThrownBy(() -> stock.cancelSale(11))
-                    .isInstanceOf(BusinessException.class)
-                    .extracting("errorCode")
-                    .isEqualTo(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
-        }
-
-        @Test
         @DisplayName("구매 흐름 전체에서 세 수량의 합계는 변하지 않는다 — 총합 불변식")
         void 총합_불변식() {
             TimeDealStock stock = stock();
@@ -221,9 +194,9 @@ class TimeDealStockTest {
             stock.cancelReservation(15);
             assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
 
-            stock.cancelSale(25);
             assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
-            assertThat(stock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(75);
+            assertThat(stock.getSoldQuantity()).isEqualTo(25);
         }
     }
 

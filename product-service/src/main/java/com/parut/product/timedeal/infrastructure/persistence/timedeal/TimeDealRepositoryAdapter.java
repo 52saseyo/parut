@@ -36,6 +36,11 @@ public class TimeDealRepositoryAdapter implements TimeDealRepository {
     }
 
     @Override
+    public List<UUID> findTimeDealsAvailableForRedis(Instant now) {
+        return jpaTimeDealRepository.findTimeDealsAvailableForRedis(now);
+    }
+
+    @Override
     public TimeDeal save(TimeDeal timeDeal) {
         return jpaTimeDealRepository.save(timeDeal);
     }

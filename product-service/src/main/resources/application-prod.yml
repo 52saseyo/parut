@@ -27,6 +27,11 @@ spring:
     schemas: product_schema
     default-schema: product_schema
 
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
 management:
   endpoints:
     web:

@@ -18,6 +18,8 @@ public interface TimeDealRepository {
 
     List<UUID> findTimeDealsToEnd(Instant now, UUID afterId, int limit);
 
+    List<UUID> findTimeDealsAvailableForRedis(Instant now);
+
     TimeDeal save(TimeDeal timeDeal);
 
     // NOTE: 유니크 제약 위반을 커밋까지 미루지 않고 이 자리에서 드러내야 하는 경우에 쓴다
