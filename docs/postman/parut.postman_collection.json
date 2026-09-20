@@ -1350,23 +1350,17 @@
                     }
                   ],
                   "response": []
-                }
-              ]
-            },
-          {
-            "name": "external",
-            "description": "/api/v1/** — 클라이언트 공개 경로.",
-            "item": [
-              {
+                },
+                {
                 "name": "구매확정",
-          "description": "요청 전 스크립트가 테스트 종류에 맞는 구매확정 픽스처를 요청 범위 변수로 자동 설정합니다. 배송 완료 전 실패 요청은 PREPARING인 c...002를 사용하고, 나머지는 DELIVERED이고 ORDERED인 c...001을 사용합니다. 공유 환경변수 값은 변경하지 않습니다.",
+                "description": "주문 고객이 외부 API로 배송 완료된 주문상품을 확정하는 기능입니다. 요청 전 스크립트가 테스트 종류에 맞는 구매확정 픽스처를 요청 범위 변수로 설정합니다. 배송 완료 전 실패 요청은 PREPARING인 c...002를 사용하고, 나머지는 DELIVERED이고 ORDERED인 c...001을 사용합니다. 공유 환경변수 값은 변경하지 않습니다.",
                 "event": [
                   {
                     "listen": "prerequest",
                     "script": {
                       "type": "text/javascript",
                       "exec": [
-                        "const beforeDelivery = pm.info.requestName === '배송 완료 전 구매확정 거부';",
+                        "const beforeDelivery = pm.info.requestName === '[주문 고객] 배송 완료 전 구매확정 거부';",
                         "pm.variables.set('orderId', beforeDelivery ? 'c0000000-0000-0000-0000-000000000002' : 'c0000000-0000-0000-0000-000000000001');",
                         "pm.variables.set('orderItemId', beforeDelivery ? 'c2000000-0000-0000-0000-000000000002' : 'c2000000-0000-0000-0000-000000000001');",
                         "pm.variables.set('buyerId', '11111111-1111-1111-1111-111111111111');",
@@ -1377,7 +1371,7 @@
                 ],
                 "item": [
                   {
-                    "name": "배송 완료 전 구매확정 거부",
+                    "name": "[주문 고객] 배송 완료 전 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1422,7 +1416,7 @@
                     ]
                   },
                   {
-                    "name": "주문상품 수동 구매확정",
+                    "name": "[주문 고객] 주문상품 수동 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1468,7 +1462,7 @@
                     ]
                   },
                   {
-                    "name": "중복 구매확정",
+                    "name": "[주문 고객] 중복 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1513,7 +1507,7 @@
                     ]
                   },
                   {
-                    "name": "다른 고객의 구매확정 거부",
+                    "name": "[다른 고객] 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1558,7 +1552,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 역할의 구매확정 거부",
+                    "name": "[판매자] 구매확정 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1603,7 +1597,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문 구매확정",
+                    "name": "[주문 고객] 존재하지 않는 주문 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1648,7 +1642,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문상품 구매확정",
+                    "name": "[주문 고객] 존재하지 않는 주문상품 구매확정",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -1896,7 +1890,7 @@
         },
         {
           "name": "delivery",
-          "description": "배송 컨텍스트. 판매자별 배송 그룹, 운송장 번호 등록, 배송 시작(SHIPPED). DELIVERED 전환은 스케줄러가 처리하며 공개 API 가 없다.",
+          "description": "판매자는 외부 API로 본인 배송을 조회하고 운송장을 등록해 PREPARING에서 SHIPPED로 변경합니다. SHIPPED에서 DELIVERED 전환은 시스템 스케줄러가 처리하며 외부 완료 API는 없습니다. 고객과 관리자의 단건 조회 범위, 판매자 소유권과 상태 전이 실패를 함께 검증합니다.",
           "item": [
             {
               "name": "internal",
@@ -1929,7 +1923,7 @@
                 "script": {
                   "type": "text/javascript",
                   "exec": [
-                    "const fixtureNo = pm.info.requestName === '다른 판매자의 배송 시작 거부' ? '2' : pm.info.requestName === '배송 재시작 거부' ? '3' : '1';",
+                    "const fixtureNo = pm.info.requestName === '[다른 판매자] 배송 시작 거부' ? '2' : pm.info.requestName === '[해당 상품 판매자] 배송 재시작 거부' ? '3' : '1';",
                     "pm.variables.set('orderId', `d0000000-0000-0000-0000-00000000000${fixtureNo}`);",
                     "pm.variables.set('deliveryId', `d3000000-0000-0000-0000-00000000000${fixtureNo}`);",
                     "pm.variables.set('buyerId', '11111111-1111-1111-1111-111111111111');",
@@ -1940,7 +1934,7 @@
             ],
             "item": [
               {
-                "name": "판매자 배송 목록 조회",
+                "name": "[해당 상품 판매자] 배송 목록 조회",
                 "event": [
                   {
                     "listen": "test",
@@ -1989,7 +1983,7 @@
                 "response": []
               },
               {
-                "name": "다른 판매자의 배송 목록은 빈 배열",
+                "name": "[다른 판매자] 배송 목록은 빈 배열",
                 "event": [
                   {
                     "listen": "test",
@@ -2036,7 +2030,7 @@
                 }
               },
               {
-                "name": "다른 판매자의 배송 단건 조회 거부",
+                "name": "[다른 판매자] 배송 단건 조회 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2067,7 +2061,7 @@
                 }
               },
               {
-                "name": "관리자 배송 단건 조회",
+                "name": "[관리자] 배송 단건 조회",
                 "event": [
                   {
                     "listen": "test",
@@ -2098,7 +2092,7 @@
                 }
               },
               {
-                "name": "다른 판매자의 배송 시작 거부",
+                "name": "[다른 판매자] 배송 시작 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2154,7 +2148,7 @@
                 }
               },
               {
-                "name": "배송 시작 및 운송장 등록",
+                "name": "[해당 상품 판매자] 배송 시작과 운송장 등록",
                 "event": [
                   {
                     "listen": "test",
@@ -2211,7 +2205,7 @@
                 "response": []
               },
               {
-                "name": "고객 본인 배송 단건 조회",
+                "name": "[주문 고객] 본인 배송 단건 조회",
                 "event": [
                   {
                     "listen": "test",
@@ -2238,12 +2232,12 @@
                     }
                   ],
                   "url": "{{orderBaseUrl}}/api/v1/deliveries/{{deliveryId}}",
-                  "description": "구매 고객이 본인 주문의 배송을 단건 조회합니다. 성공하면 Delivery 상태, 운송장 번호, shippedAt과 deliveredAt을 반환합니다."
+                  "description": "주문 고객이 본인 주문의 배송을 단건 조회합니다. 성공하면 Delivery 상태, 운송장 번호, shippedAt과 deliveredAt을 반환합니다."
                 },
                 "response": []
               },
               {
-                "name": "다른 고객의 배송 단건 조회 거부",
+                "name": "[다른 고객] 배송 단건 조회 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2275,7 +2269,7 @@
                 "response": []
               },
               {
-                "name": "고객 역할의 배송 목록 조회 거부",
+                "name": "[고객] 판매자 배송 목록 조회 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2307,7 +2301,7 @@
                 "response": []
               },
               {
-                "name": "존재하지 않는 배송 조회",
+                "name": "[주문 고객] 존재하지 않는 배송 조회",
                 "event": [
                   {
                     "listen": "test",
@@ -2440,7 +2434,7 @@
                 }
               },
               {
-                "name": "존재하지 않는 배송 시작 거부",
+                "name": "[해당 상품 판매자] 존재하지 않는 배송 시작 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2484,7 +2478,7 @@
                 }
               },
               {
-                "name": "배송 재시작 거부",
+                "name": "[해당 상품 판매자] 배송 재시작 거부",
                 "event": [
                   {
                     "listen": "test",
@@ -2534,7 +2528,7 @@
         },
         {
           "name": "refund",
-          "description": "환불 컨텍스트. 주문상품 행 단위 환불 요청·취소·승인·거절(REQUESTED / APPROVED / REJECTED / CANCELED).",
+          "description": "환불은 주문상품 한 건 단위로 처리합니다. 주문 고객은 배송 완료 후 7일 이내에 요청과 처리 전 취소를 실행하고, 해당 상품 판매자는 승인 또는 거절합니다. 배송 중에는 요청할 수 없으며 환불 후 일반 재고와 타임딜 재고는 복원하지 않습니다.",
           "item": [
             {
               "name": "internal",
@@ -2580,7 +2574,7 @@
                 ],
                 "item": [
                   {
-                    "name": "빈 환불 사유 거부",
+                    "name": "[주문 고객] 빈 환불 사유 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2624,7 +2618,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 역할의 환불 요청 거부",
+                    "name": "[판매자] 환불 요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2668,7 +2662,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 주문상품 환불 요청",
+                    "name": "[주문 고객] 존재하지 않는 주문상품 환불 요청",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2712,7 +2706,7 @@
                     ]
                   },
                   {
-                    "name": "다른 고객의 환불 요청 거부",
+                    "name": "[다른 고객] 환불 요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2756,7 +2750,7 @@
                     ]
                   },
                   {
-                    "name": "고객 환불 요청",
+                    "name": "[주문 고객] 환불 요청",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2801,7 +2795,7 @@
                     ]
                   },
                   {
-                    "name": "환불 진행 상태 재요청 거부",
+                    "name": "[주문 고객] 환불 진행 상태 재요청 거부",
                     "request": {
                       "method": "POST",
                       "header": [
@@ -2856,7 +2850,7 @@
                       "type": "text/javascript",
                       "exec": [
                         "const refundId = pm.collectionVariables.get('refundRequestFixtureId');",
-                        "const needsRequestedRefund = pm.info.requestName !== '존재하지 않는 환불 요청 취소';",
+                        "const needsRequestedRefund = pm.info.requestName !== '[주문 고객] 존재하지 않는 환불 요청 취소';",
                         "if (needsRequestedRefund && !refundId) throw new Error('먼저 고객 환불 요청 폴더의 정상 요청을 실행하세요.');",
                         "if (refundId) pm.variables.set('refundId', refundId);",
                         "pm.variables.set('buyerId', '11111111-1111-1111-1111-111111111111');",
@@ -2867,7 +2861,7 @@
                 ],
                 "item": [
                   {
-                    "name": "다른 고객의 환불 요청 취소 거부",
+                    "name": "[다른 고객] 환불 요청 취소 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2929,7 +2923,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 요청 취소",
+                    "name": "[주문 고객] 존재하지 않는 환불 요청 취소",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2960,7 +2954,7 @@
                     ]
                   },
                   {
-                    "name": "고객 환불 요청 취소",
+                    "name": "[주문 고객] 환불 요청 취소",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -2991,7 +2985,7 @@
                     ]
                   },
                   {
-                    "name": "취소한 환불 재취소 거부",
+                    "name": "[주문 고객] 취소한 환불 재취소 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3085,7 +3079,7 @@
                     ]
                   },
                   {
-                    "name": "중복 환불 ID 승인 거부",
+                    "name": "[해당 상품 판매자] 중복 환불 ID 승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3173,7 +3167,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 승인",
+                    "name": "[해당 상품 판매자] 존재하지 않는 환불 승인",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3217,7 +3211,7 @@
                     ]
                   },
                   {
-                    "name": "다른 판매자의 환불 승인 거부",
+                    "name": "[다른 판매자] 환불 승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3261,7 +3255,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 환불 승인",
+                    "name": "[해당 상품 판매자] 환불 승인",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3305,7 +3299,7 @@
                     ]
                   },
                   {
-                    "name": "승인 완료 환불 재승인 거부",
+                    "name": "[해당 상품 판매자] 승인 완료 환불 재승인 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3456,7 +3450,7 @@
                     ]
                   },
                   {
-                    "name": "존재하지 않는 환불 거절",
+                    "name": "[해당 상품 판매자] 존재하지 않는 환불 거절",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3500,7 +3494,7 @@
                     ]
                   },
                   {
-                    "name": "다른 판매자의 환불 거절 거부",
+                    "name": "[다른 판매자] 환불 거절 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3544,7 +3538,7 @@
                     ]
                   },
                   {
-                    "name": "판매자 환불 거절",
+                    "name": "[해당 상품 판매자] 환불 거절",
                     "request": {
                       "method": "PATCH",
                       "header": [
@@ -3588,7 +3582,7 @@
                     ]
                   },
                   {
-                    "name": "거절 완료 환불 재거절 거부",
+                    "name": "[해당 상품 판매자] 거절 완료 환불 재거절 거부",
                     "request": {
                       "method": "PATCH",
                       "header": [

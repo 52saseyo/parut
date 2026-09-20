@@ -2,10 +2,13 @@ package com.parut.order.order.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
 import com.parut.order.order.domain.Order;
 import com.parut.order.order.domain.OrderDeliveryGroup;
 import com.parut.order.order.domain.OrderItem;
@@ -29,6 +33,7 @@ import com.parut.order.order.domain.OrderType;
 import com.parut.order.order.infrastructure.persistence.OrderDeliveryGroupRepository;
 import com.parut.order.order.infrastructure.persistence.OrderItemRepository;
 import com.parut.order.order.infrastructure.persistence.OrderRepository;
+import com.parut.order.settlement.application.port.in.SettlementCreateUseCase;
 
 @ExtendWith(MockitoExtension.class)
 class OrderItemConfirmationServiceTest {
@@ -45,6 +50,12 @@ class OrderItemConfirmationServiceTest {
 
     @Mock
     private OrderItemRepository orderItemRepository;
+
+    @Mock
+    private SettlementCreateUseCase settlementCreateUseCase;
+
+    @Mock
+    private DeliveryCompletionQueryUseCase deliveryCompletionQueryUseCase;
 
     @InjectMocks
     private OrderItemConfirmationService orderItemConfirmationService;
@@ -65,6 +76,63 @@ class OrderItemConfirmationServiceTest {
 
         assertThat(result.getItemStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
         assertThat(result.getConfirmedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("배송 완료 후 7일이 지난 주문상품을 자동 구매확정한다")
+    void 자동_구매확정() {
+        Order order = withId(order("ORD-20260909-CCCCCCCC"));
+        OrderDeliveryGroup deliveryGroup = deliveryGroup(order);
+        OrderItem orderItem = orderItem(order, deliveryGroup);
+        Instant now = Instant.parse("2026-09-20T00:00:01Z");
+        Instant deliveredAt = Instant.parse("2026-09-13T00:00:00Z");
+
+        when(orderItemRepository.findById(orderItem.getId())).thenReturn(Optional.of(orderItem));
+        when(deliveryCompletionQueryUseCase.getDeliveredAt(deliveryGroup.getId()))
+                .thenReturn(Optional.of(deliveredAt));
+
+        orderItemConfirmationService.confirmEligibleOrderItem(
+                orderItem.getId(), now, now.minus(Duration.ofDays(7)));
+
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
+        assertThat(orderItem.getConfirmedAt()).isEqualTo(now);
+        verify(settlementCreateUseCase).createSettlement(orderItem.getId());
+    }
+
+    @Test
+    @DisplayName("7일 경계 시각에는 자동 구매확정하지 않는다")
+    void 자동_구매확정_경계() {
+        Order order = withId(order("ORD-20260909-DDDDDDDD"));
+        OrderDeliveryGroup deliveryGroup = deliveryGroup(order);
+        OrderItem orderItem = orderItem(order, deliveryGroup);
+        Instant now = Instant.parse("2026-09-20T00:00:00Z");
+
+        when(orderItemRepository.findById(orderItem.getId())).thenReturn(Optional.of(orderItem));
+        when(deliveryCompletionQueryUseCase.getDeliveredAt(deliveryGroup.getId()))
+                .thenReturn(Optional.of(now.minus(java.time.Duration.ofDays(7))));
+
+        orderItemConfirmationService.confirmEligibleOrderItem(
+                orderItem.getId(), now, now.minus(Duration.ofDays(7)));
+
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.ORDERED);
+    }
+
+    @Test
+    @DisplayName("환불 요청 중인 주문상품은 자동 구매확정하지 않는다")
+    void 자동_구매확정_환불요청_제외() {
+        Order order = withId(order("ORD-20260909-EEEEEEEE"));
+        OrderDeliveryGroup deliveryGroup = deliveryGroup(order);
+        OrderItem orderItem = orderItem(order, deliveryGroup);
+        orderItem.requestRefund();
+
+        when(orderItemRepository.findById(orderItem.getId())).thenReturn(Optional.of(orderItem));
+
+        Instant now = Instant.parse("2026-09-20T00:00:01Z");
+        orderItemConfirmationService.confirmEligibleOrderItem(
+                orderItem.getId(), now, now.minus(Duration.ofDays(7)));
+
+        assertThat(orderItem.getItemStatus()).isEqualTo(OrderItemStatus.REFUND_REQUESTED);
+        verifyNoInteractions(deliveryCompletionQueryUseCase, settlementCreateUseCase);
     }
 
     @Test
