@@ -4,6 +4,7 @@ import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockQueryRepository;
 import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
@@ -36,6 +37,9 @@ class TimeDealStockQueryServiceTest {
     private TimeDealStockRepository timeDealStockRepository;
 
     @Mock
+    private TimeDealStockQueryRepository timeDealStockQueryRepository;
+
+    @Mock
     private TimeDealAuthorizationChecker authorizationChecker;
 
     private TimeDealStockQueryService service;
@@ -43,7 +47,7 @@ class TimeDealStockQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new TimeDealStockQueryService(
-                timeDealRepository, timeDealStockRepository, authorizationChecker
+                timeDealRepository, timeDealStockRepository, timeDealStockQueryRepository, authorizationChecker
         );
     }
 

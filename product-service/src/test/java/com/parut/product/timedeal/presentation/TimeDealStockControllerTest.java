@@ -3,6 +3,7 @@ package com.parut.product.timedeal.presentation;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockQueryResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockQueryUseCase;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
+import java.util.List;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +32,26 @@ class TimeDealStockControllerTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Test
+    void 판매자_본인_타임딜_재고_목록을_커서로_조회한다() throws Exception {
+        UUID sellerId = UUID.randomUUID();
+        when(useCase.getSellerOwnedTimeDealStockList(sellerId, "SELLER", null, null, 10))
+                .thenReturn(TimeDealCursorResult.withoutNextCursor(List.of(
+                        new TimeDealStockQueryResult(UUID.randomUUID(), 90, 5, 25, 10)
+                )));
+
+        mvc.perform(get("/api/v1/seller/time-deals/stocks")
+                        .header("X-User-Id", sellerId)
+                        .header("X-User-Role", "SELLER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(90))
+                .andExpect(jsonPath("$.data.pageInfo.paginationType").value("CURSOR"));
+
+        verify(useCase).getSellerOwnedTimeDealStockList(sellerId, "SELLER", null, null, 10);
+    }
 
     @Test
     void 사용자_헤더로_타임딜_재고를_조회한다() throws Exception {
