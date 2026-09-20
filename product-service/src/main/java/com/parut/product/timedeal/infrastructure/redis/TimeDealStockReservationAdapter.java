@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -34,13 +35,13 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
         Timer.Sample timer = metrics.startReservationScript();
         Long result;
         try {
-            result = redissonClient.getScript().eval(
+            result = redissonClient.getScript(StringCodec.INSTANCE).eval(
                     RScript.Mode.READ_WRITE,
                     TimeDealStockReservationLuaScript.SCRIPT,
                     RScript.ReturnType.LONG,
                     List.of(stockKey, reservationKey),
-                    quantity,
-                    reservationTtlSeconds
+                    String.valueOf(quantity),
+                    String.valueOf(reservationTtlSeconds)
             );
         } finally {
             metrics.stopReservationScript(timer);
@@ -77,7 +78,7 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
         Timer.Sample timer = metrics.startCompensationScript();
         Long result;
         try {
-            result = redissonClient.getScript().eval(
+            result = redissonClient.getScript(StringCodec.INSTANCE).eval(
                     RScript.Mode.READ_WRITE,
                     TimeDealStockReservationLuaScript.COMPENSATION_SCRIPT,
                     RScript.ReturnType.LONG,

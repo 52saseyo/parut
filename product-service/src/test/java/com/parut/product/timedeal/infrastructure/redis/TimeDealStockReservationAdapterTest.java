@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.Codec;
 
 import java.util.UUID;
 
@@ -38,7 +39,7 @@ class TimeDealStockReservationAdapterTest {
     @BeforeEach
     void setUp() {
         adapter = new TimeDealStockReservationAdapter(redissonClient, metrics);
-        when(redissonClient.getScript()).thenReturn(script);
+        when(redissonClient.getScript(any(Codec.class))).thenReturn(script);
     }
 
     @Test
@@ -60,8 +61,8 @@ class TimeDealStockReservationAdapterTest {
                 eq(TimeDealStockReservationLuaScript.SCRIPT),
                 eq(RScript.ReturnType.LONG),
                 anyList(),
-                eq(1),
-                eq(900L)
+                eq("1"),
+                eq("900")
         );
     }
 

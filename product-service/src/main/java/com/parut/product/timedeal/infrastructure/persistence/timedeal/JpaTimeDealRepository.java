@@ -55,4 +55,14 @@ public interface JpaTimeDealRepository extends JpaRepository<TimeDeal, UUID> {
             @Param("now") Instant now,
             @Param("afterId") UUID afterId,
             @Param("limit") int limit);
+
+    @Query(value = """
+            select id from product_schema.p_time_deals
+             where deleted_at is null
+               and status in ('ACTIVE', 'SCHEDULED')
+               and start_at <= :now
+               and end_at > :now
+             order by id
+            """, nativeQuery = true)
+    List<UUID> findTimeDealsAvailableForRedis(@Param("now") Instant now);
 }
