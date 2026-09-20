@@ -129,7 +129,7 @@ public class TimeDealPolicy {
         stock.cancelReservation(quantity);
     }
 
-    // NOTE: 취소 직전 상태에 맞게 재고를 복구한다. ENDED인 타임딜 상태는 복구하지 않아 TimeDeal을 받지 않는다.
+    // NOTE: RESERVED만 재고를 복구한다. CONFIRMED는 사용된 판매로 간주해 취소해도 재고를 복구하지 않는다.
     // NOTE: reason은 String이며 null도 허용한다 — enum은 타입 제약이 아니라 문구 카탈로그다.
     public void cancelPurchase(
             TimeDealPurchase purchase,
@@ -146,16 +146,11 @@ public class TimeDealPolicy {
         }
 
         TimeDealPurchaseStatus statusBeforeCancel = purchase.getStatus();
-        Integer quantity = purchase.getQuantity();
-
         // NOTE: cancel()의 상태 전이 검증이 먼저 돌아, 이미 CANCELLED인 건은 재고를 건드리기 전에 걸린다.
         purchase.cancel(reason);
 
         if (statusBeforeCancel == TimeDealPurchaseStatus.RESERVED) {
-            stock.cancelReservation(quantity);
-        } else {
-            // NOTE: CONFIRMED는 선점을 거치지 않고 availableQuantity로 바로 복구한다.
-            stock.cancelSale(quantity);
+            stock.cancelReservation(purchase.getQuantity());
         }
     }
 
