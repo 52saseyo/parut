@@ -20,6 +20,21 @@ public class TimeDealPolicy {
 
 
     // NOTE: 타임딜 재고를 선점하고 구매 이력을 생성한다.
+    public void validateReservation(
+            TimeDeal timeDeal,
+            TimeDealStock stock,
+            Integer quantity,
+            Integer alreadyPurchasedQuantity,
+            Instant now
+    ) {
+        validateRequiredFields(timeDeal, stock);
+        stock.validateBelongsToTimeDeal(timeDeal.getId());
+        timeDeal.validatePurchasable(now);
+        timeDeal.validatePurchaseQuantity(quantity, alreadyPurchasedQuantity);
+    }
+
+    // NOTE: Redis 선점 성공 이후 DB 재고 projection과 구매 이력을 반영하는 기존 경로다.
+    // Redis 선점 자체는 Application Port가 담당하고, 이 메서드는 DB 애그리거트 변경만 담당한다.
     public TimeDealPurchase reserve(
             TimeDeal timeDeal,
             TimeDealStock stock,

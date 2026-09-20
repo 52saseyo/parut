@@ -9,6 +9,8 @@ import com.parut.product.timedeal.application.exception.TimeDealReservationExpir
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.timedealpurchase.TimeDealPurchaseRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
@@ -34,6 +36,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +64,9 @@ class TimeDealPurchaseCommandServiceTest {
     @Mock
     private TimeDealPurchaseRepository timeDealPurchaseRepository;
 
+    @Mock
+    private TimeDealStockReservationPort timeDealStockReservationPort;
+
     private TimeDealPurchaseCommandService timeDealPurchaseCommandService;
 
     private TimeDeal timeDeal;
@@ -73,7 +79,8 @@ class TimeDealPurchaseCommandServiceTest {
                 timeDealRepository,
                 timeDealStockRepository,
                 timeDealPurchaseRepository,
-                new TimeDealPolicy()
+                new TimeDealPolicy(),
+                timeDealStockReservationPort
         );
 
         // NOTE: endAt을 먼 미래로 두어 Instant.now()를 쓰는 서비스에서도 판매 기간 안에 들도록 한다.
@@ -111,12 +118,33 @@ class TimeDealPurchaseCommandServiceTest {
             givenTimeDealAndStockFound();
             when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
             when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
+            when(timeDealStockReservationPort.reserve(any(), any(), any(), anyInt()))
+                    .thenReturn(TimeDealStockReservationResult.RESERVED);
 
             timeDealPurchaseCommandService.reserve(reserveCommand(5));
 
             verify(timeDealPurchaseRepository).save(any(TimeDealPurchase.class));
             assertThat(timeDealStock.getReservedQuantity()).isEqualTo(5);
             assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(95);
+        }
+
+        @Test
+        @DisplayName("Redis에서 재고 부족이면 DB 재고와 구매 이력을 변경하지 않는다")
+        void 예약_재고부족() {
+            givenTimeDealAndStockFound();
+            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
+            when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
+            when(timeDealStockReservationPort.reserve(any(), any(), any(), anyInt()))
+                    .thenReturn(TimeDealStockReservationResult.INSUFFICIENT_STOCK);
+
+            assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(reserveCommand(5)))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+
+            verify(timeDealPurchaseRepository, never()).save(any());
+            assertThat(timeDealStock.getReservedQuantity()).isZero();
+            assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
         }
 
         @Test

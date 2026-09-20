@@ -10,6 +10,8 @@ import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealP
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
 import com.parut.product.timedeal.application.port.out.timedealpurchase.TimeDealPurchaseRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.common.TimeDealPurchaseConfirmResult;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
@@ -33,6 +35,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPurchaseRepository timeDealPurchaseRepository;
     private final TimeDealPolicy timeDealPolicy;
+    private final TimeDealStockReservationPort timeDealStockReservationPort;
 
 
     // NOTE: 애그리거트 조율은 전부 TimeDealPolicy를 경유한다. 여기 남는 것은 조회·저장·트랜잭션 경계와
@@ -77,6 +80,37 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
 
         // 잠금과 조회를 마친 시각으로 한 번 판정한다. 대기 전 시각을 쓰면 종료 후에도 선점될 수 있다.
         Instant now = Instant.now();
+        // Redis 선점 전에 타임딜 기간·수량·1인당 한도만 검증한다. 이 단계에서는 DB 재고를 변경하지 않는다.
+        timeDealPolicy.validateReservation(
+                timeDeal,
+                timeDealStock,
+                timeDealPurchaseReserveCommand.quantity(),
+                alreadyPurchasedQuantity,
+                now
+        );
+
+        TimeDealStockReservationResult reservationResult = timeDealStockReservationPort.reserve(
+                timeDealPurchaseReserveCommand.timeDealId(),
+                timeDealStock.getId(),
+                timeDealPurchaseReserveCommand.orderId(),
+                timeDealPurchaseReserveCommand.quantity()
+        );
+
+        switch (reservationResult) {
+            case RESERVED -> {
+                // Redis 선점과 DB 구매 이력 저장을 함께 완료한다.
+            }
+            case DUPLICATE_ORDER -> throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+            case SOLD_OUT, INSUFFICIENT_STOCK ->
+                    throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
+            case INVALID_QUANTITY ->
+                    throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+            case STOCK_NOT_INITIALIZED ->
+                    throw new IllegalStateException("Redis stock key is not initialized");
+        }
+
+        // Redis 선점 성공 이후에만 기존 DB 구매 생성·재고 projection을 반영한다.
+        // NOTE: 이 구간의 DB 저장 실패 시 Redis 보상은 8단계에서 추가한다.
         TimeDealPurchase timeDealPurchase = timeDealPolicy.reserve(
                 timeDeal,
                 timeDealStock,
