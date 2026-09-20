@@ -27,7 +27,7 @@ class TimeDealSalePeriodBatchTest {
             return null;
         }).when(processor).synchronize(second);
 
-        new TimeDealCommandService(processor, repository, null, null, null, null).activateTimeDeals();
+        new TimeDealCommandService(processor, repository, null, null, null, null, null, null).activateTimeDeals();
 
         verify(processor).synchronize(first);
         verify(repository, never()).findTimeDealsToEnd(any(), any(), anyInt());
@@ -58,7 +58,7 @@ class TimeDealSalePeriodBatchTest {
             return null;
         }).when(processor).synchronize(second);
 
-        new TimeDealCommandService(processor, repository, null, null, null, null)
+        new TimeDealCommandService(processor, repository, null, null, null, null, null, null)
                 .endTimeDeals();
 
         verify(processor).synchronize(first);

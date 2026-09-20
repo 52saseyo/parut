@@ -179,14 +179,14 @@ public class ProductService {
                 )
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
-        ProductImageResult image = productImagePort.findImage(productId)
-                .orElseThrow(()-> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED));
-
-        String imageUrl = image.imageUrl();
-
+        ProductImageResult image = productImagePort.findImage(productId).orElse(null);
         ProductStock stock = productStockService.getStock(productId);
 
-        return ProductDetailResponse.from(product, stock, imageUrl);
+        return ProductDetailResponse.from(
+                product,
+                stock,
+                image == null ? null : image.imageUrl()
+        );
     }
 
     /**
@@ -207,15 +207,7 @@ public class ProductService {
                 product.getSellerId()
         );
 
-        ProductImageResult image = productImagePort.findImage(productId)
-                .orElse(null);
-
-        if ((product.getStatus() == ProductStatus.ON_SALE
-                || product.getStatus() == ProductStatus.SOLD_OUT)
-                && image == null) {
-            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
-        }
-
+        ProductImageResult image = productImagePort.findImage(productId).orElse(null);
         ProductStock stock = productStockService.getStock(productId);
 
         return SellerProductDetailResponse.from(
@@ -279,12 +271,6 @@ public class ProductService {
     }
 
 
-
-    private void validateImageForSale(UUID productId){
-        if(!productImagePort.hasImage(productId)) {
-            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
-        }
-    }
     /**
      * 판매 시작 또는 판매 재개 요청을 처리한다.
      * 판매 가능한 재고가 있는지 확인한 뒤 도메인 상태를 변경한다.
@@ -292,13 +278,11 @@ public class ProductService {
     private void changeToOnSale(Product product) {
         if(product.getStatus() == ProductStatus.DRAFT) {
             validateStockAvailableForSale(product.getId());
-            validateImageForSale(product.getId());
             product.startSale();
             return;
         }
         if(product.getStatus() == ProductStatus.SUSPENDED) {
             validateStockAvailableForSale(product.getId());
-            validateImageForSale(product.getId());
             product.resumeSale();
             return;
         }

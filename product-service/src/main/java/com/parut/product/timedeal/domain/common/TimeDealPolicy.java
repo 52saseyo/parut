@@ -20,6 +20,21 @@ public class TimeDealPolicy {
 
 
     // NOTE: 타임딜 재고를 선점하고 구매 이력을 생성한다.
+    public void validateReservation(
+            TimeDeal timeDeal,
+            TimeDealStock stock,
+            Integer quantity,
+            Integer alreadyPurchasedQuantity,
+            Instant now
+    ) {
+        validateRequiredFields(timeDeal, stock);
+        stock.validateBelongsToTimeDeal(timeDeal.getId());
+        timeDeal.validatePurchasable(now);
+        timeDeal.validatePurchaseQuantity(quantity, alreadyPurchasedQuantity);
+    }
+
+    // NOTE: Redis 선점 성공 이후 DB 재고 상태와 구매 이력을 반영하는 기존 경로다.
+    // Redis 선점 자체는 Application Port가 담당하고, 이 메서드는 DB 애그리거트 변경만 담당한다.
     public TimeDealPurchase reserve(
             TimeDeal timeDeal,
             TimeDealStock stock,
@@ -42,6 +57,23 @@ public class TimeDealPolicy {
         // NOTE: 선점만으로는 결제 확정 여부를 알 수 있으므로 타임딜을 종료하지 않는다.
         //       재고가 0이어도 RESERVED 구매가 취소·만료되면 재고가 복구될 수 있다.
         return purchase;
+    }
+
+    // NOTE: Redis 선점 이후 DB 재고를 원자적 UPDATE로 반영하는 경로에서는 stock.reserve()를 호출하지 않는다.
+    // DB 재고 변경은 TimeDealStockRepository의 조건부 UPDATE가 담당하고, 이 메서드는 구매 객체만 생성한다.
+    public TimeDealPurchase createReservedPurchase(
+            TimeDeal timeDeal,
+            TimeDealStock stock,
+            UUID orderId,
+            UUID userId,
+            Integer quantity,
+            Integer alreadyPurchasedQuantity,
+            Instant now
+    ) {
+        validateRequiredFields(timeDeal, stock);
+        stock.validateBelongsToTimeDeal(timeDeal.getId());
+        timeDeal.validatePurchaseQuantity(quantity, alreadyPurchasedQuantity);
+        return TimeDealPurchase.create(timeDeal, orderId, userId, quantity, now);
     }
 
     // NOTE: 결제 완료된 선점을 판매 확정한다. 만료됐으면 정리만 하고 CANCELLED를 반환한다 —
@@ -97,7 +129,7 @@ public class TimeDealPolicy {
         stock.cancelReservation(quantity);
     }
 
-    // NOTE: 취소 직전 상태에 맞게 재고를 복구한다. ENDED인 타임딜 상태는 복구하지 않아 TimeDeal을 받지 않는다.
+    // NOTE: RESERVED만 재고를 복구한다. CONFIRMED는 사용된 판매로 간주해 취소해도 재고를 복구하지 않는다.
     // NOTE: reason은 String이며 null도 허용한다 — enum은 타입 제약이 아니라 문구 카탈로그다.
     public void cancelPurchase(
             TimeDealPurchase purchase,
@@ -114,16 +146,11 @@ public class TimeDealPolicy {
         }
 
         TimeDealPurchaseStatus statusBeforeCancel = purchase.getStatus();
-        Integer quantity = purchase.getQuantity();
-
         // NOTE: cancel()의 상태 전이 검증이 먼저 돌아, 이미 CANCELLED인 건은 재고를 건드리기 전에 걸린다.
         purchase.cancel(reason);
 
         if (statusBeforeCancel == TimeDealPurchaseStatus.RESERVED) {
-            stock.cancelReservation(quantity);
-        } else {
-            // NOTE: CONFIRMED는 선점을 거치지 않고 availableQuantity로 바로 복구한다.
-            stock.cancelSale(quantity);
+            stock.cancelReservation(purchase.getQuantity());
         }
     }
 

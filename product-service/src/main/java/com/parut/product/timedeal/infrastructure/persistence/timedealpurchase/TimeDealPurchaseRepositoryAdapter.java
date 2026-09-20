@@ -29,6 +29,11 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     }
 
     @Override
+    public Optional<TimeDealPurchase> findByOrderIdForUpdate(UUID orderId) {
+        return jpaTimeDealPurchaseRepository.findByOrderIdForUpdate(orderId);
+    }
+
+    @Override
     public int sumActiveQuantity(UUID timeDealId, UUID userId) {
         long sum = jpaTimeDealPurchaseRepository.sumQuantityByStatusIn(timeDealId, userId, ACTIVE_STATUSES);
         // NOTE: int를 넘는 합은 데이터 이상이므로 잘라내지 않고 예외로 드러낸다.
@@ -38,5 +43,10 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     @Override
     public TimeDealPurchase save(TimeDealPurchase timeDealPurchase) {
         return jpaTimeDealPurchaseRepository.save(timeDealPurchase);
+    }
+
+    @Override
+    public TimeDealPurchase saveAndFlush(TimeDealPurchase timeDealPurchase) {
+        return jpaTimeDealPurchaseRepository.saveAndFlush(timeDealPurchase);
     }
 }
