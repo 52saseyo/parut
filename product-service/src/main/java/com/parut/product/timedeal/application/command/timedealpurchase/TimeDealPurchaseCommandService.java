@@ -69,16 +69,30 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         // Redis 선점 전에 타임딜 기간·수량·1인당 한도만 검증한다. 이 단계에서는 DB 재고를 변경하지 않는다.
         timeDealPolicy.validateReservation(timeDeal, timeDealStock, timeDealPurchaseReserveCommand.quantity(), alreadyPurchasedQuantity, now);
 
-        TimeDealStockReservationResult reservationResult = timeDealStockReservationPort.reserve(timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity());
+        TimeDealStockReservationResult reservationResult;
+        try {
+            reservationResult = timeDealStockReservationPort.reserve(timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity());
+        } catch (RuntimeException redisFailure) {
+            log.error("[TimeDealPurchase] Redis 선점 요청 실패. timeDealId={}, stockId={}, orderId={}, quantity={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity(), redisFailure);
+            throw redisFailure;
+        }
+
+        log.debug("[TimeDealPurchase] Redis 선점 결과. timeDealId={}, stockId={}, orderId={}, quantity={}, result={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity(), reservationResult);
 
         switch (reservationResult) {
             case RESERVED -> {
                 // Redis 선점과 DB 구매 이력 저장을 함께 완료한다.
             }
-            case DUPLICATE_ORDER -> throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+            case DUPLICATE_ORDER -> {
+                log.warn("[TimeDealPurchase] Redis 중복 주문 선점 요청. timeDealId={}, orderId={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealPurchaseReserveCommand.orderId());
+                throw new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
+            }
             case SOLD_OUT, INSUFFICIENT_STOCK -> throw new BusinessException(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
             case INVALID_QUANTITY -> throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
-            case STOCK_NOT_INITIALIZED -> throw new IllegalStateException("Redis stock key is not initialized");
+            case STOCK_NOT_INITIALIZED -> {
+                log.error("[TimeDealPurchase] Redis 재고 Key가 초기화되지 않음. timeDealId={}, stockId={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId());
+                throw new IllegalStateException("Redis stock key is not initialized");
+            }
         }
 
         // Redis 선점 성공 이후에만 기존 DB 구매 생성·재고 projection을 반영한다.
@@ -89,7 +103,9 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         try {
             // NOTE: save만 사용하면 바로 INSERT DB Flush하는게 안기떄문에 DB 오류가 트랜잭션 커밋 시점에 발생해 이 catch를 지나칠 수 있으므로 보상 판단을 위해 flush까지 이곳에서 수행한다.
             timeDealPurchaseRepository.saveAndFlush(timeDealPurchase);
+            log.debug("[TimeDealPurchase] Redis 선점 및 DB 구매 저장 성공. timeDealId={}, stockId={}, orderId={}, quantity={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity());
         } catch (RuntimeException databaseFailure) {
+            log.error("[TimeDealPurchase] Redis 선점 후 DB 구매 저장 실패. 보상을 시도한다. timeDealId={}, stockId={}, orderId={}, quantity={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity(), databaseFailure);
             compensateRedisReservation(timeDealPurchaseReserveCommand, timeDealStock, databaseFailure);
             throw databaseFailure;
         }
