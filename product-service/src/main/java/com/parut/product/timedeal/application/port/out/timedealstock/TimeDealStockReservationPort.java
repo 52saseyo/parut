@@ -10,4 +10,10 @@ public interface TimeDealStockReservationPort {
             UUID orderId,
             int quantity
     );
+
+    TimeDealStockCompensationResult compensate(
+            UUID timeDealId,
+            UUID stockId,
+            UUID orderId
+    );
 }

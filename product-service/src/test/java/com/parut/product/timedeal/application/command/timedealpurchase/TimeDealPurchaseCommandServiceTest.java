@@ -11,6 +11,7 @@ import com.parut.product.timedeal.application.port.out.timedealpurchase.TimeDeal
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -123,7 +125,7 @@ class TimeDealPurchaseCommandServiceTest {
 
             timeDealPurchaseCommandService.reserve(reserveCommand(5));
 
-            verify(timeDealPurchaseRepository).save(any(TimeDealPurchase.class));
+            verify(timeDealPurchaseRepository).saveAndFlush(any(TimeDealPurchase.class));
             assertThat(timeDealStock.getReservedQuantity()).isEqualTo(5);
             assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(95);
         }
@@ -142,9 +144,31 @@ class TimeDealPurchaseCommandServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_STOCK_INSUFFICIENT);
 
-            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealPurchaseRepository, never()).saveAndFlush(any());
             assertThat(timeDealStock.getReservedQuantity()).isZero();
             assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
+        }
+
+        @Test
+        @DisplayName("DB 구매 저장이 실패하면 Redis 선점을 보상한다")
+        void 예약_DB저장실패_보상() {
+            givenTimeDealAndStockFound();
+            TimeDealPurchaseReserveCommand command = reserveCommand(5);
+            when(timeDealPurchaseRepository.findByOrderId(command.orderId())).thenReturn(Optional.empty());
+            when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
+            when(timeDealStockReservationPort.reserve(any(), any(), any(), anyInt()))
+                    .thenReturn(TimeDealStockReservationResult.RESERVED);
+            when(timeDealStockReservationPort.compensate(any(), any(), any()))
+                    .thenReturn(TimeDealStockCompensationResult.COMPENSATED);
+            doThrow(new IllegalStateException("database failure"))
+                    .when(timeDealPurchaseRepository).saveAndFlush(any(TimeDealPurchase.class));
+
+            assertThatThrownBy(() -> timeDealPurchaseCommandService.reserve(command))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("database failure");
+
+            verify(timeDealStockReservationPort).compensate(
+                    command.timeDealId(), timeDealStock.getId(), command.orderId());
         }
 
         @Test
@@ -158,7 +182,7 @@ class TimeDealPurchaseCommandServiceTest {
 
             timeDealPurchaseCommandService.reserve(command);
 
-            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealPurchaseRepository, never()).saveAndFlush(any());
             verify(timeDealRepository, never()).findById(any());
             assertThat(timeDealStock.getReservedQuantity()).isZero();
             assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
@@ -179,7 +203,7 @@ class TimeDealPurchaseCommandServiceTest {
                     .isEqualTo(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
 
             verify(timeDealRepository, never()).findById(any());
-            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealPurchaseRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -197,7 +221,7 @@ class TimeDealPurchaseCommandServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_PURCHASE_ALREADY_EXISTS);
 
-            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealPurchaseRepository, never()).saveAndFlush(any());
         }
 
         @Test
@@ -238,7 +262,7 @@ class TimeDealPurchaseCommandServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_EXCEEDS_MAX_PURCHASE_QUANTITY);
 
-            verify(timeDealPurchaseRepository, never()).save(any());
+            verify(timeDealPurchaseRepository, never()).saveAndFlush(any());
             assertThat(timeDealStock.getReservedQuantity()).isZero();
         }
     }

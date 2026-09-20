@@ -33,4 +33,16 @@ class TimeDealStockReservationLuaScriptTest {
         assertThat(script).contains("return 4");
         assertThat(script).contains("return 5");
     }
+
+    @Test
+    void 보상_script가_선점수량복구와_예약키삭제를_하나로_처리한다() {
+        String script = TimeDealStockReservationLuaScript.COMPENSATION_SCRIPT;
+
+        assertThat(script).contains("GET");
+        assertThat(script).contains("INCRBY");
+        assertThat(script).contains("DEL");
+        assertThat(script).contains("return 0");
+        assertThat(script).contains("return 1");
+        assertThat(script).contains("return 2");
+    }
 }

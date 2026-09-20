@@ -13,6 +13,10 @@ public final class TimeDealStockReservationLuaScript {
     public static final int STOCK_NOT_INITIALIZED = 4;
     public static final int INSUFFICIENT_STOCK = 5;
 
+    public static final int COMPENSATION_ALREADY_COMPLETED = 0;
+    public static final int COMPENSATION_COMPLETED = 1;
+    public static final int COMPENSATION_STOCK_NOT_INITIALIZED = 2;
+
     public static final String SCRIPT = """
             -- KEYS[1]: timedeal:stock:{timeDealId}:{stockId}
             -- KEYS[2]: timedeal:reservation:{timeDealId}:{orderId}
@@ -52,6 +56,34 @@ public final class TimeDealStockReservationLuaScript {
             redis.call('DECRBY', KEYS[1], quantity)
             -- reservation Key에는 보상에 사용할 선점 수량을 저장한다.
             redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[2], 'NX')
+            return 1
+            """;
+
+    /**
+     * reservation Key의 수량만큼 stock Key를 복구하고 reservation Key를 삭제한다.
+     * 두 작업을 하나의 Script로 묶어 중복 보상과 부분 보상을 방지한다.
+     */
+    public static final String COMPENSATION_SCRIPT = """
+            -- KEYS[1]: timedeal:stock:{timeDealId}:{stockId}
+            -- KEYS[2]: timedeal:reservation:{timeDealId}:{orderId}
+            local reservationValue = redis.call('GET', KEYS[2])
+
+            -- 이미 보상됐거나 TTL이 만료된 경우는 멱등 성공으로 처리한다.
+            if reservationValue == false then
+                return 0
+            end
+
+            local quantity = tonumber(reservationValue)
+            local stockValue = redis.call('GET', KEYS[1])
+
+            -- stock Key가 없으면 수량을 복구하지 않고 reservation Key도 보존한다.
+            -- 이후 재처리 또는 정합성 복구 작업의 대상이 되어야 한다.
+            if stockValue == false or tonumber(stockValue) == nil or quantity == nil or quantity <= 0 then
+                return 2
+            end
+
+            redis.call('INCRBY', KEYS[1], quantity)
+            redis.call('DEL', KEYS[2])
             return 1
             """;
 

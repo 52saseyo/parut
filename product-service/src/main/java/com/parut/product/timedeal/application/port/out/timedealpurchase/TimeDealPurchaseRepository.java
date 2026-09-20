@@ -17,4 +17,6 @@ public interface TimeDealPurchaseRepository {
     int sumActiveQuantity(UUID timeDealId, UUID userId);
 
     TimeDealPurchase save(TimeDealPurchase timeDealPurchase);
+
+    TimeDealPurchase saveAndFlush(TimeDealPurchase timeDealPurchase);
 }

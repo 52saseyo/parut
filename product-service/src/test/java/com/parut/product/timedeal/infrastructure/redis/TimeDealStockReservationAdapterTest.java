@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.infrastructure.redis;
 
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -90,5 +91,27 @@ class TimeDealStockReservationAdapterTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), 1);
 
         assertThat(result).isEqualTo(TimeDealStockReservationResult.DUPLICATE_ORDER);
+    }
+
+    @Test
+    void Redis_보상완료코드를_COMPENSATED로_변환한다() {
+        when(script.eval(
+                eq(RScript.Mode.READ_WRITE),
+                anyString(),
+                eq(RScript.ReturnType.LONG),
+                anyList(),
+                any(Object[].class)
+        )).thenReturn(1L);
+
+        TimeDealStockCompensationResult result = adapter.compensate(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+
+        assertThat(result).isEqualTo(TimeDealStockCompensationResult.COMPENSATED);
+        verify(script).eval(
+                eq(RScript.Mode.READ_WRITE),
+                eq(TimeDealStockReservationLuaScript.COMPENSATION_SCRIPT),
+                eq(RScript.ReturnType.LONG),
+                anyList()
+        );
     }
 }

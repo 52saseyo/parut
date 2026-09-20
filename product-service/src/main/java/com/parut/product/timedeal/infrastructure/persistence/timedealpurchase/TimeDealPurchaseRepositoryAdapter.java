@@ -39,4 +39,9 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     public TimeDealPurchase save(TimeDealPurchase timeDealPurchase) {
         return jpaTimeDealPurchaseRepository.save(timeDealPurchase);
     }
+
+    @Override
+    public TimeDealPurchase saveAndFlush(TimeDealPurchase timeDealPurchase) {
+        return jpaTimeDealPurchaseRepository.saveAndFlush(timeDealPurchase);
+    }
 }
