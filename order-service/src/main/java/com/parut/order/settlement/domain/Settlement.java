@@ -24,6 +24,10 @@ public class Settlement extends UpdatableEntity {
     @Column(name = "order_item_id", nullable = false)
     private UUID orderItemId;
 
+    // 정산 생성 이후 주문 구조가 바뀌어도 귀속 판매자를 유지하는 생성 시점 스냅샷이다.
+    @Column(name = "seller_id", nullable = false)
+    private UUID sellerId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private SettlementStatus status;
@@ -49,21 +53,26 @@ public class Settlement extends UpdatableEntity {
 
     public static Settlement create(
             UUID orderItemId,
+            UUID sellerId,
             long salesAmount,
             long settlementAmount,
             Instant eligibleAt
     ) {
-        return new Settlement(orderItemId, salesAmount, settlementAmount, eligibleAt);
+        return new Settlement(orderItemId, sellerId, salesAmount, settlementAmount, eligibleAt);
     }
 
     private Settlement(
             UUID orderItemId,
+            UUID sellerId,
             long salesAmount,
             long settlementAmount,
             Instant eligibleAt
     ) {
         if (orderItemId == null) {
             throw new IllegalArgumentException("주문상품 ID는 필수입니다.");
+        }
+        if (sellerId == null) {
+            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
         }
         if (salesAmount < 0) {
             throw new IllegalArgumentException("판매 금액은 0 이상이어야 합니다.");
@@ -76,6 +85,7 @@ public class Settlement extends UpdatableEntity {
         }
 
         this.orderItemId = orderItemId;
+        this.sellerId = sellerId;
         this.salesAmount = salesAmount;
         this.settlementAmount = settlementAmount;
         this.eligibleAt = eligibleAt;
