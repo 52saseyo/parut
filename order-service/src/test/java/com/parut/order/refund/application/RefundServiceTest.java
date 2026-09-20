@@ -21,8 +21,11 @@ import org.mockito.InjectMocks;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderItemQueryUseCase;
@@ -76,9 +79,83 @@ class RefundServiceTest {
         Refund refund = refundService.requestRefund(ORDER_ITEM_ID, CUSTOMER_ID, "상품 불량");
 
         assertThat(refund.getStatus()).isEqualTo(RefundStatus.REQUESTED);
+        assertThat(refund.getCustomerId()).isEqualTo(CUSTOMER_ID);
+        assertThat(refund.getSellerId()).isEqualTo(SELLER_ID);
         assertThat(refund.getRefundAmount()).isEqualTo(10_000L);
         verify(orderItemRefundUseCase).requestRefund(List.of(ORDER_ITEM_ID));
         verify(refundRepository).save(refund);
+    }
+
+    @Test
+    @DisplayName("고객과 판매자는 본인 범위의 환불만 단건 조회한다")
+    void 환불_단건_조회_소유권() {
+        UUID refundId = UUID.randomUUID();
+        Refund refund = refund();
+        when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
+
+        assertThat(refundService.getRefund(refundId, CUSTOMER_ID, UserRole.CUSTOMER)).isSameAs(refund);
+        assertThat(refundService.getRefund(refundId, SELLER_ID, UserRole.SELLER)).isSameAs(refund);
+        assertThatThrownBy(() -> refundService.getRefund(refundId, UUID.randomUUID(), UserRole.CUSTOMER))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    @DisplayName("고객과 판매자 환불 목록은 각 소유자를 DB 조회 조건으로 전달한다")
+    void 환불_목록_소유권_조회() {
+        Refund refund = refund();
+        when(refundRepository.findCustomerRefunds(
+                CUSTOMER_ID, RefundStatus.REQUESTED, null, null, PageRequest.of(0, 11)))
+                .thenReturn(List.of(refund));
+        when(refundRepository.findSellerRefunds(
+                SELLER_ID, null, null, null, PageRequest.of(0, 11)))
+                .thenReturn(List.of(refund));
+
+        RefundPage customerPage = refundService.getRefunds(
+                CUSTOMER_ID,
+                UserRole.CUSTOMER,
+                RefundStatus.REQUESTED,
+                null,
+                null,
+                10
+        );
+        RefundPage sellerPage = refundService.getRefunds(
+                SELLER_ID,
+                UserRole.SELLER,
+                null,
+                null,
+                null,
+                10
+        );
+
+        assertThat(customerPage.content()).containsExactly(refund);
+        assertThat(sellerPage.content()).containsExactly(refund);
+    }
+
+    @Test
+    @DisplayName("관리자는 상태 조건으로 환불 목록을 조회한다")
+    void 관리자_환불_목록_조회() {
+        Refund refund = refund();
+        PageRequest pageable = PageRequest.of(0, 10);
+        when(refundRepository.findByStatus(RefundStatus.REQUESTED, pageable))
+                .thenReturn(new PageImpl<>(List.of(refund), pageable, 1));
+
+        assertThat(refundService.getAdminRefunds(RefundStatus.REQUESTED, pageable).getContent())
+                .containsExactly(refund);
+    }
+
+    @Test
+    @DisplayName("환불 목록의 커서 형식과 페이지 크기를 검증한다")
+    void 환불_목록_입력값_검증() {
+        assertThatThrownBy(() -> refundService.getRefunds(
+                CUSTOMER_ID, UserRole.CUSTOMER, null, "invalid", UUID.randomUUID(), 10))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        assertThatThrownBy(() -> refundService.getRefunds(
+                CUSTOMER_ID, UserRole.CUSTOMER, null, null, null, 20))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_PAGE_SIZE));
     }
 
     @Test
@@ -125,7 +202,7 @@ class RefundServiceTest {
     @DisplayName("본인의 요청 상태 환불을 취소한다")
     void 환불_요청_취소() {
         UUID refundId = UUID.randomUUID();
-        Refund refund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", Instant.now());
+        Refund refund = refund();
         when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
         when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID))).thenReturn(List.of(orderItem()));
 
@@ -140,7 +217,7 @@ class RefundServiceTest {
     @DisplayName("환불 거절")
     void 환불_거절() {
         UUID refundId = UUID.randomUUID();
-        Refund refund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", Instant.now());
+        Refund refund = refund();
 
         when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
         when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID)))
@@ -159,7 +236,7 @@ class RefundServiceTest {
     @DisplayName("다른 판매자의 환불 거절 요청은 거부한다")
     void 환불_거절_권한_검증() {
         UUID refundId = UUID.randomUUID();
-        Refund refund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", Instant.now());
+        Refund refund = refund();
 
         when(refundRepository.findById(refundId)).thenReturn(Optional.of(refund));
         when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID)))
@@ -182,8 +259,10 @@ class RefundServiceTest {
         Instant requestedAt = Instant.now();
         Instant canceledAt = requestedAt.plusSeconds(1);
 
-        Refund firstRefund = Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", requestedAt);
-        Refund secondRefund = Refund.request(SECOND_ORDER_ITEM_ID, 10_000L, "상품 파손", requestedAt);
+        Refund firstRefund = Refund.request(
+                ORDER_ITEM_ID, CUSTOMER_ID, SELLER_ID, 10_000L, "상품 불량", requestedAt);
+        Refund secondRefund = Refund.request(
+                SECOND_ORDER_ITEM_ID, CUSTOMER_ID, SELLER_ID, 10_000L, "상품 파손", requestedAt);
 
         when(refundRepository.findAllById(refundIds)).thenReturn(List.of(firstRefund, secondRefund));
         when(orderItemQueryUseCase.getOrderItems(List.of(ORDER_ITEM_ID, SECOND_ORDER_ITEM_ID)))
@@ -219,6 +298,17 @@ class RefundServiceTest {
 
     private OrderItemView orderItem() {
         return orderItem(OrderItemStatus.ORDERED, DeliveryGroupStatus.DELIVERED);
+    }
+
+    private Refund refund() {
+        return Refund.request(
+                ORDER_ITEM_ID,
+                CUSTOMER_ID,
+                SELLER_ID,
+                10_000L,
+                "상품 불량",
+                Instant.now()
+        );
     }
 
     private OrderItemView orderItem(UUID orderItemId, OrderItemStatus itemStatus) {

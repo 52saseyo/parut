@@ -169,7 +169,8 @@ class SettlementRejectionTransactionTest {
             orderItemRepository.save(orderItem);
 
             return refundRepository.save(Refund.request(
-                    orderItem.getId(), unitPrice, "상품 불량", Instant.now().minusSeconds(1)));
+                    orderItem.getId(), CUSTOMER_ID, SELLER_ID,
+                    unitPrice, "상품 불량", Instant.now().minusSeconds(1)));
         });
     }
 

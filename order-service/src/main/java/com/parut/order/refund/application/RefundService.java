@@ -2,6 +2,7 @@ package com.parut.order.refund.application;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -10,10 +11,14 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
+import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.in.OrderItemQueryUseCase;
@@ -31,7 +36,7 @@ import com.parut.order.refund.infrastructure.persistence.RefundRepository;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 환불 요청과 고객의 요청 취소, 판매자의 승인 및 거절을 처리한다.
+ * 환불 요청과 조회, 고객의 요청 취소, 판매자의 승인 및 거절을 처리한다.
  *
  * <p>주문상품 조회와 상태 변경은 Order 포트로, 배송 완료 시각 조회는 Delivery 포트로 처리한다.
  * 외부 Payment 취소를 포함한 승인 순서는 {@link RefundFacade}가 조율한다.
@@ -82,7 +87,79 @@ public class RefundService {
         long refundAmount = Math.multiplyExact(orderItem.unitPrice(), orderItem.quantity());
 
         orderItemRefundUseCase.requestRefund(List.of(orderItemId));
-        return refundRepository.save(Refund.request(orderItemId, refundAmount, reason, now));
+        return refundRepository.save(Refund.request(
+                orderItemId,
+                orderItem.buyerId(),
+                orderItem.sellerId(),
+                refundAmount,
+                reason,
+                now
+        ));
+    }
+
+    /** 고객과 판매자가 환불 요청 당시 소유자 범위에서 환불 한 건을 조회한다. */
+    public Refund getRefund(UUID refundId, UUID requesterId, UserRole requesterRole) {
+        if (refundId == null || requesterId == null || requesterRole == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        Refund refund = refundRepository.findById(refundId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_NOT_FOUND));
+
+        if (!isOwnedBy(refund, requesterId, requesterRole)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return refund;
+    }
+
+    /**
+     * 고객과 판매자의 소유자 스냅샷을 기준으로 환불 목록을 커서 조회한다.
+     * 상태를 생략하면 소유자 범위의 모든 환불 상태를 반환한다.
+     */
+    public RefundPage getRefunds(
+            UUID requesterId,
+            UserRole requesterRole,
+            RefundStatus status,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        validateQuery(requesterId, requesterRole, cursor, cursorId, size);
+        Instant cursorTime = parseCursor(cursor);
+
+        PageRequest pageable = PageRequest.of(0, size + 1);
+        List<Refund> refunds = switch (requesterRole) {
+            case CUSTOMER -> refundRepository.findCustomerRefunds(
+                    requesterId, status, cursorTime, cursorId, pageable);
+            case SELLER -> refundRepository.findSellerRefunds(
+                    requesterId, status, cursorTime, cursorId, pageable);
+            default -> throw new BusinessException(ErrorCode.FORBIDDEN);
+        };
+
+        boolean hasNext = refunds.size() > size;
+        List<Refund> content = hasNext ? refunds.subList(0, size) : refunds;
+        if (!hasNext) {
+            return new RefundPage(content, null, null, false);
+        }
+
+        Refund lastRefund = content.getLast();
+        return new RefundPage(
+                content,
+                lastRefund.getCreatedAt().toString(),
+                lastRefund.getId(),
+                true
+        );
+    }
+
+    /**
+     * 관리자가 전체 환불을 상태 조건으로 조회한다.
+     * 관리 화면에 필요한 전체 건수와 페이지 번호를 제공하기 위해 오프셋 페이지를 사용한다.
+     */
+    public Page<Refund> getAdminRefunds(RefundStatus status, Pageable pageable) {
+        if (status == null) {
+            return refundRepository.findAll(pageable);
+        }
+        return refundRepository.findByStatus(status, pageable);
     }
 
     @Transactional
@@ -193,6 +270,41 @@ public class RefundService {
                 .filter(item -> orderItemId.equals(item.orderItemId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_ITEM_NOT_FOUND));
+    }
+
+    private boolean isOwnedBy(Refund refund, UUID requesterId, UserRole requesterRole) {
+        return switch (requesterRole) {
+            case CUSTOMER -> requesterId.equals(refund.getCustomerId());
+            case SELLER -> requesterId.equals(refund.getSellerId());
+            default -> false;
+        };
+    }
+
+    private void validateQuery(
+            UUID requesterId,
+            UserRole requesterRole,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        boolean hasOnlyOneCursorValue = (cursor == null) != (cursorId == null);
+        if (requesterId == null || requesterRole == null || hasOnlyOneCursorValue) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (size != 10 && size != 30 && size != 50) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+        }
+    }
+
+    private Instant parseCursor(String cursor) {
+        if (cursor == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(cursor);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 
     private List<Refund> getRequestedRefunds(List<UUID> refundIds) {
