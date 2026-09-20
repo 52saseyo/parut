@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/seller/time-deals/{timeDealId}/images")
+@RequestMapping("/api/v1/time-deals/seller/{timeDealId}/images")
 public class TimeDealImageController {
 
     private final TimeDealImageService timeDealImageService;

@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/seller/time-deals")
+@RequestMapping("/api/v1/time-deals/seller")
 @RequiredArgsConstructor
 public class TimeDealStockController {
 
