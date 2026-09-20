@@ -66,7 +66,7 @@ class TimeDealStockQueryServiceTest {
         assertThat(result.reservedQuantity()).isZero();
         assertThat(result.soldQuantity()).isZero();
         assertThat(result.lowStockThreshold()).isEqualTo(10);
-        verify(authorizationChecker).requireSellerOwnerOrAdmin(REQUESTER_ID, SELLER_ROLE, SELLER_ID);
+        verify(authorizationChecker).requireSellerOwner(REQUESTER_ID, SELLER_ROLE, SELLER_ID);
     }
 
     @Test
@@ -100,7 +100,7 @@ class TimeDealStockQueryServiceTest {
         when(timeDealRepository.findById(TIME_DEAL_ID)).thenReturn(Optional.of(timeDeal));
         org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.TIME_DEAL_ACCESS_DENIED))
                 .when(authorizationChecker)
-                .requireSellerOwnerOrAdmin(REQUESTER_ID, SELLER_ROLE, SELLER_ID);
+                .requireSellerOwner(REQUESTER_ID, SELLER_ROLE, SELLER_ID);
 
         assertThatThrownBy(() -> service.getStock(TIME_DEAL_ID, REQUESTER_ID, SELLER_ROLE))
                 .extracting("errorCode")

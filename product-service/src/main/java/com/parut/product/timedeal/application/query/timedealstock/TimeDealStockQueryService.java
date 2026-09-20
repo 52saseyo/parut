@@ -33,7 +33,7 @@ public class TimeDealStockQueryService implements TimeDealStockQueryUseCase {
     public TimeDealStockQueryResult getStock(UUID timeDealId, UUID requesterId, String requesterRole) {
         TimeDeal timeDeal = timeDealRepository.findById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        authorizationChecker.requireSellerOwnerOrAdmin(requesterId, requesterRole, timeDeal.getSellerId());
+        authorizationChecker.requireSellerOwner(requesterId, requesterRole, timeDeal.getSellerId());
 
         TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealId(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
