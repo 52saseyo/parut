@@ -1,31 +1,41 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.common.ApiResponse;
+import com.parut.product.global.common.CursorPageInfo;
+import com.parut.product.global.common.CursorResponse;
+import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealCreateResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealUpdateResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
+import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealCreateRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealConvertRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealUpdateRequest;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealCreateResponse;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealStopResponse;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealUpdateResponse;
+import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealPublicDetailResponse;
+import com.parut.product.timedeal.presentation.support.TimeDealCursorRequestValidator;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -36,6 +46,32 @@ import java.util.UUID;
 public class SellerTimeDealController {
 
     private final TimeDealCommandUseCase timeDealCommandUseCase;
+    private final TimeDealQueryUseCase timeDealQueryUseCase;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<CursorResponse<TimeDealPublicDetailResponse>>> getList(
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) UUID cursorId,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        TimeDealCursorRequestValidator.validateSeller(cursor, cursorId, size);
+        TimeDealCursorResult<TimeDealPublicDetailResult> result = timeDealQueryUseCase.getSellerOwnedTimeDealList(
+                sellerId, requesterRole, cursor, cursorId, size);
+        CursorResponse<TimeDealPublicDetailResponse> response = new CursorResponse<>(
+                result.content().stream()
+                        .map(TimeDealPublicDetailResponse::from)
+                        .toList(),
+                CursorPageInfo.of(
+                        result.nextCursor(),
+                        result.nextIdAfter(),
+                        result.hasNext(),
+                        "startAt",
+                        SortDirection.DESC)
+        );
+        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
+    }
 
     // NOTE: 일반 상품 전환. 판매자 본인 또는 운영자가 요청할 수 있으며 소유권 판정은 product가 담당한다.
     @PostMapping("/conversions")

@@ -1,9 +1,11 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUseCase;
+import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
+import java.util.List;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.verify;
@@ -27,8 +30,30 @@ class SellerTimeDealControllerTest {
     @MockitoBean
     private TimeDealCommandUseCase useCase;
 
+    @MockitoBean
+    private TimeDealQueryUseCase queryUseCase;
+
     @Autowired
     private MockMvc mvc;
+
+    @Test
+    void 판매자_본인_타임딜_목록을_커서로_조회한다() throws Exception {
+        UUID sellerId = UUID.randomUUID();
+        when(queryUseCase.getSellerOwnedTimeDealList(sellerId, "SELLER", null, null, 10))
+                .thenReturn(TimeDealCursorResult.withoutNextCursor(List.of()));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/seller/time-deals")
+                        .header("X-User-Id", sellerId)
+                        .header("X-User-Role", "SELLER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.pageInfo.paginationType").value("CURSOR"))
+                .andExpect(jsonPath("$.data.pageInfo.sortBy").value("startAt"));
+
+        verify(queryUseCase).getSellerOwnedTimeDealList(sellerId, "SELLER", null, null, 10);
+    }
 
     @Test
     void 판매자_타임딜_삭제() throws Exception {
