@@ -92,7 +92,7 @@ public enum ErrorCode {
     PRODUCT_INVALID_SALE_UNIT(HttpStatus.BAD_REQUEST, "판매 단위는 필수입니다."),
     PRODUCT_INVALID_UNIT_QUANTITY(HttpStatus.BAD_REQUEST, "판매 단위 수량은 0보다 커야 합니다."),
     PRODUCT_IMAGE_REQUIRED(HttpStatus.CONFLICT, "이미지가 등록된 상품만 판매할 수 있습니다."),
-    PRODUCT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 상품에 대한 권한이 없습니다."),
+    PRODUCT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "상품 작업에 대한 권한이 없습니다."),
 
 
 
