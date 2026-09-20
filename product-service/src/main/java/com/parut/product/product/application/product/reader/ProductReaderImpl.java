@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -59,6 +60,15 @@ public class ProductReaderImpl implements ProductReader {
     @Override
     public Product getProduct(UUID productId) {
         return findProduct(productId);
+    }
+
+
+    @Override
+    public List<Product> getProducts(List<UUID> productIds) {
+        if(productIds.isEmpty()){
+            return List.of();
+        }
+        return productRepository.findByIdInAndDeletedAtIsNull(productIds);
     }
 
     private Product findProduct(UUID productId) {
