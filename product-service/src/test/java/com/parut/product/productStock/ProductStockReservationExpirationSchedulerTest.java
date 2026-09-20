@@ -93,7 +93,7 @@ public class ProductStockReservationExpirationSchedulerTest {
         }
 
         @Test
-        @DisplayName("한 건 처리 중 예상 못한 예외가 발생해도 나머지 건은 계속 처리, 격리는 호출 안 됨")
+        @DisplayName("한 건 처리 중 예상 못한 예외가 발생해도 나머지 건은 계속 처리하고, 해당 건은 격리 처리도 시도됨")
         void expireReservations_oneFailureDoesNotStopOthers() {
             ProductStockReservation r1 = createReservation();
             ProductStockReservation r2 = createReservation();
@@ -114,10 +114,11 @@ public class ProductStockReservationExpirationSchedulerTest {
             assertThatCode(() -> scheduler.expireReservations())
                     .doesNotThrowAnyException();
 
-            log.info("[Scheduler.expireReservations] r2={} 처리 중 예상 못한 예외 발생 -> 격리 미호출, r1/r3은 계속 처리 기대",
+            log.info("[Scheduler.expireReservations] r2={} 처리 중 예상 못한 예외 발생 -> 격리 처리도 시도, r1/r3은 계속 처리 기대",
                     r2.getId());
 
-            verify(productStockReservationExpirationProcessor, never()).expirationFailed(any());
+            // BusinessException이 아닌 예외도 격리 안전망 사각지대에 빠지지 않도록 격리 처리를 시도해야 함
+            verify(productStockReservationExpirationProcessor).expirationFailed(r2.getId());
             // 실패한 건 이후에도 나머지 건(r3)은 정상적으로 호출되어야 함
             verify(productStockReservationExpirationProcessor).expireOneReservation(r1.getId());
             verify(productStockReservationExpirationProcessor).expireOneReservation(r2.getId());
