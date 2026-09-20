@@ -11,6 +11,9 @@ class TimeDealStockReservationLuaScriptTest {
         assertThat(TimeDealStockReservationLuaScript.SOLD_OUT).isZero();
         assertThat(TimeDealStockReservationLuaScript.RESERVED).isEqualTo(1);
         assertThat(TimeDealStockReservationLuaScript.DUPLICATE_ORDER).isEqualTo(2);
+        assertThat(TimeDealStockReservationLuaScript.INVALID_QUANTITY).isEqualTo(3);
+        assertThat(TimeDealStockReservationLuaScript.STOCK_NOT_INITIALIZED).isEqualTo(4);
+        assertThat(TimeDealStockReservationLuaScript.INSUFFICIENT_STOCK).isEqualTo(5);
     }
 
     @Test
@@ -26,5 +29,8 @@ class TimeDealStockReservationLuaScriptTest {
         assertThat(script).contains("return 0");
         assertThat(script).contains("return 1");
         assertThat(script).contains("return 2");
+        assertThat(script).contains("return 3");
+        assertThat(script).contains("return 4");
+        assertThat(script).contains("return 5");
     }
 }
