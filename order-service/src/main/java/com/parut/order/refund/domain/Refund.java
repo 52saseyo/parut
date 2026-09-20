@@ -24,6 +24,14 @@ public class Refund extends UpdatableEntity {
     @Column(name = "order_item_id", nullable = false)
     private UUID orderItemId;
 
+    /** 환불 요청 당시 구매자 식별자로, 고객 조회 권한 범위를 고정한다. */
+    @Column(name = "customer_id", nullable = false)
+    private UUID customerId;
+
+    /** 환불 요청 당시 판매자 식별자로, 판매자 조회 권한 범위를 고정한다. */
+    @Column(name = "seller_id", nullable = false)
+    private UUID sellerId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private RefundStatus status;
@@ -55,21 +63,31 @@ public class Refund extends UpdatableEntity {
 
     public static Refund request(
             UUID orderItemId,
+            UUID customerId,
+            UUID sellerId,
             long refundAmount,
             String reason,
             Instant requestedAt
     ) {
-        return new Refund(orderItemId, refundAmount, reason, requestedAt);
+        return new Refund(orderItemId, customerId, sellerId, refundAmount, reason, requestedAt);
     }
 
     private Refund(
             UUID orderItemId,
+            UUID customerId,
+            UUID sellerId,
             long refundAmount,
             String reason,
             Instant requestedAt
     ) {
         if (orderItemId == null) {
             throw new IllegalArgumentException("주문 상품 ID는 필수입니다.");
+        }
+        if (customerId == null) {
+            throw new IllegalArgumentException("구매자 ID는 필수입니다.");
+        }
+        if (sellerId == null) {
+            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
         }
         if (refundAmount < 0) {
             throw new IllegalArgumentException("환불 금액은 0 이상이어야 합니다.");
@@ -80,6 +98,8 @@ public class Refund extends UpdatableEntity {
         }
 
         this.orderItemId = orderItemId;
+        this.customerId = customerId;
+        this.sellerId = sellerId;
         this.refundAmount = refundAmount;
         this.reason = reason;
         this.requestedAt = requestedAt;

@@ -14,6 +14,7 @@ class RefundTest {
 
     private static final UUID ORDER_ITEM_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b9");
+    private static final UUID CUSTOMER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
     private static final Instant REQUESTED_AT = Instant.parse("2026-09-06T01:00:00Z");
 
     @Nested
@@ -26,6 +27,8 @@ class RefundTest {
             Refund refund = refund();
 
             assertThat(refund.getOrderItemId()).isEqualTo(ORDER_ITEM_ID);
+            assertThat(refund.getCustomerId()).isEqualTo(CUSTOMER_ID);
+            assertThat(refund.getSellerId()).isEqualTo(SELLER_ID);
             assertThat(refund.getRefundAmount()).isEqualTo(10_000L);
             assertThat(refund.getStatus()).isEqualTo(RefundStatus.REQUESTED);
         }
@@ -33,11 +36,11 @@ class RefundTest {
         @Test
         @DisplayName("주문상품 ID, 환불금액과 사유를 검증한다")
         void 환불_요청값_검증() {
-            assertThatThrownBy(() -> Refund.request(null, 10_000L, "상품 불량", REQUESTED_AT))
+            assertThatThrownBy(() -> Refund.request(null, CUSTOMER_ID, SELLER_ID, 10_000L, "상품 불량", REQUESTED_AT))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> Refund.request(ORDER_ITEM_ID, -1L, "상품 불량", REQUESTED_AT))
+            assertThatThrownBy(() -> Refund.request(ORDER_ITEM_ID, CUSTOMER_ID, SELLER_ID, -1L, "상품 불량", REQUESTED_AT))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> Refund.request(ORDER_ITEM_ID, 10_000L, " ", REQUESTED_AT))
+            assertThatThrownBy(() -> Refund.request(ORDER_ITEM_ID, CUSTOMER_ID, SELLER_ID, 10_000L, " ", REQUESTED_AT))
                     .isInstanceOf(IllegalArgumentException.class);
         }
     }
@@ -74,6 +77,6 @@ class RefundTest {
     }
 
     private Refund refund() {
-        return Refund.request(ORDER_ITEM_ID, 10_000L, "상품 불량", REQUESTED_AT);
+        return Refund.request(ORDER_ITEM_ID, CUSTOMER_ID, SELLER_ID, 10_000L, "상품 불량", REQUESTED_AT);
     }
 }

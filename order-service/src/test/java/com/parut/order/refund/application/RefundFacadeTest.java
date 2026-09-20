@@ -41,6 +41,7 @@ class RefundFacadeTest {
         UUID firstOrderItemId = UUID.randomUUID();
         UUID secondOrderItemId = UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
         UUID sellerId = UUID.randomUUID();
         List<UUID> refundIds = List.of(firstRefundId, secondRefundId);
         RefundApprovalContext context = new RefundApprovalContext(
@@ -57,8 +58,8 @@ class RefundFacadeTest {
                 "pg-transaction-key"
         );
         List<Refund> approvedRefunds = List.of(
-                Refund.request(firstOrderItemId, 10_000L, "상품 불량", Instant.now()),
-                Refund.request(secondOrderItemId, 10_000L, "상품 파손", Instant.now())
+                Refund.request(firstOrderItemId, customerId, sellerId, 10_000L, "상품 불량", Instant.now()),
+                Refund.request(secondOrderItemId, customerId, sellerId, 10_000L, "상품 파손", Instant.now())
         );
 
         when(refundService.prepareApproval(refundIds, sellerId)).thenReturn(context);
