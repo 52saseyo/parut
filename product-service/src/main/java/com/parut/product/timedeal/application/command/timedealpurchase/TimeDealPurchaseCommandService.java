@@ -5,6 +5,7 @@ import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseCancelCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseReserveCommand;
+import com.parut.product.timedeal.application.event.timedealpurchase.TimeDealPurchaseReservationReleasedEvent;
 import com.parut.product.timedeal.application.exception.TimeDealReservationExpiredException;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -21,6 +22,7 @@ import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchaseStatus
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     private final TimeDealPurchaseRepository timeDealPurchaseRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final TimeDealStockReservationPort timeDealStockReservationPort;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     // NOTE: 애그리거트 조율은 전부 TimeDealPolicy를 경유한다. 여기 남는 것은 조회·저장·트랜잭션 경계와
@@ -148,14 +151,16 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     public void confirm(TimeDealPurchaseConfirmCommand timeDealPurchaseConfirmCommand) {
         Instant now = Instant.now();
 
-        TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository.findByOrderId(timeDealPurchaseConfirmCommand.orderId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
+        // confirm/cancel은 동일 구매에 대한 상태 전이를 직렬화해야 하므로 구매 행을 먼저 잠근다.
+        TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository.findByOrderIdForUpdate(timeDealPurchaseConfirmCommand.orderId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
         TimeDeal timeDeal = timeDealRepository.findById(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealId(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
+        TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealIdForUpdate(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
         TimeDealPurchaseConfirmResult timeDealPurchaseConfirmResult = timeDealPolicy.confirmSale(timeDeal, timeDealPurchase, timeDealStock, now);
 
         // NOTE: 이 예외만 noRollbackFor에 지정되어 있어, 위 정리는 커밋되고 응답은 409가 나간다.
         if (timeDealPurchaseConfirmResult == TimeDealPurchaseConfirmResult.CANCELLED) {
+            publishReservationReleasedEvent(timeDealPurchase, timeDealStock);
             throw new TimeDealReservationExpiredException();
         }
     }
@@ -164,15 +169,28 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     @Override
     @Transactional
     public void cancel(TimeDealPurchaseCancelCommand timeDealPurchaseCancelCommand) {
-        TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository.findByOrderId(timeDealPurchaseCancelCommand.orderId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
+        // confirm과 같은 순서(구매 행 -> 재고 행)로 잠가 교차 잠금에 의한 deadlock을 피한다.
+        TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository.findByOrderIdForUpdate(timeDealPurchaseCancelCommand.orderId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND));
 
         // NOTE: 멱등 처리 자체는 TimeDealPolicy가 하고, 여기서는 관측을 위해 로그만 남긴다.
         if (timeDealPurchase.getStatus() == TimeDealPurchaseStatus.CANCELLED) {
             log.warn("[TimeDealPurchase] 이미 취소된 구매에 대한 취소 요청. orderId={}, reason={}", timeDealPurchaseCancelCommand.orderId(), timeDealPurchaseCancelCommand.reason());
         }
 
-        TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealId(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
+        TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealIdForUpdate(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
+        boolean reservationReleased = timeDealPurchase.getStatus() == TimeDealPurchaseStatus.RESERVED;
         timeDealPolicy.cancelPurchase(timeDealPurchase, timeDealStock, timeDealPurchaseCancelCommand.reason());
+        if (reservationReleased) {
+            publishReservationReleasedEvent(timeDealPurchase, timeDealStock);
+        }
+    }
+
+    private void publishReservationReleasedEvent(TimeDealPurchase purchase, TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealPurchaseReservationReleasedEvent(
+                purchase.getTimeDealId(),
+                stock.getId(),
+                purchase.getOrderId()
+        ));
     }
 }

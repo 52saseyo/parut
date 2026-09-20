@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -69,6 +70,9 @@ class TimeDealPurchaseCommandServiceTest {
     @Mock
     private TimeDealStockReservationPort timeDealStockReservationPort;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TimeDealPurchaseCommandService timeDealPurchaseCommandService;
 
     private TimeDeal timeDeal;
@@ -82,7 +86,8 @@ class TimeDealPurchaseCommandServiceTest {
                 timeDealStockRepository,
                 timeDealPurchaseRepository,
                 new TimeDealPolicy(),
-                timeDealStockReservationPort
+                timeDealStockReservationPort,
+                eventPublisher
         );
 
         // NOTE: endAt을 먼 미래로 두어 Instant.now()를 쓰는 서비스에서도 판매 기간 안에 들도록 한다.
@@ -284,8 +289,8 @@ class TimeDealPurchaseCommandServiceTest {
         void 확정_성공() {
             TimeDealPurchase purchase = reservedPurchase(Instant.now());
             timeDealStock.reserve(5);
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.of(purchase));
-            when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.of(timeDealStock));
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
 
             timeDealPurchaseCommandService.confirm(new TimeDealPurchaseConfirmCommand(UUID.randomUUID()));
 
@@ -299,8 +304,8 @@ class TimeDealPurchaseCommandServiceTest {
             // NOTE: 선점 TTL 10분을 넘긴 시점을 만들기 위해 reservedAt을 과거로 준다.
             TimeDealPurchase purchase = reservedPurchase(Instant.now().minusSeconds(3600));
             timeDealStock.reserve(5);
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.of(purchase));
-            when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.of(timeDealStock));
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
 
             assertThatThrownBy(() -> timeDealPurchaseCommandService.confirm(
                     new TimeDealPurchaseConfirmCommand(UUID.randomUUID())))
@@ -317,7 +322,7 @@ class TimeDealPurchaseCommandServiceTest {
         @Test
         @DisplayName("구매 이력이 없으면 404")
         void 구매이력_없음() {
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> timeDealPurchaseCommandService.confirm(
                     new TimeDealPurchaseConfirmCommand(UUID.randomUUID())))
@@ -342,8 +347,8 @@ class TimeDealPurchaseCommandServiceTest {
         void 취소_성공() {
             TimeDealPurchase purchase = reservedPurchase();
             timeDealStock.reserve(5);
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.of(purchase));
-            when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.of(timeDealStock));
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
 
             timeDealPurchaseCommandService.cancel(new TimeDealPurchaseCancelCommand(
                     UUID.randomUUID(), TimeDealPurchaseCancelReason.ORDER_CANCELED.name()));
@@ -359,8 +364,8 @@ class TimeDealPurchaseCommandServiceTest {
         void 자유문구_사유() {
             TimeDealPurchase purchase = reservedPurchase();
             timeDealStock.reserve(5);
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.of(purchase));
-            when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.of(timeDealStock));
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
 
             timeDealPurchaseCommandService.cancel(
                     new TimeDealPurchaseCancelCommand(UUID.randomUUID(), "판매자 요청으로 취소"));
@@ -373,8 +378,8 @@ class TimeDealPurchaseCommandServiceTest {
         void 취소_멱등() {
             TimeDealPurchase purchase = reservedPurchase();
             timeDealStock.reserve(5);
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.of(purchase));
-            when(timeDealStockRepository.findByTimeDealId(any())).thenReturn(Optional.of(timeDealStock));
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
             TimeDealPurchaseCancelCommand command = new TimeDealPurchaseCancelCommand(
                     UUID.randomUUID(), TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
 
@@ -388,7 +393,7 @@ class TimeDealPurchaseCommandServiceTest {
         @Test
         @DisplayName("구매 이력이 없으면 404")
         void 구매이력_없음() {
-            when(timeDealPurchaseRepository.findByOrderId(any())).thenReturn(Optional.empty());
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> timeDealPurchaseCommandService.cancel(
                     new TimeDealPurchaseCancelCommand(UUID.randomUUID(), null)))
