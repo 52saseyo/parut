@@ -9,5 +9,7 @@ public interface TimeDealStockRepository {
 
     Optional<TimeDealStock> findByTimeDealId(UUID timeDealId);
 
+    boolean reserveQuantityAtomically(UUID timeDealId, int quantity);
+
     TimeDealStock save(TimeDealStock timeDealStock);
 }

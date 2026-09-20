@@ -20,6 +20,11 @@ public class TimeDealStockRepositoryAdapter implements TimeDealStockRepository {
     }
 
     @Override
+    public boolean reserveQuantityAtomically(UUID timeDealId, int quantity) {
+        return jpaTimeDealStockRepository.reserveQuantityAtomically(timeDealId, quantity) == 1;
+    }
+
+    @Override
     public TimeDealStock save(TimeDealStock timeDealStock) {
         return jpaTimeDealStockRepository.save(timeDealStock);
     }

@@ -95,13 +95,29 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
             }
         }
 
-        // Redis 선점 성공 이후에만 기존 DB 구매 생성·재고 projection을 반영한다.
-        // NOTE: 이 구간의 DB 저장 실패 시 Redis 보상은 8단계에서 추가한다.
-        TimeDealPurchase timeDealPurchase = timeDealPolicy.reserve(timeDeal, timeDealStock, timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.userId(), timeDealPurchaseReserveCommand.quantity(), alreadyPurchasedQuantity, now);
-
-        // NOTE: 새로 만든 구매 이력만 저장한다. timeDeal/timeDealStock은 영속 상태라 변경분이 자동 반영된다.
+        // Redis 선점 성공 이후 DB 재고 상태를 조건부 원자적 UPDATE로 반영한다.
+        // 조회한 TimeDealStock 엔티티를 수정·저장하지 않아 동시 요청의 lost update를 방지한다.
         try {
-            // NOTE: save만 사용하면 바로 INSERT DB Flush하는게 안기떄문에 DB 오류가 트랜잭션 커밋 시점에 발생해 이 catch를 지나칠 수 있으므로 보상 판단을 위해 flush까지 이곳에서 수행한다.
+            boolean stockUpdated = timeDealStockRepository.reserveQuantityAtomically(
+                    timeDealPurchaseReserveCommand.timeDealId(),
+                    timeDealPurchaseReserveCommand.quantity()
+            );
+            if (!stockUpdated) {
+                throw new IllegalStateException("DB stock update failed");
+            }
+
+            TimeDealPurchase timeDealPurchase = timeDealPolicy.createReservedPurchase(
+                    timeDeal,
+                    timeDealStock,
+                    timeDealPurchaseReserveCommand.orderId(),
+                    timeDealPurchaseReserveCommand.userId(),
+                    timeDealPurchaseReserveCommand.quantity(),
+                    alreadyPurchasedQuantity,
+                    now
+            );
+
+            // save만 사용하면 DB 오류가 트랜잭션 커밋 시점에 발생해 이 catch를 지나칠 수 있으므로
+            // 보상 판단을 위해 flush까지 이곳에서 수행한다.
             timeDealPurchaseRepository.saveAndFlush(timeDealPurchase);
             log.debug("[TimeDealPurchase] Redis 선점 및 DB 구매 저장 성공. timeDealId={}, stockId={}, orderId={}, quantity={}", timeDealPurchaseReserveCommand.timeDealId(), timeDealStock.getId(), timeDealPurchaseReserveCommand.orderId(), timeDealPurchaseReserveCommand.quantity());
         } catch (RuntimeException databaseFailure) {

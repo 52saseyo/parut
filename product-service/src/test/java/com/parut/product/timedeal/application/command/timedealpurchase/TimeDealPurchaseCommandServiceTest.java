@@ -122,12 +122,12 @@ class TimeDealPurchaseCommandServiceTest {
             when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
             when(timeDealStockReservationPort.reserve(any(), any(), any(), anyInt()))
                     .thenReturn(TimeDealStockReservationResult.RESERVED);
+            when(timeDealStockRepository.reserveQuantityAtomically(any(), anyInt())).thenReturn(true);
 
             timeDealPurchaseCommandService.reserve(reserveCommand(5));
 
             verify(timeDealPurchaseRepository).saveAndFlush(any(TimeDealPurchase.class));
-            assertThat(timeDealStock.getReservedQuantity()).isEqualTo(5);
-            assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(95);
+            verify(timeDealStockRepository).reserveQuantityAtomically(timeDeal.getId(), 5);
         }
 
         @Test
@@ -158,6 +158,7 @@ class TimeDealPurchaseCommandServiceTest {
             when(timeDealPurchaseRepository.sumActiveQuantity(any(), any())).thenReturn(0);
             when(timeDealStockReservationPort.reserve(any(), any(), any(), anyInt()))
                     .thenReturn(TimeDealStockReservationResult.RESERVED);
+            when(timeDealStockRepository.reserveQuantityAtomically(any(), anyInt())).thenReturn(true);
             when(timeDealStockReservationPort.compensate(any(), any(), any()))
                     .thenReturn(TimeDealStockCompensationResult.COMPENSATED);
             doThrow(new IllegalStateException("database failure"))

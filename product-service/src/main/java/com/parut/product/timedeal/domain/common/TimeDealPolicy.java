@@ -33,7 +33,7 @@ public class TimeDealPolicy {
         timeDeal.validatePurchaseQuantity(quantity, alreadyPurchasedQuantity);
     }
 
-    // NOTE: Redis 선점 성공 이후 DB 재고 projection과 구매 이력을 반영하는 기존 경로다.
+    // NOTE: Redis 선점 성공 이후 DB 재고 상태와 구매 이력을 반영하는 기존 경로다.
     // Redis 선점 자체는 Application Port가 담당하고, 이 메서드는 DB 애그리거트 변경만 담당한다.
     public TimeDealPurchase reserve(
             TimeDeal timeDeal,
@@ -57,6 +57,23 @@ public class TimeDealPolicy {
         // NOTE: 선점만으로는 결제 확정 여부를 알 수 있으므로 타임딜을 종료하지 않는다.
         //       재고가 0이어도 RESERVED 구매가 취소·만료되면 재고가 복구될 수 있다.
         return purchase;
+    }
+
+    // NOTE: Redis 선점 이후 DB 재고를 원자적 UPDATE로 반영하는 경로에서는 stock.reserve()를 호출하지 않는다.
+    // DB 재고 변경은 TimeDealStockRepository의 조건부 UPDATE가 담당하고, 이 메서드는 구매 객체만 생성한다.
+    public TimeDealPurchase createReservedPurchase(
+            TimeDeal timeDeal,
+            TimeDealStock stock,
+            UUID orderId,
+            UUID userId,
+            Integer quantity,
+            Integer alreadyPurchasedQuantity,
+            Instant now
+    ) {
+        validateRequiredFields(timeDeal, stock);
+        stock.validateBelongsToTimeDeal(timeDeal.getId());
+        timeDeal.validatePurchaseQuantity(quantity, alreadyPurchasedQuantity);
+        return TimeDealPurchase.create(timeDeal, orderId, userId, quantity, now);
     }
 
     // NOTE: 결제 완료된 선점을 판매 확정한다. 만료됐으면 정리만 하고 CANCELLED를 반환한다 —
