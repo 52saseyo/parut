@@ -2,6 +2,7 @@ package com.parut.product.timedeal.infrastructure.redis;
 
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
+import com.parut.product.timedeal.application.metrics.timedeal.TimeDealRedisMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,11 +30,14 @@ class TimeDealStockReservationAdapterTest {
     @Mock
     private RScript script;
 
+    @Mock
+    private TimeDealRedisMetrics metrics;
+
     private TimeDealStockReservationAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        adapter = new TimeDealStockReservationAdapter(redissonClient);
+        adapter = new TimeDealStockReservationAdapter(redissonClient, metrics);
         when(redissonClient.getScript()).thenReturn(script);
     }
 

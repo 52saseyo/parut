@@ -1,8 +1,10 @@
 package com.parut.product.timedeal.infrastructure.redis;
 
+import com.parut.product.timedeal.application.metrics.timedeal.TimeDealRedisMetrics;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
-import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
@@ -16,6 +18,7 @@ import java.util.UUID;
 public class TimeDealStockReservationAdapter implements TimeDealStockReservationPort {
 
     private final RedissonClient redissonClient;
+    private final TimeDealRedisMetrics metrics;
 
     @Override
     public TimeDealStockReservationResult reserve(
@@ -28,32 +31,38 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
         String reservationKey = TimeDealRedisKeys.reservation(timeDealId, orderId);
         long reservationTtlSeconds = TimeDealRedisKeys.reservationKeyTtl().toSeconds();
 
-        Long result = redissonClient.getScript().eval(
-                RScript.Mode.READ_WRITE,
-                TimeDealStockReservationLuaScript.SCRIPT,
-                RScript.ReturnType.LONG,
-                List.of(stockKey, reservationKey),
-                quantity,
-                reservationTtlSeconds
-        );
+        Timer.Sample timer = metrics.startReservationScript();
+        Long result;
+        try {
+            result = redissonClient.getScript().eval(
+                    RScript.Mode.READ_WRITE,
+                    TimeDealStockReservationLuaScript.SCRIPT,
+                    RScript.ReturnType.LONG,
+                    List.of(stockKey, reservationKey),
+                    quantity,
+                    reservationTtlSeconds
+            );
+        } finally {
+            metrics.stopReservationScript(timer);
+        }
 
         if (result == null) {
             throw new IllegalStateException("Redis reservation script returned null");
         }
 
-        return switch (Math.toIntExact(result)) {
+        TimeDealStockReservationResult reservationResult = switch (Math.toIntExact(result)) {
             case TimeDealStockReservationLuaScript.RESERVED -> TimeDealStockReservationResult.RESERVED;
             case TimeDealStockReservationLuaScript.SOLD_OUT -> TimeDealStockReservationResult.SOLD_OUT;
-            case TimeDealStockReservationLuaScript.DUPLICATE_ORDER ->
-                    TimeDealStockReservationResult.DUPLICATE_ORDER;
-            case TimeDealStockReservationLuaScript.INVALID_QUANTITY ->
-                    TimeDealStockReservationResult.INVALID_QUANTITY;
+            case TimeDealStockReservationLuaScript.DUPLICATE_ORDER -> TimeDealStockReservationResult.DUPLICATE_ORDER;
+            case TimeDealStockReservationLuaScript.INVALID_QUANTITY -> TimeDealStockReservationResult.INVALID_QUANTITY;
             case TimeDealStockReservationLuaScript.STOCK_NOT_INITIALIZED ->
                     TimeDealStockReservationResult.STOCK_NOT_INITIALIZED;
             case TimeDealStockReservationLuaScript.INSUFFICIENT_STOCK ->
                     TimeDealStockReservationResult.INSUFFICIENT_STOCK;
             default -> throw new IllegalStateException("Unknown Redis reservation result: " + result);
         };
+        metrics.recordReservationResult(reservationResult);
+        return reservationResult;
     }
 
     @Override
@@ -65,18 +74,24 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
         String stockKey = TimeDealRedisKeys.stock(timeDealId, stockId);
         String reservationKey = TimeDealRedisKeys.reservation(timeDealId, orderId);
 
-        Long result = redissonClient.getScript().eval(
-                RScript.Mode.READ_WRITE,
-                TimeDealStockReservationLuaScript.COMPENSATION_SCRIPT,
-                RScript.ReturnType.LONG,
-                List.of(stockKey, reservationKey)
-        );
+        Timer.Sample timer = metrics.startCompensationScript();
+        Long result;
+        try {
+            result = redissonClient.getScript().eval(
+                    RScript.Mode.READ_WRITE,
+                    TimeDealStockReservationLuaScript.COMPENSATION_SCRIPT,
+                    RScript.ReturnType.LONG,
+                    List.of(stockKey, reservationKey)
+            );
+        } finally {
+            metrics.stopCompensationScript(timer);
+        }
 
         if (result == null) {
             throw new IllegalStateException("Redis compensation script returned null");
         }
 
-        return switch (Math.toIntExact(result)) {
+        TimeDealStockCompensationResult compensationResult = switch (Math.toIntExact(result)) {
             case TimeDealStockReservationLuaScript.COMPENSATION_COMPLETED ->
                     TimeDealStockCompensationResult.COMPENSATED;
             case TimeDealStockReservationLuaScript.COMPENSATION_ALREADY_COMPLETED ->
@@ -85,5 +100,7 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
                     TimeDealStockCompensationResult.STOCK_NOT_INITIALIZED;
             default -> throw new IllegalStateException("Unknown Redis compensation result: " + result);
         };
+        metrics.recordCompensationResult(compensationResult);
+        return compensationResult;
     }
 }
