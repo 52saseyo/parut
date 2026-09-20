@@ -3,17 +3,23 @@ package com.parut.product.timedeal.infrastructure.persistence.timedealpurchase;
 import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchase;
 import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchaseStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
+import jakarta.persistence.LockModeType;
 
 
 public interface JpaTimeDealPurchaseRepository extends JpaRepository<TimeDealPurchase, UUID> {
 
     Optional<TimeDealPurchase> findByOrderId(UUID orderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from TimeDealPurchase p where p.orderId = :orderId")
+    Optional<TimeDealPurchase> findByOrderIdForUpdate(@Param("orderId") UUID orderId);
 
     // NOTE: 합산 대상 상태는 어댑터가 넘긴다. 이력이 없으면 sum이 null이라 coalesce로 0을 돌려준다
     // — 없으면 첫 구매 사용자에게서 NPE가 난다.

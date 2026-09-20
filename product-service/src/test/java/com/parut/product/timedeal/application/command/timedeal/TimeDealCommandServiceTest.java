@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -66,6 +67,9 @@ class TimeDealCommandServiceTest {
     @Mock
     private ProductStockPort productStockPort;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private TimeDealCommandService timeDealCommandService;
 
     @BeforeEach
@@ -76,7 +80,9 @@ class TimeDealCommandServiceTest {
                 timeDealStockRepository,
                 new TimeDealPolicy(),
                 productStockPort,
-                new TimeDealAuthorizationChecker()
+                new TimeDealAuthorizationChecker(),
+                null,
+                eventPublisher
         );
     }
 

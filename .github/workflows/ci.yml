@@ -73,12 +73,23 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:8.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     # CI PostgreSQL 접속 정보만 제공하며 JPA, Flyway, Eureka 정책은 각 서비스에서 관리
     env:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/parut_test
       SPRING_DATASOURCE_USERNAME: parut
       SPRING_DATASOURCE_PASSWORD: parut_test
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
 
     strategy:
       # 한 서비스가 실패해도 다른 서비스 검사는 계속 실행

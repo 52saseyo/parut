@@ -9,6 +9,8 @@ import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockAdj
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockAdjustResult;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockTransferCommand;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockTransferResult;
+import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockAdjustedEvent;
+import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockTransferredEvent;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockCommandUseCase;
 import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -18,6 +20,7 @@ import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -29,6 +32,7 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final TimeDealAuthorizationChecker authorizationChecker;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -53,6 +57,7 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
         // TODO: Redis 전환 후에는 JPA 엔티티를 직접 변경하지 않고, Redis 원자 연산 또는 Lua Script로
         //       delta 검증과 available/reserved/sold 변경을 처리하도록 교체한다.
         timeDealPolicy.adjustStock(timeDeal, timeDealStock, timeDealStockAdjustCommand.quantity());
+        publishAdjustedEvent(timeDealStock);
 
         // TODO: Redis를 실시간 재고의 기준으로 사용하면 Result를 Redis 연산 결과로 만들고,
         //       reserved/sold의 조회 기준과 DB 동기화 시점을 함께 정한다.
@@ -109,10 +114,21 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
                 timeDealStock,
                 productStockTransferResult.quantity()
         );
+        publishTransferredEvent(timeDealStock);
         return TimeDealStockTransferResult.from(
                 timeDealStock,
                 productStockTransferResult.quantity(),
                 productStockTransferResult
         );
+    }
+
+    private void publishAdjustedEvent(TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockAdjustedEvent(
+                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity()));
+    }
+
+    private void publishTransferredEvent(TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockTransferredEvent(
+                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity()));
     }
 }
