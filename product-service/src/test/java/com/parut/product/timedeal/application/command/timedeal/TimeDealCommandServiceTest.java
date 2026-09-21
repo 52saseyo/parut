@@ -123,13 +123,13 @@ class TimeDealCommandServiceTest {
         }
 
         @Test
-        void 관리자는_타인의_타임딜을_삭제하고_관리자_ID를_기록한다() {
+        void 관리자는_타인의_타임딜을_삭제할_수_없다() {
             TimeDeal timeDeal = existingTimeDeal();
-            TimeDealStock stock = existingStock();
             UUID adminId = UUID.randomUUID();
-            timeDealCommandService.delete(new TimeDealDeleteCommand(id, adminId, "ADMIN"));
-            assertThat(timeDeal.getDeletedBy()).isEqualTo(adminId.toString());
-            assertThat(stock.getDeletedBy()).isEqualTo(adminId.toString());
+            assertThatThrownBy(() -> timeDealCommandService.delete(
+                    new TimeDealDeleteCommand(id, adminId, "ADMIN")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            assertThat(timeDeal.isDeleted()).isFalse();
         }
 
         @Test
@@ -227,15 +227,13 @@ class TimeDealCommandServiceTest {
         }
 
         @Test
-        void 관리자는_타인의_ACTIVE_타임딜을_강제_종료할_수_있다() {
+        void 관리자는_타인의_ACTIVE_타임딜을_강제_종료할_수_없다() {
             TimeDeal timeDeal = activeTimeDeal();
-            when(timeDealRepository.save(timeDeal)).thenReturn(timeDeal);
-
-            TimeDealStopResult result = timeDealCommandService.stop(
-                    new TimeDealStopCommand(id, UUID.randomUUID(), "ADMIN"));
-
-            assertThat(result.status()).isEqualTo(TimeDealStatus.STOPPED);
-            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.STOPPED);
+            assertThatThrownBy(() -> timeDealCommandService.stop(
+                    new TimeDealStopCommand(id, UUID.randomUUID(), "ADMIN")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            assertThat(timeDeal.getStatus()).isEqualTo(TimeDealStatus.ACTIVE);
+            verify(timeDealRepository, never()).save(any());
         }
 
         @Test
@@ -456,14 +454,15 @@ class TimeDealCommandServiceTest {
         }
 
         @Test
-        void 관리자는_다른_판매자의_타임딜을_수정한다() {
+        void 관리자는_다른_판매자의_타임딜을_수정할_수_없다() {
             UUID id = UUID.randomUUID();
             TimeDeal timeDeal = existingTimeDeal(id);
-            when(timeDealRepository.saveAndFlush(timeDeal)).thenReturn(timeDeal);
-            timeDealCommandService.update(updateCommand(id, UUID.randomUUID(), "ADMIN"));
-            assertThat(timeDeal.getName()).isEqualTo("수정 사과");
+            assertThatThrownBy(() -> timeDealCommandService.update(
+                    updateCommand(id, UUID.randomUUID(), "ADMIN")))
+                    .extracting("errorCode").isEqualTo(ErrorCode.TIME_DEAL_ACCESS_DENIED);
+            assertThat(timeDeal.getName()).isEqualTo("사과");
             assertThat(timeDeal.getSellerId()).isEqualTo(SELLER_ID);
-            verify(timeDealRepository).saveAndFlush(timeDeal);
+            verify(timeDealRepository, never()).saveAndFlush(any());
         }
 
         @Test

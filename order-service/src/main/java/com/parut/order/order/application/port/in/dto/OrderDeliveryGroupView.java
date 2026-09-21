@@ -4,6 +4,8 @@ import java.util.UUID;
 
 public record OrderDeliveryGroupView(
         UUID deliveryGroupId,
+        UUID orderId,
+        UUID customerId,
         UUID sellerId,
         int shippableItemCount
 ) {

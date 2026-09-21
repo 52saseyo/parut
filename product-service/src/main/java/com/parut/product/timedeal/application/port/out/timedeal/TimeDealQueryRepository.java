@@ -18,7 +18,16 @@ public interface TimeDealQueryRepository {
             int size
     );
 
+    List<TimeDealPublicDetailView> findSellerOwnedTimeDealList(
+            UUID sellerId,
+            String cursor,
+            UUID cursorId,
+            int size
+    );
+
     Optional<TimeDealPublicDetailView> findPublicDetailById(UUID timeDealId);
 
     Optional<TimeDealDetailView> findDetailById(UUID timeDealId);
+
+    List<TimeDealDetailView> findDetailsByIds(List<UUID> timeDealIds);
 }

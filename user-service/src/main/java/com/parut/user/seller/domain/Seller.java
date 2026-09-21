@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
@@ -137,5 +138,11 @@ public class Seller {
     public void softDelete(String deletedBy) {
         this.deletedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
         this.deletedBy = deletedBy;
+    }
+
+    public void reapply(String updatedBy) {
+        this.status = SellerStatus.PENDING;
+        this.updatedBy = updatedBy;
+        this.updatedAt = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
     }
 }
