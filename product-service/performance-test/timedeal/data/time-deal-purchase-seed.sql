@@ -1,6 +1,6 @@
 -- 만료된 타임딜 구매 선점 fixture
 -- time-deal-seed.sql 실행 후 product-service DB에서 실행한다.
--- 실행할 때마다 30건의 구매가 생성되며, 구매 ID·주문 ID·사용자 ID가 새로 생성된다.
+-- 실행할 때마다 200건의 구매가 생성되며, 구매 ID·주문 ID·사용자 ID가 새로 생성된다.
 
 INSERT INTO product_schema.p_time_deal_purchases (
     id,
@@ -25,4 +25,4 @@ SELECT
     CURRENT_TIMESTAMP - INTERVAL '20 minutes',
     CURRENT_TIMESTAMP,
     'performance-test'
-FROM generate_series(1, 30);
+FROM generate_series(1, 200);

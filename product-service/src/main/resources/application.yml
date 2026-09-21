@@ -35,6 +35,7 @@ internal:
 parut:
   time-deal:
     sale-period-interval: ${TIME_DEAL_SALE_PERIOD_INTERVAL:1m}
+    purchase-expiration-interval: ${TIME_DEAL_PURCHASE_EXPIRATION_INTERVAL:1m}
 
 
 cloud:
