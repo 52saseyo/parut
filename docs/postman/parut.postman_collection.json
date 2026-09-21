@@ -4752,7 +4752,7 @@
                   "response": []
                 },
                 {
-                  "name": "[관리자] 정산 대상 목록 조회",
+                  "name": "[관리자] 정산 목록 조회",
                   "event": [
                     {
                       "listen": "test",
@@ -4763,7 +4763,7 @@
                           "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                           "const content = body.data?.content || [];",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('커서 응답 형식이다', () => pm.expect(body.data?.pageInfo?.paginationType).to.eql('CURSOR'));",
+                          "pm.test('오프셋 응답 형식이다', () => pm.expect(body.data?.pageInfo?.paginationType).to.eql('OFFSET'));",
                           "pm.test('반환된 정산이 모두 PENDING이고 판매자 식별자가 있다', () => content.forEach(settlement => { pm.expect(settlement.status).to.eql('PENDING'); pm.expect(settlement.sellerId).to.exist; }));"
                         ]
                       }
@@ -4781,13 +4781,13 @@
                         "value": "ADMIN"
                       }
                     ],
-                    "url": "{{orderBaseUrl}}/api/v1/settlement-targets?size=10",
-                    "description": "관리자가 완료 처리 대상인 PENDING 정산을 조회합니다. 성공 시 200이며 응답은 커서 방식입니다."
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?size=10",
+                    "description": "관리자가 정산 목록을 조회합니다. status를 생략하면 PENDING이 기본값이며 응답은 오프셋 방식입니다. 성공 시 200입니다."
                   },
                   "response": []
                 },
                 {
-                  "name": "[관리자] 판매자 필터 정산 대상 목록 조회",
+                  "name": "[관리자] 판매자 필터 정산 목록 조회",
                   "event": [
                     {
                       "listen": "test",
@@ -4815,7 +4815,7 @@
                         "value": "ADMIN"
                       }
                     ],
-                    "url": "{{orderBaseUrl}}/api/v1/settlement-targets?sellerId={{userId}}&size=10",
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?sellerId={{userId}}&size=10",
                     "description": "관리자가 특정 판매자의 정산 대상만 조회합니다. 성공 시 200입니다. 해당 판매자의 PENDING 정산이 없으면 빈 목록이 반환될 수 있습니다."
                   },
                   "response": []
@@ -5179,6 +5179,144 @@
                         }
                       }
                     }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[관리자] COMPLETED 정산 목록 조회",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "const content = body.data?.content || [];",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('오프셋 응답 형식이다', () => pm.expect(body.data?.pageInfo?.paginationType).to.eql('OFFSET'));",
+                          "pm.test('반환된 정산이 모두 COMPLETED이고 완료 정보가 있다', () => content.forEach(settlement => {",
+                          "  pm.expect(settlement.status).to.eql('COMPLETED');",
+                          "  pm.expect(settlement.settledAt).to.exist;",
+                          "  pm.expect(settlement.processedBy).to.exist;",
+                          "}));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{$guid}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "ADMIN"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?status=COMPLETED&size=10",
+                    "description": "관리자가 완료된 정산 이력을 조회합니다. 성공 시 200이며 각 항목에 settledAt과 processedBy가 채워져 있습니다."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[관리자] 정산 목록 오프셋 다음 페이지",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('두 번째 페이지가 반환된다', () => pm.expect(body.data?.pageInfo?.page).to.eql(1));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{$guid}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "ADMIN"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?page=1&size=10",
+                    "description": "관리자 목록의 두 번째 페이지를 조회합니다. 관리자 목록은 Spring Pageable 기본 정책을 따르므로 배송·환불 관리자 목록과 동일하게 size 값을 별도로 거부하지 않습니다. 성공 시 200입니다."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[해당 상품 판매자] 관리자 정산 목록 조회 거부",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
+                          "pm.test('FORBIDDEN', () => pm.expect(body.code).to.eql('FORBIDDEN'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?size=10",
+                    "description": "해당 상품 판매자가 관리자 전용 정산 목록을 조회하면 403 FORBIDDEN으로 거부됩니다."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[주문 고객] 관리자 정산 목록 조회 거부",
+                  "event": [
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
+                          "pm.test('FORBIDDEN', () => pm.expect(body.code).to.eql('FORBIDDEN'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{buyerId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "CUSTOMER"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/admin/settlements?size=10",
+                    "description": "주문 고객이 관리자 전용 정산 목록을 조회하면 403 FORBIDDEN으로 거부됩니다."
                   },
                   "response": []
                 }

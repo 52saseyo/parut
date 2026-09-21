@@ -14,12 +14,15 @@ public record AdminSettlementResponse(
         long settlementAmount,
         SettlementStatus status,
         Instant eligibleAt,
+        Instant settledAt,
+        UUID processedBy,
         Instant createdAt
 ) {
     public static AdminSettlementResponse from(Settlement settlement) {
         return new AdminSettlementResponse(
                 settlement.getId(), settlement.getSellerId(), settlement.getOrderItemId(),
                 settlement.getSalesAmount(), settlement.getSettlementAmount(), settlement.getStatus(),
-                settlement.getEligibleAt(), settlement.getCreatedAt());
+                settlement.getEligibleAt(), settlement.getSettledAt(), settlement.getProcessedBy(),
+                settlement.getCreatedAt());
     }
 }
