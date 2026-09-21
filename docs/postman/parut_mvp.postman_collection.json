@@ -6453,6 +6453,214 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "23-04 재고 목록 상태 필터",
+              "item": [
+                {
+                  "name": "23-04-01 상태 필터 없이 전체 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/stocks?size=10",
+                    "description": "status 파라미터를 생략하고 재고 목록을 조회합니다. 기존과 동일하게 전체(모든 상태)가 조회되는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const stock = body.data?.content?.find(s => s.productId === pm.environment.get('productId'));",
+                          "pm.test('status 파라미터 없이도 내 상품 재고가 조회된다', () => pm.expect(stock).to.exist);"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "23-04-02 status=AVAILABLE 필터 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/stocks?status=AVAILABLE&size=10",
+                    "description": "status=AVAILABLE로 필터링해 재고 목록을 조회합니다. 반환된 항목이 전부 AVAILABLE 상태인지, 내 상품이 포함되는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const content = body.data?.content || [];",
+                          "pm.test('반환된 재고가 전부 AVAILABLE 상태다', () => content.forEach(s => pm.expect(s.status).to.eql('AVAILABLE')));",
+                          "const stock = content.find(s => s.productId === pm.environment.get('productId'));",
+                          "pm.test('AVAILABLE 상태인 내 상품 재고가 필터 결과에 포함된다', () => pm.expect(stock).to.exist);"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "23-05 수동 재고 조정 이력",
+              "item": [
+                {
+                  "name": "23-05-01 조정 전 재고 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/stocks?size=10",
+                    "description": "수동 조정 전 totalQuantity를 저장해, 조정 후 이력(INCREASE) 검증의 기준값으로 사용합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const stock = body.data?.content?.find(s => s.productId === pm.environment.get('productId'));",
+                          "pm.test('조정 대상 상품의 재고가 조회된다', () => pm.expect(stock).to.exist);",
+                          "if (stock) {",
+                          "  pm.environment.set('beforeAdjustTotalQuantity', stock.totalQuantity);",
+                          "  pm.environment.set('afterAdjustTotalQuantity', stock.totalQuantity + 20);",
+                          "}"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "23-05-02 판매자 수동 재고 증가",
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      { "key": "Content-Type", "value": "application/json" },
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"totalQuantity\": {{afterAdjustTotalQuantity}}\n}",
+                      "options": { "raw": { "language": "json" } }
+                    },
+                    "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}",
+                    "description": "판매자가 총 재고 수량을 20만큼 수동으로 늘립니다(beforeAdjustTotalQuantity + 20). ProductStockAllocationLog에 INCREASE 이벤트가 기록되는지는 다음 요청(23-05-03)에서 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('afterAdjustTotalQuantity')) throw new Error('afterAdjustTotalQuantity 환경변수가 없습니다. 23-05-01을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('totalQuantity가 요청한 값으로 반영된다', () => pm.expect(body.data?.totalQuantity).to.eql(Number(pm.environment.get('afterAdjustTotalQuantity'))));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "23-05-03 조정 이력에 INCREASE 반영 확인",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      { "key": "X-User-Id", "value": "{{sellerId}}" },
+                      { "key": "X-User-Role", "value": "SELLER" }
+                    ],
+                    "url": "{{productBaseUrl}}/api/v1/stocks/{{productId}}/histories?size=5",
+                    "description": "방금 수행한 수동 조정이 재고 변동 이력에 ALLOCATION_LOG/INCREASE로 반영되는지 확인합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                          "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) { pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); }); }",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const items = body.data?.items || [];",
+                          "const increaseItem = items.find(i => i.source === 'ALLOCATION_LOG' && i.eventType === 'INCREASE');",
+                          "pm.test('방금 수행한 수동 조정(INCREASE) 이력이 조회된다', () => pm.expect(increaseItem).to.exist);",
+                          "if (increaseItem) pm.test('조정 수량이 20이다', () => pm.expect(increaseItem.quantity).to.eql(20));"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
