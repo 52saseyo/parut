@@ -508,6 +508,62 @@
               },
               "item": [
                 {
+                  "name": "타임딜 정보 단건 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/time-deals/{{timeDealId}}",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "time-deals",
+                        "{{timeDealId}}"
+                      ]
+                    },
+                    "description": "주문 서비스가 주문 표시 정보와 결제 금액을 확보하기 위해 타임딜 정보를 단건 조회한다. timeDealId는 실제 존재하는 타임딜 ID로 설정한다. 성공 시 200 OK, 존재하지 않거나 삭제된 타임딜은 404."
+                  }
+                },
+                {
+                  "name": "타임딜 정보 일괄 조회",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"timeDealIds\": [\n    \"{{timeDealId}}\",\n    \"{{timeDealId2}}\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/internal/time-deals/bulk",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "internal",
+                        "time-deals",
+                        "bulk"
+                      ]
+                    },
+                    "description": "여러 타임딜의 주문 표시 정보를 한 번에 조회한다. timeDealId와 timeDealId2는 실제 존재하는 타임딜 ID로 설정한다. 존재하지 않는 ID가 하나라도 있으면 404. 성공 시 data 배열에 요청 순서대로 반환한다."
+                  }
+                },
+                {
                   "name": "타임딜 구매 예약",
                   "request": {
                     "method": "POST",
