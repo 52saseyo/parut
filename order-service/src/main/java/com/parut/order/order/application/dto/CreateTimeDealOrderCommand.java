@@ -22,7 +22,6 @@ public record CreateTimeDealOrderCommand(
         if (userId == null
                 || idempotencyKey == null || idempotencyKey.isBlank()
                 || timeDealId == null
-                || productId == null
                 || recipientName == null || recipientName.isBlank()
                 || recipientPhone == null || recipientPhone.isBlank()
                 || zipCode == null || zipCode.isBlank()

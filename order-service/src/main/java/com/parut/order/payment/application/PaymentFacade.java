@@ -62,7 +62,7 @@ public class PaymentFacade {
                 throw e;
             }
             compensateStockShortage(context, command, result);
-            throw e;
+            throw new BusinessException(ErrorCode.STOCK_SHORTAGE_PAYMENT_CANCELED);
         }
 
         paymentService.markDeliveryPreparing(context.orderId());
@@ -76,7 +76,7 @@ public class PaymentFacade {
             cancelResult = paymentGateway.cancel(command.paymentKey(), result.balanceAmount(), "OUT_OF_STOCK");
         } catch (RuntimeException e) {
             log.error("[PaymentFacade] PG 취소 실패. 수동 대응 필요 paymentId={}", context.paymentId(), e);
-            throw new BusinessException(ErrorCode.PG_CANCEL_FAILED);
+            throw new BusinessException(ErrorCode.STOCK_SHORTAGE_PAYMENT_CANCEL_FAILED);
         }
 
         paymentService.applyStockShortageCancel(context, cancelResult);
