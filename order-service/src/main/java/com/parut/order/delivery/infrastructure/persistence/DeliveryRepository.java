@@ -23,9 +23,9 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             select d
               from Delivery d
              where d.customerId = :customerId
-               and (:orderId is null or d.orderId = :orderId)
-               and (:status is null or d.status = :status)
-               and (:cursor is null
+               and (cast(:orderId as uuid) is null or d.orderId = :orderId)
+               and (cast(:status as string) is null or d.status = :status)
+               and (cast(:cursor as timestamp) is null
                     or d.createdAt < :cursor
                     or (d.createdAt = :cursor and d.id < :cursorId))
              order by d.createdAt desc, d.id desc
@@ -43,9 +43,9 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             select d
               from Delivery d
              where d.sellerId = :sellerId
-               and (:orderId is null or d.orderId = :orderId)
-               and (:status is null or d.status = :status)
-               and (:cursor is null
+               and (cast(:orderId as uuid) is null or d.orderId = :orderId)
+               and (cast(:status as string) is null or d.status = :status)
+               and (cast(:cursor as timestamp) is null
                     or d.createdAt < :cursor
                     or (d.createdAt = :cursor and d.id < :cursorId))
              order by d.createdAt desc, d.id desc
@@ -62,10 +62,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     @Query("""
             select d
               from Delivery d
-             where (:customerId is null or d.customerId = :customerId)
-               and (:sellerId is null or d.sellerId = :sellerId)
-               and (:orderId is null or d.orderId = :orderId)
-               and (:status is null or d.status = :status)
+             where (cast(:customerId as uuid) is null or d.customerId = :customerId)
+               and (cast(:sellerId as uuid) is null or d.sellerId = :sellerId)
+               and (cast(:orderId as uuid) is null or d.orderId = :orderId)
+               and (cast(:status as string) is null or d.status = :status)
             """)
     Page<Delivery> findAdminDeliveries(
             @Param("customerId") UUID customerId,

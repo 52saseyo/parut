@@ -24,7 +24,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, UUID> {
             SELECT settlement FROM Settlement settlement
             WHERE settlement.sellerId = :sellerId
               AND settlement.status = :status
-              AND (:cursor IS NULL OR settlement.createdAt < :cursor
+              AND (cast(:cursor as timestamp) IS NULL OR settlement.createdAt < :cursor
                    OR (settlement.createdAt = :cursor AND settlement.id < :cursorId))
             ORDER BY settlement.createdAt DESC, settlement.id DESC
             """)
@@ -39,8 +39,8 @@ public interface SettlementRepository extends JpaRepository<Settlement, UUID> {
     @Query("""
             SELECT settlement FROM Settlement settlement
             WHERE settlement.status = :status
-              AND (:sellerId IS NULL OR settlement.sellerId = :sellerId)
-              AND (:cursor IS NULL OR settlement.createdAt < :cursor
+              AND (cast(:sellerId as uuid) IS NULL OR settlement.sellerId = :sellerId)
+              AND (cast(:cursor as timestamp) IS NULL OR settlement.createdAt < :cursor
                    OR (settlement.createdAt = :cursor AND settlement.id < :cursorId))
             ORDER BY settlement.createdAt DESC, settlement.id DESC
             """)
