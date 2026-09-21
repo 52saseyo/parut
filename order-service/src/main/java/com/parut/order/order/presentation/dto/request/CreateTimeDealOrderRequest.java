@@ -12,7 +12,6 @@ public record CreateTimeDealOrderRequest(
         @NotNull
         UUID timeDealId,
 
-        @NotNull
         UUID productId,
 
         @NotNull
