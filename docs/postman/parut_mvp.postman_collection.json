@@ -4652,7 +4652,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerPendingAccessToken')) throw new Error('sellerPendingAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
                     ]
                   }
                 },
@@ -4681,7 +4681,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerPendingAccessToken}}",
+                      "value": "{{sellerAccessToken}}",
                       "type": "string"
                     }
                   ]
@@ -4719,7 +4719,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('sellerPendingAccessToken')) throw new Error('sellerPendingAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 판매자 로그인을 먼저 진행하세요.');"
                     ]
                   }
                 },
@@ -4748,7 +4748,7 @@
                   "bearer": [
                     {
                       "key": "token",
-                      "value": "{{sellerPendingAccessToken}}",
+                      "value": "{{sellerAccessToken}}",
                       "type": "string"
                     }
                   ]
