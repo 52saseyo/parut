@@ -21,15 +21,11 @@ public class KafkaConsumerConfig {
     private final KafkaProperties kafkaProperties;
 
     @Bean
-    public ConsumerFactory<String, String>
-    kafkaConsumerFactory() {
+    public ConsumerFactory<String, String> kafkaConsumerFactory() {
         Map<String, Object> properties = kafkaProperties.buildConsumerProperties();
 
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
-
         return new DefaultKafkaConsumerFactory<>(properties);
     }
 
@@ -43,10 +39,8 @@ public class KafkaConsumerConfig {
 
         // JSON 문자열을 Listener 파라미터의 이벤트 DTO로 변환
         factory.setRecordMessageConverter(new StringJacksonJsonMessageConverter(jsonMapper));
-
-        factory.getContainerProperties()
-                .setAckMode(ContainerProperties.AckMode.RECORD);
-
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
         return factory;
     }
+
 }
