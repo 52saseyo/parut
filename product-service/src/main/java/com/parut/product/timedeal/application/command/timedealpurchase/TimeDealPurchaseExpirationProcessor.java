@@ -28,7 +28,7 @@ public class TimeDealPurchaseExpirationProcessor {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void expireOneReservation(UUID purchaseId) {
+    public void expireOneReservation(UUID purchaseId) { // NOTE: 각각의 트랜잭션을 독립적으로 가져가 하나가 실패해도 전체 롤백 되지않도록한다.
         // NOTE: 동시성 정합성을위해 비관락 사용
         TimeDealPurchase timeDealPurchase = timeDealPurchaseRepository.findByIdForUpdate(purchaseId)
                 .orElse(null);
