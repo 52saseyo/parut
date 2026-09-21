@@ -20,4 +20,5 @@ public class TimeDealSalePeriodScheduler {
     public void activateTimeDeals() {
         timeDealCommandUseCase.activateTimeDeals();
     }
+
 }
