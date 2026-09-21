@@ -1,15 +1,14 @@
 package com.parut.order.order.infrastructure.persistence;
 
-import java.util.List;
-import java.util.UUID;
-
+import com.parut.order.order.domain.OrderItem;
+import com.parut.order.order.domain.OrderItemStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.parut.order.order.domain.OrderItem;
-import com.parut.order.order.domain.OrderItemStatus;
+import java.util.List;
+import java.util.UUID;
 
 public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
@@ -18,6 +17,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
     List<OrderItem> findByCancelId(UUID cancelId);
 
     int countByDeliveryGroupIdAndItemStatus(UUID deliveryGroupId, OrderItemStatus itemStatus);
+
+    // 판매자 탈퇴 검증(미처리 주문 조회)을 위해 배송그룹의 sellerId와 조인한다.
+    @Query("""
+            SELECT COUNT(item) > 0
+            FROM OrderItem item JOIN OrderDeliveryGroup g ON g.id = item.deliveryGroupId
+            WHERE g.sellerId = :sellerId AND item.itemStatus = :status
+            """)
+    boolean existsBySellerIdAndItemStatus(@Param("sellerId") UUID sellerId, @Param("status") OrderItemStatus status);
 
     @Query("""
             SELECT item.id FROM OrderItem item
