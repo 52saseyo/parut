@@ -37,6 +37,7 @@ import static org.mockito.Mockito.verify;
 class SellerProductControllerTest {
 
     private static final String SELLER_ROLE = "SELLER";
+    private static final String IMAGE_URL = "https://example.com/images/apple.jpg";
 
     @Mock
     private ProductService productService;
@@ -59,7 +60,8 @@ class SellerProductControllerTest {
                 "청송 사과",
                 ProductCategory.FRUIT,
                 5_000L,
-                ProductStatus.ON_SALE
+                ProductStatus.ON_SALE,
+                IMAGE_URL
         );
 
         given(productService.searchSellerProducts(
@@ -79,6 +81,7 @@ class SellerProductControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().data().content()).hasSize(1);
         assertThat(response.getBody().data().content().getFirst().productId()).isEqualTo(productId);
+        assertThat(response.getBody().data().content().getFirst().imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(response.getBody().data().pageInfo().page()).isEqualTo(1);
         assertThat(response.getBody().data().pageInfo().sort()).isEqualTo("createdAt");
         assertThat(response.getBody().data().pageInfo().direction()).isEqualTo(SortDirection.ASC);

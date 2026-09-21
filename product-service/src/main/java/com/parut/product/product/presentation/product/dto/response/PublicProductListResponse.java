@@ -12,7 +12,8 @@ public record PublicProductListResponse(
         ProductCategory category,
         Long price,
         AppearanceType appearanceType,
-        String origin
+        String origin,
+        String imageUrl
 ) {
     public static PublicProductListResponse from(PublicProductQueryResult result) {
         return new PublicProductListResponse(
@@ -21,7 +22,8 @@ public record PublicProductListResponse(
                 result.category(),
                 result.price(),
                 result.appearanceType(),
-                result.origin()
+                result.origin(),
+                result.imageUrl()
         );
     }
 }

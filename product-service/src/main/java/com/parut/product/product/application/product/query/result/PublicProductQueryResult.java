@@ -11,6 +11,18 @@ public record PublicProductQueryResult(
         ProductCategory category,
         Long price,
         AppearanceType appearanceType,
-        String origin
+        String origin,
+        String imageUrl
 ) {
+    public PublicProductQueryResult withImageUrl(String imageUrl) {
+        return new PublicProductQueryResult(
+                productId,
+                name,
+                category,
+                price,
+                appearanceType,
+                origin,
+                imageUrl
+        );
+    }
 }
