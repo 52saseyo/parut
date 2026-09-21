@@ -37,6 +37,11 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     }
 
     @Override
+    public Optional<TimeDealPurchase> findByIdForUpdate(UUID purchaseId) {
+        return jpaTimeDealPurchaseRepository.findByIdForUpdate(purchaseId);
+    }
+
+    @Override
     public List<TimeDealPurchase> findFirstExpiredReservationBatch(Instant cutoff, int limit) {
         return jpaTimeDealPurchaseRepository.findFirstExpiredReservationBatch(cutoff, PageRequest.of(0, limit));
     }

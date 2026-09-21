@@ -14,6 +14,8 @@ public interface TimeDealPurchaseRepository {
 
     Optional<TimeDealPurchase> findByOrderIdForUpdate(UUID orderId);
 
+    Optional<TimeDealPurchase> findByIdForUpdate(UUID purchaseId);
+
     List<TimeDealPurchase> findFirstExpiredReservationBatch(Instant cutoff, int limit);
 
     List<TimeDealPurchase> findNextExpiredReservationBatchByCursor(

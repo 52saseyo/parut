@@ -24,6 +24,10 @@ public interface JpaTimeDealPurchaseRepository extends JpaRepository<TimeDealPur
     @Query("select p from TimeDealPurchase p where p.orderId = :orderId")
     Optional<TimeDealPurchase> findByOrderIdForUpdate(@Param("orderId") UUID orderId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from TimeDealPurchase p where p.id = :id")
+    Optional<TimeDealPurchase> findByIdForUpdate(@Param("id") UUID id);
+
     @Query("""
             select purchase
               from TimeDealPurchase purchase
