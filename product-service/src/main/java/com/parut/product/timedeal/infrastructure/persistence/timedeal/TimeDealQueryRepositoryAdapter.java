@@ -55,4 +55,9 @@ public class TimeDealQueryRepositoryAdapter implements TimeDealQueryRepository {
     public Optional<TimeDealDetailView> findDetailById(UUID timeDealId) {
         return jpaTimeDealQueryRepository.findDetailById(timeDealId);
     }
+
+    @Override
+    public List<TimeDealDetailView> findDetailsByIds(List<UUID> timeDealIds) {
+        return jpaTimeDealQueryRepository.findDetailsByIds(timeDealIds);
+    }
 }
