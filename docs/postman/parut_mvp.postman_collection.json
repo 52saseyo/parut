@@ -1680,8 +1680,8 @@
                   "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                   "}",
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                  "if (body.data?.[0]?.deliveryId) pm.environment.set('deliveryId', body.data[0].deliveryId);"
+                  "pm.test('deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                  "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('deliveryId', body.data.content[0].deliveryId);"
                 ]
               }
             }
@@ -3073,8 +3073,8 @@
                     "exec": [
                       "const body = pm.response.json();",
                       "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                      "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                      "if (body.data?.[0]?.deliveryId) pm.environment.set('refundDeliveryId', body.data[0].deliveryId);"
+                      "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                      "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('refundDeliveryId', body.data.content[0].deliveryId);"
                     ]
                   }
                 }
@@ -9941,8 +9941,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('검증용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('confirmScenarioDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('검증용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('confirmScenarioDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -11920,8 +11920,8 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('배송 검증용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                          "if (body.data?.[0]?.deliveryId) pm.environment.set('deliveryScenarioDeliveryId', body.data[0].deliveryId);"
+                          "pm.test('배송 검증용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                          "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('deliveryScenarioDeliveryId', body.data.content[0].deliveryId);"
                         ]
                       }
                     }
@@ -13556,8 +13556,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('shippedRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('shippedRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -13951,8 +13951,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('배송 ID가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('배송 ID가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -14691,8 +14691,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('timeDealRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('timeDealRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }

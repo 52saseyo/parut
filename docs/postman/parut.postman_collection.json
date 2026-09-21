@@ -1943,8 +1943,8 @@
                       "exec": [
                         "const body = pm.response.json();",
                         "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                        "pm.test('배송 목록이 있다', () => pm.expect(body.data).to.be.an('array').that.is.not.empty);",
-                        "pm.test('배송 픽스처가 반환된다', () => pm.expect(body.data.some(delivery => delivery.deliveryId === pm.variables.get('deliveryId'))).to.eql(true));"
+                        "pm.test('커서 응답 형식이다', () => { pm.expect(body.data.content).to.be.an('array').that.is.not.empty; pm.expect(body.data.pageInfo.paginationType).to.eql('CURSOR'); });",
+                        "pm.test('배송 픽스처가 반환된다', () => pm.expect(body.data.content.some(delivery => delivery.deliveryId === pm.variables.get('deliveryId'))).to.eql(true));"
                       ]
                     }
                   }
@@ -1978,7 +1978,7 @@
                       }
                     ]
                   },
-                  "description": "요청 전 스크립트가 PREPARING인 d...001 배송 픽스처를 자동으로 선택합니다. 이후 요청에서 배송 시작과 권한 예외를 확인합니다.\n\n성공: 200 OK. 조회할 배송이 없으면 빈 배열을 반환합니다.\n\n- 400: orderId 또는 X-User-Id 누락, UUID 형식 오류"
+                  "description": "요청 전 스크립트가 PREPARING인 d...001 배송 픽스처를 자동으로 선택합니다. 이후 요청에서 배송 시작과 권한 예외를 확인합니다.\n\n성공: 200 OK. 조회할 배송이 없으면 content가 빈 배열인 커서 응답을 반환합니다.\n\n- 400: X-User-Id 누락, UUID 형식 오류, 잘못된 커서 또는 페이지 크기"
                 },
                 "response": []
               },
@@ -1992,7 +1992,7 @@
                       "exec": [
                         "const body = pm.response.json();",
                         "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                        "pm.test('배송 목록이 비어 있다', () => pm.expect(body.data).to.be.an('array').that.is.empty);"
+                        "pm.test('배송 목록이 비어 있다', () => pm.expect(body.data.content).to.be.an('array').that.is.empty);"
                       ]
                     }
                   }
@@ -2269,7 +2269,7 @@
                 "response": []
               },
               {
-                "name": "[고객] 판매자 배송 목록 조회 거부",
+                "name": "[주문 고객] 배송 목록 조회",
                 "event": [
                   {
                     "listen": "test",
@@ -2277,8 +2277,9 @@
                       "type": "text/javascript",
                       "exec": [
                         "const body = pm.response.json();",
-                        "pm.test('HTTP 403', () => pm.expect(pm.response.code).to.eql(403));",
-                        "pm.test('FORBIDDEN', () => pm.expect(body.code).to.eql('FORBIDDEN'));"
+                        "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                        "pm.test('고객 소유 배송이 반환된다', () => { pm.expect(body.data.content).to.be.an('array').that.is.not.empty; pm.expect(body.data.content.some(delivery => delivery.deliveryId === pm.variables.get('deliveryId'))).to.eql(true); });",
+                        "pm.test('커서 응답 형식이다', () => pm.expect(body.data.pageInfo.paginationType).to.eql('CURSOR'));"
                       ]
                     }
                   }
@@ -2296,7 +2297,7 @@
                     }
                   ],
                   "url": "{{orderBaseUrl}}/api/v1/deliveries?orderId={{orderId}}",
-                  "description": "판매자 전용 배송 목록 API를 고객 역할로 호출하면 403 FORBIDDEN을 반환합니다."
+                  "description": "주문 고객이 본인 주문의 배송 목록을 커서 방식으로 조회합니다."
                 },
                 "response": []
               },
