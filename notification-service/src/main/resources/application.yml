@@ -1,6 +1,7 @@
 spring:
   application:
     name: notification
+
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
@@ -11,6 +12,12 @@ spring:
         default_batch_fetch_size: 50
     open-in-view: false
 
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
 logging:
   level:
     root: info
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"
