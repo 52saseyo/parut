@@ -36,6 +36,9 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,6 +96,11 @@ public class ProductStockServiceImpl implements ProductStockService{
     }
 
     // 재고 수정
+    @Retryable(
+            exceptionExpression = "#root instanceof T(com.parut.product.global.exception.BusinessException) " +
+                    "&& #root.errorCode == T(com.parut.product.global.exception.ErrorCode).PRODUCT_STOCK_CONFLICT",
+            maxAttempts = 3, backoff = @Backoff(delay = 50, multiplier = 2)
+    )
     @Override
     public void updateStock(UUID productId, UUID requesterId, String requesterRole, int newTotalQuantity) {
         ProductStock stock = productStockRepository.findByProductIdAndDeletedAtIsNull(productId)
@@ -109,9 +117,18 @@ public class ProductStockServiceImpl implements ProductStockService{
         }
 
         int newAvailableQuantity = newTotalQuantity - reservedQuantity;
+        int delta = newTotalQuantity - stock.getTotalQuantity();
         stock.adjustQuantity(newTotalQuantity, newAvailableQuantity);
         saveStockSafely(stock, ErrorCode.PRODUCT_STOCK_CONFLICT);
-
+        if (delta != 0) {
+            productStockAllocationLogRepository.save(
+                    ProductStockAllocationLog.create(
+                            stock.getId(),
+                            delta < 0 ? AllocationEventType.DECREASE : AllocationEventType.INCREASE,
+                            Math.abs(delta)
+                    )
+            );
+        }
         if (stock.getStatus() == StockStatus.SOLD_OUT) {
             notifySoldOut(productId);
         } else if (previousStatus == StockStatus.SOLD_OUT) {
@@ -315,6 +332,11 @@ public class ProductStockServiceImpl implements ProductStockService{
 
 
     // 재고 예약
+    @Retryable(
+            exceptionExpression = "#root instanceof T(com.parut.product.global.exception.BusinessException) " +
+                    "&& #root.errorCode == T(com.parut.product.global.exception.ErrorCode).PRODUCT_STOCK_CONFLICT",
+            maxAttempts = 3, backoff = @Backoff(delay = 50, multiplier = 2)
+    )
     @Override
     public void reserve(UUID orderId, List<ProductStockReserveItem> items) {
         Instant expiresAt = Instant.now().plus(reservationTtl);
@@ -366,6 +388,13 @@ public class ProductStockServiceImpl implements ProductStockService{
         // 6. 이벤트로그 저장 - 유니크 제약 위반만 별도로 좁게 catch
         saveEventLogsSafely(eventLogsToSave, "reserve", orderId);
     }
+
+
+    @Retryable(
+            exceptionExpression = "#root instanceof T(com.parut.product.global.exception.BusinessException) " +
+                    "&& #root.errorCode == T(com.parut.product.global.exception.ErrorCode).PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED",
+            maxAttempts = 3, backoff = @Backoff(delay = 50, multiplier = 2)
+    )
     @Override
     public void confirm(UUID orderId, List<ProductStockItem> items) {
         // 1. 멱등성 체크 - IN절 한 번
@@ -434,6 +463,12 @@ public class ProductStockServiceImpl implements ProductStockService{
         soldOutProductIds.forEach(this::notifySoldOut);
     }
 
+
+    @Retryable(
+            exceptionExpression = "#root instanceof T(com.parut.product.global.exception.BusinessException) " +
+                    "&& #root.errorCode == T(com.parut.product.global.exception.ErrorCode).PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED",
+            maxAttempts = 3, backoff = @Backoff(delay = 50, multiplier = 2)
+    )
     @Override
     public void restore(UUID orderId, List<ProductStockItem> items) {
         // 1. 멱등성 체크 - RESTORE/REFUND 둘 다 이미 처리된 건 제외 (IN절 한 번)
@@ -715,5 +750,9 @@ public class ProductStockServiceImpl implements ProductStockService{
                     reservationId, orderItemId);
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
+    }
+    @Recover
+    public void recoverUpdateStock(BusinessException e, UUID productId, UUID requesterId, String requesterRole, int newTotalQuantity) {
+        throw e;
     }
 }
