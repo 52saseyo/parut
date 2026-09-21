@@ -514,6 +514,54 @@ public class ProductStockServiceImplTest {
             productStockService.updateStock(productId, sellerId, "SELLER", 20);
             verify(productStateManager).resumeSaleAfterRestock(productId);
         }
+
+        @Test
+        @DisplayName("총수량을 늘리면 INCREASE 타입으로 AllocationLog가 저장된다")
+        void updateStock_increaseQuantity_savesIncreaseAllocationLog() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            productStockService.updateStock(productId, sellerId, "SELLER", 120);
+
+            log.info("[ProductStockService.updateStock] 수량 증가(100 -> 120) -> INCREASE 로그 기대");
+
+            ArgumentCaptor<ProductStockAllocationLog> logCaptor = ArgumentCaptor.forClass(ProductStockAllocationLog.class);
+            verify(productStockAllocationLogRepository).save(logCaptor.capture());
+            assertThat(logCaptor.getValue().getEventType()).isEqualTo(AllocationEventType.INCREASE);
+            assertThat(logCaptor.getValue().getQuantity()).isEqualTo(20);
+        }
+
+        @Test
+        @DisplayName("총수량을 줄이면 DECREASE 타입으로 AllocationLog가 저장된다")
+        void updateStock_decreaseQuantity_savesDecreaseAllocationLog() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            productStockService.updateStock(productId, sellerId, "SELLER", 70);
+
+            log.info("[ProductStockService.updateStock] 수량 감소(100 -> 70) -> DECREASE 로그 기대");
+
+            ArgumentCaptor<ProductStockAllocationLog> logCaptor = ArgumentCaptor.forClass(ProductStockAllocationLog.class);
+            verify(productStockAllocationLogRepository).save(logCaptor.capture());
+            assertThat(logCaptor.getValue().getEventType()).isEqualTo(AllocationEventType.DECREASE);
+            assertThat(logCaptor.getValue().getQuantity()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("총수량이 변하지 않으면 AllocationLog를 저장하지 않는다")
+        void updateStock_sameQuantity_doesNotSaveAllocationLog() {
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            given(productStockRepository.findByProductIdAndDeletedAtIsNull(productId)).willReturn(Optional.of(stock));
+            given(productReader.getSellerId(productId)).willReturn(sellerId);
+
+            productStockService.updateStock(productId, sellerId, "SELLER", 100);
+
+            log.info("[ProductStockService.updateStock] 수량 변화 없음(100 -> 100) -> AllocationLog 저장 안 됨 기대");
+
+            verify(productStockAllocationLogRepository, never()).save(any());
+        }
     }
 
     @Nested
