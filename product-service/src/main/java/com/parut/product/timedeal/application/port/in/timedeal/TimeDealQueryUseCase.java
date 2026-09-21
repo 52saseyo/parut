@@ -6,6 +6,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailR
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 
 import java.util.UUID;
+import java.util.List;
 
 public interface TimeDealQueryUseCase {
 
@@ -29,4 +30,6 @@ public interface TimeDealQueryUseCase {
 
     // NOTE: 주문 생성 시 order-service가 결제 금액,판매자,표시 정보를 확보하려고 부른다.
     TimeDealDetailResult getDetail(UUID timeDealId);
+
+    List<TimeDealDetailResult> getDetailsByIds(List<UUID> timeDealIds);
 }
