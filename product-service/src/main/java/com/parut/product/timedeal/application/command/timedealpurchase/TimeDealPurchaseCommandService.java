@@ -2,6 +2,8 @@ package com.parut.product.timedeal.application.command.timedealpurchase;
 
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
+import com.parut.product.global.common.AuditorContext;
+import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseCancelCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseReserveCommand;
@@ -27,6 +29,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 
 @Slf4j
@@ -40,6 +44,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     private final TimeDealPolicy timeDealPolicy;
     private final TimeDealStockReservationPort timeDealStockReservationPort;
     private final ApplicationEventPublisher eventPublisher;
+    private final TimeDealPurchaseExpirationProcessor timeDealPurchaseExpirationProcessor;
 
 
     // NOTE: 애그리거트 조율은 전부 TimeDealPolicy를 경유한다. 여기 남는 것은 조회·저장·트랜잭션 경계와
@@ -184,6 +189,53 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         if (reservationReleased) {
             publishReservationReleasedEvent(timeDealPurchase, timeDealStock);
         }
+    }
+
+    @Override
+    public void expireReservations() {
+        Instant cutoff = Instant.now();
+        Instant cursorExpiresAt = null;
+        UUID cursorId = null;
+        int processedCount = 0;
+        int failedCount = 0;
+        long startedAtNanos = System.nanoTime();
+
+        log.info("[TimeDealPurchase] 선점 만료 배치 시작: cutoff={}", cutoff);
+
+        while (true) {
+            List<TimeDealPurchase> purchases = (cursorExpiresAt == null)
+                    ? timeDealPurchaseRepository.findFirstExpiredReservationBatch(cutoff, 100)
+                    : timeDealPurchaseRepository.findNextExpiredReservationBatchByCursor(
+                            cutoff, cursorExpiresAt, cursorId, 100);
+
+            if (purchases.isEmpty()) {
+                log.info("[TimeDealPurchase] 선점 만료 배치 완료: processedCount={}, failedCount={}, elapsedMillis={}",
+                        processedCount, failedCount, elapsedMillis(startedAtNanos));
+                return;
+            }
+
+            for (TimeDealPurchase purchase : purchases) {
+                try {
+                    // NOTE: 스케쥴러/배치 등에서 항상 auditor를 설정해주고 clear해준다. 이를 안하면 createdBy, updatedBy 등 null 문제 생김
+                    AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
+                    timeDealPurchaseExpirationProcessor.expireOneReservation(purchase.getId());
+                    processedCount++;
+                } catch (Exception exception) {
+                    failedCount++;
+                    log.error("[TimeDealPurchase] 선점 만료 처리 실패: purchaseId={}", purchase.getId(), exception);
+                } finally {
+                    AuditorContext.clear();
+                }
+            }
+
+            TimeDealPurchase lastPurchase = purchases.getLast();
+            cursorExpiresAt = lastPurchase.getExpiresAt();
+            cursorId = lastPurchase.getId();
+        }
+    }
+
+    private long elapsedMillis(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
     private void publishReservationReleasedEvent(TimeDealPurchase purchase, TimeDealStock stock) {
