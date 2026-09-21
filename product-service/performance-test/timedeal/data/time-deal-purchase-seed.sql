@@ -25,4 +25,4 @@ SELECT
     CURRENT_TIMESTAMP - INTERVAL '20 minutes',
     CURRENT_TIMESTAMP,
     'performance-test'
-FROM generate_series(1, 30);
+FROM generate_series(1, 200);
