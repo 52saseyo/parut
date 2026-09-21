@@ -1,15 +1,21 @@
 package com.parut.user.seller.application.client;
 
 import com.parut.user.global.common.ApiResponse;
+import com.parut.user.seller.application.dto.response.UnprocessedOrderExistsResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+
 import java.util.UUID;
 
-@FeignClient(name = "order-service", url = "${feign.order-service.url}")
+@FeignClient(name = "order-service", url = "${order-service.base-url}")
 public interface OrderServiceClient {
 
-    // order-service에 만들어달라고 요청해야 할 API
-    @GetMapping("/api/v1/internal/orders/getOrder")
-    ApiResponse<Boolean> checkUnconfirmedOrders(@PathVariable("sellerId") UUID sellerId);
+    @GetMapping("/api/v1/internal/orders/unprocessed")
+    ApiResponse<UnprocessedOrderExistsResponse> checkUnconfirmedOrders(
+            @RequestHeader("X-Service-Key") String serviceKey,
+            @RequestParam("sellerId") UUID sellerId
+    );
 }

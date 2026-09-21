@@ -75,7 +75,7 @@ public class AuthService {
         String accessToken = jwtProvider.createAccessToken(user.getId(), String.valueOf(UserRole.CUSTOMER));
         String refreshToken = jwtProvider.createRefreshToken(user.getId());
 
-        // 5. Redis에 RefreshToken 저장 로직 추가 (생략)
+        // 5. Redis에 RefreshToken 저장 로직 추가
         // Refresh Token Redis 저장 (TTL: 8시간 - JwtProvider에 설정된 시간과 동일하게 맞춰도 무방)
         redisTemplate.opsForValue().set("REFRESH:" + user.getId(), refreshToken, Duration.ofHours(8));
 
@@ -145,6 +145,8 @@ public class AuthService {
             role = "CUSTOMER";
         } else if (sellerRepository.existsById(userId)) {
             role = "SELLER";
+        } else if (adminRepository.existsById(userId)) {
+            role = "ADMIN";
         } else {
             // DB에 존재하지 않는 탈퇴한 회원이거나 유효하지 않은 UUID인 경우
             throw new BusinessException(ErrorCode.INVALID_TOKEN);
@@ -198,6 +200,14 @@ public class AuthService {
         // 3. 토큰 생성 및 반환
         String accessToken = jwtProvider.createAccessToken(admin.getId(), admin.getRole());
         String refreshToken = jwtProvider.createRefreshToken(admin.getId());
+
+        // 4. Redis에 Refresh Token 저장
+        redisTemplate.opsForValue().set(
+                "REFRESH:" + admin.getId(),
+                refreshToken,
+                jwtProvider.getExpiration(refreshToken), // 만료 시간
+                TimeUnit.MILLISECONDS
+        );
 
         return new TokenResponse(accessToken, refreshToken);
     }

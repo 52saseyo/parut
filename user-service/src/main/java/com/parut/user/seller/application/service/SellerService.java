@@ -8,6 +8,7 @@ import com.parut.user.seller.application.dto.request.SellerUpdateRequest;
 import com.parut.user.seller.application.dto.response.SellerApplicationStatusResponse;
 import com.parut.user.seller.application.dto.response.SellerDeleteResponse;
 import com.parut.user.seller.application.dto.response.SellerResponse;
+import com.parut.user.seller.application.dto.response.UnprocessedOrderExistsResponse;
 import com.parut.user.seller.domain.Seller;
 import com.parut.user.seller.domain.SellerStatus;
 import com.parut.user.seller.infrastructure.SellerRepository;
@@ -17,6 +18,7 @@ import com.parut.user.global.common.SortDirection;
 import com.parut.user.global.exception.BusinessException;
 import com.parut.user.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,6 +36,9 @@ public class SellerService {
     private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
     private final OrderServiceClient orderServiceClient; // FeignClient
+
+    @Value("${internal.service-key}")
+    private String internalServiceKey;
 
     @Transactional
     public SellerResponse apply(SellerApplyRequest request) {// 1. 아이디 중복 검증
@@ -134,6 +139,11 @@ public class SellerService {
         Seller seller = sellerRepository.findById(sellerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
 
+        // 3. 만약 현재 상태가 반려(REJECTED) 상태라면, 재신청(PENDING)으로 상태를 변경
+        if (seller.getStatus() == SellerStatus.REJECTED) {
+            seller.reapply(seller.getLoginId());
+        }
+
         seller.updateInfo(
                 request.companyName(),
                 request.bizAddress(),
@@ -159,17 +169,17 @@ public class SellerService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.SELLER_NOT_FOUND));
 
         // 3. order-service API 호출하여 구매 확정되지 않은 주문이 있는지 확인
-//        try {
-//            ApiResponse<Boolean> response = orderServiceClient.checkUnconfirmedOrders(sellerId);
-//
-//            // 만약 미확정 주문이 존재한다면 (response.getData() == true) 예외 발생
-//            if (Boolean.TRUE.equals(response.data())) {
-//                throw new BusinessException(ErrorCode.SELLER_EXIST_ORDERS);
-//            }
-//        } catch (Exception e) {
-//            // 타임아웃이나 order-service 장애 시의 Fallback 처리
-//            throw new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE);
-//        }
+        try {
+            ApiResponse<UnprocessedOrderExistsResponse> response = orderServiceClient.checkUnconfirmedOrders(internalServiceKey, sellerId);
+
+            // 만약 미확정 주문이 존재한다면 (response.getData() == true) 예외 발생
+            if (response.data() != null && response.data().exists()) {
+                throw new BusinessException(ErrorCode.SELLER_EXIST_ORDERS);
+            }
+        } catch (Exception e) {
+            // 타임아웃이나 order-service 장애 시의 Fallback 처리
+            throw new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE);
+        }
 
         // 4. Soft Delete 상태 변경 (더티 체킹 적용)
         seller.softDelete(seller.getLoginId());
