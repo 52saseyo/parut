@@ -132,4 +132,23 @@ public interface JpaTimeDealQueryRepository extends JpaRepository<TimeDeal, UUID
                and t.deletedAt is null
             """)
     Optional<TimeDealDetailView> findDetailById(@Param("timeDealId") UUID timeDealId);
+
+    @Query("""
+            select new com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView(
+                       t.id,
+                       t.productId,
+                       t.sellerId,
+                       t.name,
+                       t.description,
+                       t.originalPrice,
+                       t.discountRate,
+                       t.dealPrice,
+                       t.productGrade,
+                       t.origin,
+                       t.harvestedDate)
+              from TimeDeal t
+             where t.id in :timeDealIds
+               and t.deletedAt is null
+            """)
+    List<TimeDealDetailView> findDetailsByIds(@Param("timeDealIds") List<UUID> timeDealIds);
 }

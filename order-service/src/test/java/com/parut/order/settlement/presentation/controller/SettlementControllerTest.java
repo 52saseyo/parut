@@ -16,15 +16,25 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.parut.order.global.auth.UserContext;
 import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.exception.BusinessException;
+import com.parut.order.global.common.ApiResponse;
+import com.parut.order.global.common.OffsetResponse;
+import com.parut.order.global.common.PaginationType;
+import com.parut.order.global.common.SortDirection;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.settlement.application.SettlementPage;
 import com.parut.order.settlement.application.SettlementService;
 import com.parut.order.settlement.domain.Settlement;
 import com.parut.order.settlement.domain.SettlementStatus;
+import com.parut.order.settlement.presentation.dto.response.AdminSettlementResponse;
 
 @ExtendWith(MockitoExtension.class)
 class SettlementControllerTest {
@@ -67,28 +77,58 @@ class SettlementControllerTest {
     }
 
     @Test
-    @DisplayName("관리자 대상 목록은 PENDING과 sellerId 필터를 전달한다")
+    @DisplayName("관리자 목록은 status 기본값 PENDING과 sellerId 필터를 Service에 전달한다")
     void 관리자_목록_조회() {
         UUID sellerId = UUID.randomUUID();
-        when(settlementService.getAdminSettlements(sellerId, null, null, 10))
-                .thenReturn(new SettlementPage(List.of(), null, null, false));
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        when(settlementService.getAdminSettlements(sellerId, SettlementStatus.PENDING, pageable))
+                .thenReturn(Page.empty(pageable));
 
-        settlementController.getSettlementTargets(sellerId, null, null, 10);
+        ApiResponse<OffsetResponse<AdminSettlementResponse>> response =
+                settlementController.getAdminSettlements(SettlementStatus.PENDING, sellerId, pageable);
 
-        verify(settlementService).getAdminSettlements(sellerId, null, null, 10);
+        verify(settlementService).getAdminSettlements(sellerId, SettlementStatus.PENDING, pageable);
+        assertThat(response.data().pageInfo().paginationType()).isEqualTo(PaginationType.OFFSET);
+        assertThat(response.data().pageInfo().sort()).isEqualTo("createdAt");
+        assertThat(response.data().pageInfo().direction()).isEqualTo(SortDirection.DESC);
     }
 
     @Test
-    @DisplayName("잘못된 Cursor와 size는 입력 오류로 거부한다")
+    @DisplayName("관리자 목록은 COMPLETED 정산의 settledAt과 processedBy를 응답에 담는다")
+    void 관리자_목록_완료_응답_필드() {
+        UUID processedBy = UUID.randomUUID();
+        Instant settledAt = Instant.parse("2026-09-10T00:00:00Z");
+        Settlement settlement = Settlement.create(
+                UUID.randomUUID(), SELLER_ID, 10000L, 10000L, Instant.parse("2026-09-01T00:00:00Z"));
+        settlement.complete(settledAt, processedBy);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(settlementService.getAdminSettlements(null, SettlementStatus.COMPLETED, pageable))
+                .thenReturn(new PageImpl<>(List.of(settlement), pageable, 1));
+
+        ApiResponse<OffsetResponse<AdminSettlementResponse>> response =
+                settlementController.getAdminSettlements(SettlementStatus.COMPLETED, null, pageable);
+
+        AdminSettlementResponse first = response.data().content().get(0);
+        assertThat(first.status()).isEqualTo(SettlementStatus.COMPLETED);
+        assertThat(first.settledAt()).isEqualTo(settledAt);
+        assertThat(first.processedBy()).isEqualTo(processedBy);
+        assertThat(first.sellerId()).isEqualTo(SELLER_ID);
+    }
+
+    @Test
+    @DisplayName("판매자 목록의 잘못된 Cursor와 size는 입력 오류로 거부한다")
     void 목록_입력_검증() {
-        assertThatThrownBy(() -> settlementController.getSettlementTargets(null, "cursor", null, 10))
+        UserContext seller = UserContext.of(SELLER_ID, UserRole.SELLER);
+        assertThatThrownBy(() -> settlementController.getSettlements(
+                SettlementStatus.PENDING, "cursor", null, 10, seller))
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
-        assertThatThrownBy(() -> settlementController.getSettlementTargets(null, null, null, 20))
+        assertThatThrownBy(() -> settlementController.getSettlements(
+                SettlementStatus.PENDING, null, null, 20, seller))
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_PAGE_SIZE);
-        assertThatThrownBy(() -> settlementController.getSettlementTargets(
-                null, "invalid", UUID.randomUUID(), 10))
+        assertThatThrownBy(() -> settlementController.getSettlements(
+                SettlementStatus.PENDING, "invalid", UUID.randomUUID(), 10, seller))
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
     }

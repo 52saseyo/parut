@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,10 +59,10 @@ public class SettlementService implements SettlementCreateUseCase {
                 sellerId, status, cursor, cursorId, PageRequest.of(0, size + 1)), size);
     }
 
-    public SettlementPage getAdminSettlements(
-            UUID sellerId, Instant cursor, UUID cursorId, int size) {
-        return page(settlementRepository.findAdminSettlements(
-                sellerId, SettlementStatus.PENDING, cursor, cursorId, PageRequest.of(0, size + 1)), size);
+    /** 관리자가 정산 대기 목록과 완료 이력을 같은 목록에서 조회한다. */
+    public Page<Settlement> getAdminSettlements(
+            UUID sellerId, SettlementStatus status, Pageable pageable) {
+        return settlementRepository.findAdminSettlements(sellerId, status, pageable);
     }
 
     @Transactional
