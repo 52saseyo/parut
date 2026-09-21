@@ -193,6 +193,11 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
         }
 
         String path = request.getPath().value();
+        if (path.equals("/api/v1/time-deals/seller")
+                || path.startsWith("/api/v1/time-deals/seller/")) {
+            return false;
+        }
+
         return PUBLIC_READ_PATHS.stream().anyMatch(basePath -> isCollectionOrDetailPath(path, basePath));
     }
 
