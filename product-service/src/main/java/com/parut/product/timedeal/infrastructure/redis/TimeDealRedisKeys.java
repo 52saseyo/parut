@@ -13,7 +13,7 @@ public final class TimeDealRedisKeys {
 
     private static final String STOCK_PREFIX = "timedeal:stock:";
     private static final String RESERVATION_PREFIX = "timedeal:reservation:";
-    private static final Duration RESERVATION_KEY_TTL = Duration.ofMinutes(15);
+    private static final Duration RESERVATION_KEY_TTL = Duration.ofMinutes(20);
 
     private TimeDealRedisKeys() {
     }
