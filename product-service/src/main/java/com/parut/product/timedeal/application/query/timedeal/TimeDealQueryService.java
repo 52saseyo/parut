@@ -1,25 +1,23 @@
 package com.parut.product.timedeal.application.query.timedeal;
 
-import com.parut.product.global.exception.BusinessException;
-import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.global.dto.ImageQuery;
 import com.parut.product.global.dto.ImageQueryResult;
+import com.parut.product.global.exception.BusinessException;
+import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailResult;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailResult;
-import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.*;
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
-import com.parut.product.timedeal.application.port.out.timedeal.TimeDealQueryRepository;
 import com.parut.product.timedeal.application.port.out.image.ImageQueryPort;
+import com.parut.product.timedeal.application.port.out.timedeal.TimeDealQueryRepository;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -98,5 +96,28 @@ public class TimeDealQueryService implements TimeDealQueryUseCase {
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
         ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId));
         return TimeDealDetailResult.from(timeDealDetailView, imageQueryResult.imageUrl());
+    }
+
+    @Override
+    public List<TimeDealDetailResult> getDetailsByIds(List<UUID> timeDealIds) {
+        List<TimeDealDetailView> views = timeDealQueryRepository.findDetailsByIds(timeDealIds);
+        Map<UUID, TimeDealDetailView> viewsById = views.stream()
+                .collect(Collectors.toMap(
+                                view -> view.timeDealId(),
+                                view -> view
+                        )
+                );
+
+        if (viewsById.size() != timeDealIds.stream().distinct().count()) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND);
+        }
+
+        return timeDealIds.stream()
+                .distinct()
+                .map(timeDealId -> {
+                    ImageQueryResult imageQueryResult = imageQueryPort.findImage(new ImageQuery(timeDealId)); // TODO: 추후 다건 이미지 조회로 변경
+                    return TimeDealDetailResult.from(viewsById.get(timeDealId), imageQueryResult.imageUrl());
+                })
+                .toList();
     }
 }

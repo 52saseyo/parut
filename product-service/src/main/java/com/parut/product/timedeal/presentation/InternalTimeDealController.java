@@ -8,6 +8,7 @@ import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurch
 import com.parut.product.timedeal.application.port.in.timedeal.TimeDealQueryUseCase;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
 import com.parut.product.timedeal.presentation.dto.timedeal.response.TimeDealDetailResponse;
+import com.parut.product.timedeal.presentation.dto.timedeal.request.TimeDealBulkDetailRequest;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseCancelRequest;
 import com.parut.product.timedeal.presentation.dto.timedealpurchase.request.TimeDealPurchaseReserveRequest;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+import java.util.List;
 
 
 @RestController
@@ -37,6 +39,18 @@ public class InternalTimeDealController {
         return ResponseEntity.ok(
                 ApiResponse.success(
                         TimeDealDetailResponse.from(timeDealDetailResult), TraceIdContext.currentTraceId()));
+    }
+
+    @PostMapping("/time-deals/bulk")
+    public ResponseEntity<ApiResponse<List<TimeDealDetailResponse>>> getDetailsByIds(
+            @Valid @RequestBody TimeDealBulkDetailRequest request
+    ) {
+        List<TimeDealDetailResponse> response = timeDealQueryUseCase.getDetailsByIds(request.timeDealIds())
+                .stream()
+                .map(TimeDealDetailResponse::from)
+                .toList();
+        return ResponseEntity.ok(
+                ApiResponse.success(response, TraceIdContext.currentTraceId()));
     }
 
 

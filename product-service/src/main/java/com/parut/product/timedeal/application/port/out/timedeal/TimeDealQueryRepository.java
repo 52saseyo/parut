@@ -28,4 +28,6 @@ public interface TimeDealQueryRepository {
     Optional<TimeDealPublicDetailView> findPublicDetailById(UUID timeDealId);
 
     Optional<TimeDealDetailView> findDetailById(UUID timeDealId);
+
+    List<TimeDealDetailView> findDetailsByIds(List<UUID> timeDealIds);
 }

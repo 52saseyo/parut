@@ -16,12 +16,16 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.hamcrest.Matchers.hasSize;
 
 @WebMvcTest(controllers = InternalTimeDealController.class, properties = "internal.service-key=test-service-key")
 @Import(ServiceKeyInterceptor.class)
@@ -83,6 +87,51 @@ class InternalTimeDealControllerTest {
             mvc.perform(get("/api/v1/internal/time-deals/{id}", UUID.randomUUID()))
                     .andExpect(status().isUnauthorized());
             verifyNoInteractions(timeDealQueryUseCase);
+        }
+    }
+
+    @Nested
+    @DisplayName("내부 타임딜 일괄 조회")
+    class GetDetails {
+        @Test
+        void 요청한_타임딜을_리스트로_반환한다() throws Exception {
+            UUID firstId = UUID.randomUUID();
+            UUID secondId = UUID.randomUUID();
+            when(timeDealQueryUseCase.getDetailsByIds(List.of(firstId, secondId))).thenReturn(List.of(
+                    detailResult(firstId, "첫 번째 타임딜"),
+                    detailResult(secondId, "두 번째 타임딜")
+            ));
+
+            mvc.perform(post("/api/v1/internal/time-deals/bulk")
+                            .header("X-Service-Key", "test-service-key")
+                            .contentType(APPLICATION_JSON)
+                            .content("""
+                                    {"timeDealIds":["%s","%s"]}
+                                    """.formatted(firstId, secondId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value("OK"))
+                    .andExpect(jsonPath("$.data", hasSize(2)))
+                    .andExpect(jsonPath("$.data[0].timeDealId").value(firstId.toString()))
+                    .andExpect(jsonPath("$.data[1].timeDealId").value(secondId.toString()))
+                    .andExpect(jsonPath("$.data[0].productName").value("첫 번째 타임딜"));
+
+            verify(timeDealQueryUseCase).getDetailsByIds(List.of(firstId, secondId));
+        }
+
+        @Test
+        void 타임딜_ID_목록이_비어있으면_거절한다() throws Exception {
+            mvc.perform(post("/api/v1/internal/time-deals/bulk")
+                            .header("X-Service-Key", "test-service-key")
+                            .contentType(APPLICATION_JSON)
+                            .content("{\"timeDealIds\":[]}"))
+                    .andExpect(status().isBadRequest());
+            verifyNoInteractions(timeDealQueryUseCase);
+        }
+
+        private TimeDealDetailResult detailResult(UUID timeDealId, String productName) {
+            return new TimeDealDetailResult(timeDealId, UUID.randomUUID(), UUID.randomUUID(), null,
+                    productName, "설명", 15000L, new BigDecimal("20.00"), 12000L,
+                    TimeDealProductGrade.NORMAL, "국내산", LocalDate.of(2026, 8, 20));
         }
     }
 }
