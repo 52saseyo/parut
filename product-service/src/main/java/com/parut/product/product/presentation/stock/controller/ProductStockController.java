@@ -11,6 +11,7 @@ import com.parut.product.product.application.stock.dto.IsolatedReservationResult
 import com.parut.product.product.application.stock.dto.ProductStockHistoryResult;
 import com.parut.product.product.application.stock.service.ProductStockService;
 import com.parut.product.product.domain.stock.entity.ProductStock;
+import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.presentation.stock.dto.request.ProductStockUpdateRequest;
 import com.parut.product.product.presentation.stock.dto.response.IsolatedReservationResponse;
 import com.parut.product.product.presentation.stock.dto.response.ProductStockHistoryResponse;
@@ -56,7 +57,8 @@ public class ProductStockController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
-            @RequestParam(defaultValue = "desc") String direction
+            @RequestParam(defaultValue = "desc") String direction,
+            @RequestParam(required = false)StockStatus status
     ) {
         if (!ALLOWED_SIZES.contains(size)) {
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_PAGE_INVALID_SIZE);
@@ -71,7 +73,7 @@ public class ProductStockController {
         // page는 1부터 시작, Pageable은 0부터 시작이라 -1 보정
         Pageable pageable = PageRequest.of(page - 1, size, Sort.by(sortDirection, sort));
 
-        Page<ProductStock> stockPage = productStockService.getStockList(userId, userRole, pageable);
+        Page<ProductStock> stockPage = productStockService.getStockList(userId, userRole, pageable, status);
 
         List<ProductStockResponse> content = stockPage.getContent().stream()
                 .map(ProductStockResponse::from)
