@@ -27,8 +27,8 @@ public interface RefundRepository extends JpaRepository<Refund, UUID> {
             select r
               from Refund r
              where r.customerId = :customerId
-               and (:status is null or r.status = :status)
-               and (:cursor is null
+               and (cast(:status as string) is null or r.status = :status)
+               and (cast(:cursor as timestamp) is null
                     or r.createdAt < :cursor
                     or (r.createdAt = :cursor and r.id < :cursorId))
              order by r.createdAt desc, r.id desc
@@ -45,8 +45,8 @@ public interface RefundRepository extends JpaRepository<Refund, UUID> {
             select r
               from Refund r
              where r.sellerId = :sellerId
-               and (:status is null or r.status = :status)
-               and (:cursor is null
+               and (cast(:status as string) is null or r.status = :status)
+               and (cast(:cursor as timestamp) is null
                     or r.createdAt < :cursor
                     or (r.createdAt = :cursor and r.id < :cursorId))
              order by r.createdAt desc, r.id desc

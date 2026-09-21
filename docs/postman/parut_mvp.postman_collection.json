@@ -1220,7 +1220,7 @@
     },
     {
       "name": "03 일반 상품 주문과 결제",
-      "description": "완료 조건: Order PAID, Payment DONE, 배송 그룹 PREPARING. 같은 판매자의 서로 다른 상품 2건으로 다건 주문 처리를 확인합니다. 다건 주문에 쓸 두 번째 상품(secondProductId)은 02에서 준비된다고 가정하고 03-01부터 시작합니다. 02가 아직 두 번째 상품을 준비하지 않았다면 이 폴더 맨 뒤의 03-05~03-07(다건 주문용 두 번째 상품 등록)을 먼저 실행해 secondProductId를 확보한 뒤 03-01로 돌아오세요.",
+      "description": "완료 조건: Order PAID, Payment DONE, 배송 그룹 PREPARING. 같은 판매자의 서로 다른 상품 2건으로 다건 주문 처리를 확인합니다. 다건 주문에 쓸 두 번째 상품(secondProductId)은 02에서 준비되므로 03-01부터 시작합니다.",
       "item": [
         {
           "name": "03-01 일반 상품 주문 생성 (다건)",
@@ -1233,7 +1233,7 @@
                   "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
                   "if (!pm.environment.get('customerId')) throw new Error('customerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
                   "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 02 일반 상품 흐름을 먼저 실행하세요.');",
-                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 02에서 두 번째 상품을 아직 준비하지 않았다면 03-05~03-07을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 02 일반 상품 흐름을 먼저 실행하세요.');",
                   "pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
@@ -1471,184 +1471,6 @@
             "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}",
             "description": "Order PAID, Payment DONE, 배송 그룹 PREPARING과 다건 주문상품 2건을 확인하고 첫 번째 orderItemId와 deliveryGroupId를 저장합니다."
           }
-        },
-        {
-          "name": "03-05 (선택, 02 미준비 시) 다건 주문용 두 번째 상품 등록",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 01 시연 흐름을 먼저 실행하세요.');",
-                  "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 01 시연 흐름을 먼저 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "let body = {};",
-                  "if (pm.response.text()) {",
-                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                  "}",
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
-                  "pm.test('secondProductId가 있다', () => pm.expect(body.data?.productId).to.exist);",
-                  "if (body.data?.productId) pm.environment.set('secondProductId', body.data.productId);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{sellerAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"category\": \"FRUIT\",\n  \"name\": \"MVP 배\",\n  \"description\": \"다건 주문 확인용 두 번째 상품\",\n  \"price\": 8000,\n  \"appearanceType\": \"NORMAL\",\n  \"origin\": \"대한민국\",\n  \"harvestDate\": \"2026-09-01\",\n  \"saleUnit\": \"BOX\",\n  \"unitQuantity\": 1,\n  \"totalQuantity\": 50,\n  \"lowStockThreshold\": 5\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{gatewayBaseUrl}}/api/v1/seller/products",
-            "description": "02에서 다건 주문용 두 번째 상품을 이미 준비했다면 이 요청은 건너뜁니다. 아직 준비되지 않은 경우에 한해 03-01보다 먼저 이 03-05~03-07을 실행해 secondProductId를 확보하세요. 상품 등록 자체는 02(product-service) 시나리오 소관이라, 팀원이 02에 반영하면 이 3건은 폐기해도 됩니다."
-          }
-        },
-        {
-          "name": "03-06 (선택, 02 미준비 시) 두 번째 상품 대표 이미지 등록",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "let body = {};",
-                  "if (pm.response.text()) {",
-                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                  "}",
-                  "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
-                  "pm.test('imageId가 있다', () => pm.expect(body.data?.imageId).to.exist);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{sellerAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"imageKey\": \"mvp/products/{{secondProductId}}/main.jpg\",\n  \"originalName\": \"main.jpg\",\n  \"contentType\": \"image/jpeg\",\n  \"fileSize\": 1024\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{secondProductId}}/image",
-            "description": "ON_SALE 전이에 필요한 대표 이미지를 두 번째 상품에 등록합니다(03-05와 같은 선택 실행 그룹)."
-          }
-        },
-        {
-          "name": "03-07 (선택, 02 미준비 시) 두 번째 상품 판매 시작",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
-                  "if (!pm.environment.get('secondProductId')) throw new Error('secondProductId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "let body = {};",
-                  "if (pm.response.text()) {",
-                  "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
-                  "}",
-                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('상품 상태가 ON_SALE이다', () => pm.expect(body.data?.status).to.eql('ON_SALE'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{sellerAccessToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"ON_SALE\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": "{{gatewayBaseUrl}}/api/v1/seller/products/{{secondProductId}}/status",
-            "description": "두 번째 상품을 ON_SALE로 전환해 다건 주문에 사용할 준비를 마칩니다. 완료 후 폴더 맨 앞의 03-01로 돌아가 진행하세요."
-          }
         }
       ]
     },
@@ -1680,8 +1502,8 @@
                   "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                   "}",
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
-                  "pm.test('deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                  "if (body.data?.[0]?.deliveryId) pm.environment.set('deliveryId', body.data[0].deliveryId);"
+                  "pm.test('deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                  "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('deliveryId', body.data.content[0].deliveryId);"
                 ]
               }
             }
@@ -2507,7 +2329,7 @@
                 }
               }
             },
-            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/conversions",
             "description": "일반 상품 재고 20개를 타임딜 전용 재고로 할당합니다. PR #87은 병합됐지만 Adapter가 아직 UnsupportedOperationException을 발생시키므로 productStockService.allocate(command) 연결 수정 후 성공합니다."
           },
           "event": [
@@ -2817,6 +2639,448 @@
       ]
     },
     {
+      "name": "07 타임딜 주문 취소",
+      "description": "완료 조건: 타임딜 주문상품·배송 그룹 CANCELED, 주문은 PAID 유지(→ ADR-013), 결제 취소와 타임딜 재고 복원 확인. 05와 같은 흐름이되, 재고 확인은 내부 /stocks가 아니라 외부 타임딜 상세 조회(GET /time-deals/{timeDealId})로 하고, 재고 복원은 TimeDealClient.restoreStock(orderId 단위 1회 호출)로 분기됩니다(→ ADR-007). 06에서 만든 timeDealId를 재사용해 취소 전용 주문을 새로 생성합니다.",
+      "item": [
+        {
+          "name": "07-01 취소용 타임딜 주문 생성",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 06 흐름을 먼저 실행하세요.');",
+                  "pm.environment.set('cancelTimeDealIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200 또는 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                  "pm.test('타임딜 주문이 생성됐다', () => { pm.expect(body.data?.orderId).to.exist; pm.expect(body.data?.orderType).to.eql('TIME_DEAL'); });",
+                  "if (body.data?.orderId) pm.environment.set('cancelTimeDealOrderId', body.data.orderId);",
+                  "if (body.data?.totalPaymentAmount !== undefined) pm.environment.set('cancelTimeDealOrderTotalAmount', body.data.totalPaymentAmount);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{cancelTimeDealIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timeDealId\": \"{{timeDealId}}\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"recipient\": {\n    \"recipientName\": \"MVP 취소 고객\",\n    \"recipientPhone\": \"010-5555-6666\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"103호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/time-deals",
+            "description": "취소 흐름만 검증하기 위해 06에서 쓴 타임딜 주문과 별개로 같은 timeDealId로 새 주문을 생성합니다. orderId는 cancelTimeDealOrderId로 저장해 06의 timeDealOrderId를 덮어쓰지 않습니다."
+          }
+        },
+        {
+          "name": "07-02 취소용 타임딜 결제 준비",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderId')) throw new Error('cancelTimeDealOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('결제 준비 값이 모두 있다', () => { pm.expect(body.data?.paymentId).to.exist; pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                  "if (body.data?.tossOrderId) pm.environment.set('cancelTimeDealTossOrderId', body.data.tossOrderId);",
+                  "if (body.data?.amount !== undefined) pm.environment.set('cancelTimeDealPaymentAmount', body.data.amount);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{cancelTimeDealOrderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
+            "description": "취소용 타임딜 주문의 결제를 준비하고 cancelTimeDealTossOrderId, cancelTimeDealPaymentAmount를 저장합니다."
+          }
+        },
+        {
+          "name": "07-03 취소용 타임딜 Mock 결제 승인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealTossOrderId')) throw new Error('cancelTimeDealTossOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealPaymentAmount')) throw new Error('cancelTimeDealPaymentAmount 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('cancelTimeDealPaymentKey', `MOCK-TIME-DEAL-CANCEL-${Date.now()}`);",
+                  "pm.environment.set('cancelTimeDealPaymentIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('타임딜 결제와 주문이 완료됐다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{cancelTimeDealPaymentIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentKey\": \"{{cancelTimeDealPaymentKey}}\",\n  \"tossOrderId\": \"{{cancelTimeDealTossOrderId}}\",\n  \"amount\": {{cancelTimeDealPaymentAmount}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
+            "description": "취소 대상 타임딜 주문을 결제 완료(PAID)까지 진행시켜 Product의 타임딜 선점 재고를 확정한 뒤, 이후 취소에서 PG 부분 취소와 재고 복원을 확인할 수 있게 합니다."
+          }
+        },
+        {
+          "name": "07-04 취소용 결제 완료 주문 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderId')) throw new Error('cancelTimeDealOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('주문과 결제가 완료 상태다', () => { pm.expect(body.data?.orderStatus).to.eql('PAID'); pm.expect(body.data?.payment?.paymentStatus).to.eql('DONE'); });",
+                  "const item = body.data?.deliveryGroups?.[0]?.items?.[0];",
+                  "pm.test('취소 가능한 타임딜 주문상품이다', () => { pm.expect(item?.timeDealId).to.eql(pm.environment.get('timeDealId')); pm.expect(item?.cancelable).to.eql(true); });",
+                  "if (item?.orderItemId) pm.environment.set('cancelTimeDealOrderItemId', item.orderItemId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{cancelTimeDealOrderId}}",
+            "description": "취소용 타임딜 주문의 orderItemId를 저장하고, 일반 상품과 동일한 기준으로 cancelable=true를 확인합니다."
+          }
+        },
+        {
+          "name": "07-05 취소 전 타임딜 재고 확인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 06 흐름을 먼저 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('가용 수량이 조회된다', () => pm.expect(body.data?.stock?.availableQuantity).to.be.a('number'));",
+                  "if (body.data?.stock?.availableQuantity !== undefined) pm.environment.set('cancelTimeDealStockAvailableBeforeCancel', body.data.stock.availableQuantity);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+            "description": "일반 상품과 달리 내부 /stocks가 아니라 외부 타임딜 상세 조회로 availableQuantity를 확인합니다. 취소 후 복원(+1) 여부를 비교할 기준값으로 저장합니다."
+          }
+        },
+        {
+          "name": "07-06 배송 전 타임딜 주문상품 취소",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderId')) throw new Error('cancelTimeDealOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderItemId')) throw new Error('cancelTimeDealOrderItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderTotalAmount')) throw new Error('cancelTimeDealOrderTotalAmount 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "pm.environment.set('cancelTimeDealRequestIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('주문상품이 CANCELED로 변경된다', () => pm.expect(body.data?.canceledItems?.[0]?.itemStatus).to.eql('CANCELED'));",
+                  "pm.test('취소 사유가 CUSTOMER_CANCEL이다', () => { pm.expect(body.data?.cancelReasonCode).to.eql('CUSTOMER_CANCEL'); pm.expect(body.data?.canceledByType).to.eql('CUSTOMER'); });",
+                  "pm.test('취소 금액이 주문 결제 금액 전액이다', () => pm.expect(body.data?.canceledAmount).to.eql(Number(pm.environment.get('cancelTimeDealOrderTotalAmount'))));",
+                  "pm.test('결제도 함께 취소된다', () => { pm.expect(body.data?.payment?.paymentStatus).to.eql('CANCELED'); pm.expect(body.data?.payment?.balanceAmount).to.eql(0); });",
+                  "if (body.data?.cancelId) pm.environment.set('cancelTimeDealCancelId', body.data.cancelId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{cancelTimeDealRequestIdempotencyKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderItemIds\": [\"{{cancelTimeDealOrderItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"단순 변심으로 취소합니다.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{cancelTimeDealOrderId}}/cancel",
+            "description": "배송 시작 전(PREPARING) 타임딜 주문상품을 구매자가 취소합니다. 일반 상품과 동일한 유스케이스(OrderCancelFacade)를 타되, 재고 복원만 TimeDealClient.restoreStock(orderId 단위 1회 호출)로 분기합니다(→ ADR-007). 아이템이 1건뿐이라 배송 그룹도 함께 CANCELED로 바뀌고, 주문 전체 상태(orderStatus)는 PAID를 유지합니다(→ ADR-013)."
+          }
+        },
+        {
+          "name": "07-07 취소 결과 주문 조회",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealOrderId')) throw new Error('cancelTimeDealOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('주문 전체 상태는 PAID를 유지한다', () => pm.expect(body.data?.orderStatus).to.eql('PAID'));",
+                  "pm.test('취소 금액이 누적된다', () => pm.expect(body.data?.canceledAmount).to.eql(Number(pm.environment.get('cancelTimeDealOrderTotalAmount'))));",
+                  "pm.test('배송 그룹이 CANCELED로 바뀐다', () => pm.expect(body.data?.deliveryGroups?.[0]?.groupStatus).to.eql('CANCELED'));",
+                  "pm.test('주문상품이 CANCELED다', () => pm.expect(body.data?.deliveryGroups?.[0]?.items?.[0]?.itemStatus).to.eql('CANCELED'));",
+                  "pm.test('취소 이력이 남는다', () => pm.expect(body.data?.cancels?.length).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/orders/{{cancelTimeDealOrderId}}",
+            "description": "타임딜 주문도 일반 상품과 동일하게 주문 전체는 PAID를 유지하되(→ ADR-013) 아이템·배송 그룹은 CANCELED로, 취소 이력은 cancels 배열로 반영됨을 확인합니다."
+          }
+        },
+        {
+          "name": "07-08 취소 후 타임딜 재고 복원 확인",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                  "if (!pm.environment.get('timeDealId')) throw new Error('timeDealId 환경변수가 없습니다. 06 흐름을 먼저 실행하세요.');",
+                  "if (!pm.environment.get('cancelTimeDealStockAvailableBeforeCancel')) throw new Error('cancelTimeDealStockAvailableBeforeCancel 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let body = {};",
+                  "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                  "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('가용 수량이 취소한 수량만큼 복원된다', () => pm.expect(body.data?.stock?.availableQuantity).to.eql(Number(pm.environment.get('cancelTimeDealStockAvailableBeforeCancel')) + 1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+            "description": "취소 처리 완료 후 타임딜 availableQuantity가 취소 전보다 1 증가했는지 확인합니다. 내부적으로는 TimeDealClient.restoreStock(orderId 단위)이 호출된 결과입니다."
+          }
+        }
+      ]
+    },
+    {
       "name": "08 환불 요청과 처리",
       "description": "환불 검증 데이터 준비와 실제 처리 흐름을 분리합니다. 준비 폴더에서 독립 주문을 DELIVERED까지 만든 뒤 주문 고객의 요청, 취소, 재요청과 해당 상품 판매자의 승인을 순서대로 검증합니다.",
       "item": [
@@ -3073,8 +3337,8 @@
                     "exec": [
                       "const body = pm.response.json();",
                       "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                      "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                      "if (body.data?.[0]?.deliveryId) pm.environment.set('refundDeliveryId', body.data[0].deliveryId);"
+                      "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                      "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('refundDeliveryId', body.data.content[0].deliveryId);"
                     ]
                   }
                 }
@@ -6220,7 +6484,7 @@
                       "raw": "{\n  \"name\": \"Gateway 조회 검증용 타임딜\",\n  \"description\": \"24-01 전용 조회 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealQueryFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealQueryFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
                       "options": {"raw": {"language": "json"}}
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-01 전용 조회 픽스처를 생성합니다."
                   },
                   "event": [
@@ -6326,7 +6590,7 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealQueryFixtureId}}/stock",
                     "description": "정상: 24-01 전용 ACTIVE 픽스처의 판매자 재고를 조회한다. 200 OK와 재고 네 필드를 기대한다."
                   },
                   "event": [
@@ -6357,7 +6621,7 @@
                   "request": {
                     "method": "GET",
                     "header": [],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] X-User-Id·X-User-Role 없이 보호된 재고 API를 호출한다. 400 INVALID_INPUT_VALUE를 기대한다. Gateway 경유 시에는 Gateway 인증 단계에서 401이 반환되므로 이 계약은 직접 호출에서만 검증한다."
                   },
                   "event": [
@@ -6397,7 +6661,7 @@
                         "value": "SELLER"
                       }
                     ],
-                    "url": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealQueryFixtureId}}/stock",
+                    "url": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealQueryFixtureId}}/stock",
                     "description": "[product-service 직접 호출] 요청자 UUID를 다른 값으로 바꿔 상품 서비스의 판매자 소유권 검사를 확인한다. 403 TIME_DEAL_ACCESS_DENIED를 기대한다. Gateway E2E에서 검증하려면 다른 판매자의 실제 Bearer 토큰이 필요하다."
                   },
                   "event": [
@@ -6449,7 +6713,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "정상: 판매자가 독립 타임딜을 SCHEDULED로 생성하고 scenarioId를 저장한다."
                   },
                   "event": [
@@ -6497,7 +6761,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealScenarioId}}",
                     "description": "정상: SCHEDULED 상태에서는 일부 필드만 수정할 수 있고 200 OK를 반환한다."
                   },
                   "event": [
@@ -6542,7 +6806,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealScenarioId}}",
                     "description": "정상: SCHEDULED에서는 상품명·설명·품질·산지·수확일·가격·할인율·판매기간·1인 최대 구매수량을 변경할 수 있다. 타임딜 재고와 일반 상품 재고는 차감·증감하지 않는다."
                   },
                   "event": [
@@ -6587,7 +6851,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "실패: 할인율은 0 이상 100 미만이어야 한다. 400 TIME_DEAL_INVALID_DISCOUNT_RATE를 기대한다."
                   },
                   "event": [
@@ -6623,7 +6887,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "실패: endAt은 startAt 이후여야 한다. 400 TIME_DEAL_INVALID_PERIOD를 기대한다."
                   },
                   "event": [
@@ -6650,7 +6914,7 @@
                       "raw": "{\n  \"name\": \"ACTIVE 수정 거부 검증용 타임딜\",\n  \"description\": \"24-02-06 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealActiveUpdateFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealActiveUpdateFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
                       "options": {"raw": {"language": "json"}}
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-02-06 전용 픽스처를 생성합니다."
                   },
                   "event": [
@@ -6704,7 +6968,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealActiveUpdateFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealActiveUpdateFixtureId}}",
                     "description": "실패: 24-02-06 전용 ACTIVE 픽스처는 수정할 수 없다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
@@ -6735,7 +6999,7 @@
                   "request": {
                     "method": "DELETE",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealScenarioId}}",
                     "description": "정리: 앞 단계에서 직접 생성한 SCHEDULED 타임딜과 재고를 soft delete한다. 선점·판매 수량이 없어야 200 OK다."
                   },
                   "event": [
@@ -6808,7 +7072,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 24-03 전용 픽스처를 생성합니다."
                   },
                   "event": [
@@ -7206,7 +7470,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/conversions",
                     "description": "24-04 전용 fixture입니다. 06의 ACTIVE 타임딜을 재사용하지 않고, 두 번째 일반상품에서 SCHEDULED 타임딜을 한 번 생성해 이후 재실행에도 같은 ID를 재사용합니다. timeDealTransferScenarioId가 이미 있으면 요청을 건너뜁니다."
                   },
                   "event": [
@@ -7253,7 +7517,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "정상: 연결된 일반상품 재고 1개를 타임딜 재고로 이관한다. 일반상품 가용 재고는 감소하고 타임딜 가용 재고는 증가한다. HTTP 200을 기대한다."
                   },
                   "event": [
@@ -7289,7 +7553,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "정상: 타임딜 재고 1개를 연결된 일반상품 재고로 되돌린다. 앞 단계의 재고 이동을 원복하고 HTTP 200을 기대한다."
                   },
                   "event": [
@@ -7325,7 +7589,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 타임딜에 연결된 원본 상품이 아닌 productId로 이관한다. 상품 재고를 건드리지 않고 409 TIME_DEAL_STOCK_TRANSFER_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
@@ -7361,7 +7625,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 일반상품의 가용 재고보다 큰 수량을 타임딜로 이관한다. 일반상품 재고 부족으로 HTTP 409 PRODUCT_STOCK_SHORTAGE를 기대한다."
                   },
                   "event": [
@@ -7397,7 +7661,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealTransferScenarioId}}/stock/transfer",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealTransferScenarioId}}/stock/transfer",
                     "description": "실패: 타임딜 가용 재고가 0개 이하가 되도록 일반상품으로 반환한다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -7439,7 +7703,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "24-05 전용 독립 재고 fixture입니다. 06의 ACTIVE 타임딜과 분리해 SCHEDULED 상태에서 재고 조정을 검증합니다. 이미 ID가 있으면 기존 fixture를 재사용합니다."
                   },
                   "event": [
@@ -7486,7 +7750,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealStockScenarioId}}/stock",
                     "description": "정상: 24-05 전용 SCHEDULED 타임딜 재고에 1개를 독립적으로 추가한다. 연결된 일반상품 재고는 없으며 HTTP 200을 기대한다."
                   },
                   "event": [
@@ -7522,7 +7786,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealStockScenarioId}}/stock",
                     "description": "실패: 독립 재고 조정 delta는 0일 수 없다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -7558,7 +7822,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealStockScenarioId}}/stock",
                     "description": "실패: 기존 가용 재고를 초과 회수해 0개 이하로 만들 수 없다. HTTP 400 TIME_DEAL_INVALID_STOCK_ADJUST_QUANTITY를 기대한다."
                   },
                   "event": [
@@ -7580,7 +7844,7 @@
                   "request": {
                     "method": "DELETE",
                     "header": [],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealStockScenarioId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealStockScenarioId}}",
                     "description": "24-05 전용 fixture를 정리한다. 24-05-01의 +1 조정 이후 재고 자체는 남아 있으므로 삭제만 수행하며, 선점·판매 이력은 없다."
                   },
                   "event": [
@@ -7632,7 +7896,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "테스트 전용 직접 등록 타임딜을 만든다. endAt은 10초 뒤이며, ENDED 상태는 스케줄러가 전환한다."
                   },
                   "event": [
@@ -7714,7 +7978,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{endedFixtureId}}",
                     "description": "실패: 실제 ENDED 픽스처에서 정보 변경을 시도한다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
@@ -7751,7 +8015,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{endedFixtureId}}/stock",
                     "description": "실패: 실제 ENDED 타임딜 재고 조정을 시도한다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
@@ -7788,7 +8052,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "테스트 전용 타임딜을 만들고 스케줄러가 ACTIVE로 바꿀 때까지 기다린다."
                   },
                   "event": [
@@ -7850,7 +8114,7 @@
                     "method": "PATCH",
                     "header": [
                     ],
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stop",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}/stop",
                     "description": "실제 ACTIVE 픽스처를 stop API로 STOPPED로 전환한다."
                   },
                   "event": [
@@ -7887,7 +8151,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}",
                     "description": "실패: 실제 STOPPED 타임딜의 정보 변경은 불가하다. 409 TIME_DEAL_UPDATE_NOT_ALLOWED를 기대한다."
                   },
                   "event": [
@@ -7924,7 +8188,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}/stock",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}/stock",
                     "description": "실패: 실제 STOPPED 타임딜의 재고 조정은 불가하다. 409 TIME_DEAL_STOCK_ADJUST_NOT_ALLOWED를 기대하며 재고는 변경되지 않는다."
                   },
                   "event": [
@@ -7967,7 +8231,7 @@
                         }
                       }
                     },
-                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                     "description": "24-07 전용 픽스처를 생성합니다. 스크립트가 startAt을 생성 후 약 3초 뒤, endAt을 생성 후 약 10분 뒤로 설정하므로 처음에는 SCHEDULED로 생성됩니다. 다음 상태 확인 요청은 스케줄러가 ACTIVE로 전환할 때까지 기다린 뒤 실행합니다."
                   },
                   "event": [
@@ -8366,7 +8630,7 @@
                           "raw": "{\n  \"name\": \"ACTIVE 삭제 거부 검증용 타임딜\",\n  \"description\": \"24-08 삭제 불변식 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealDeleteFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealDeleteFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
                           "options": {"raw": {"language": "json"}}
                         },
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals",
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
                         "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 삭제 검증 전용 픽스처를 생성합니다. 생성 직후 삭제하지 말고 ACTIVE 대기 요청을 먼저 실행합니다."
                       },
                       "event": [
@@ -8411,7 +8675,7 @@
                       "request": {
                         "method": "DELETE",
                         "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealDeleteFixtureId}}",
                         "description": "24-08 전용 ACTIVE 픽스처 삭제를 시도합니다. 409 TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED를 기대합니다."
                       },
                       "event": [
@@ -8442,7 +8706,7 @@
                       "request": {
                         "method": "DELETE",
                         "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{stoppedFixtureId}}",
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}",
                         "description": "24-06에서 STOPPED로 전환한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
                       },
                       "event": [
@@ -8473,7 +8737,7 @@
                       "request": {
                         "method": "DELETE",
                         "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{endedFixtureId}}",
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{endedFixtureId}}",
                         "description": "24-06에서 ENDED로 확인한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
                       },
                       "event": [
@@ -8817,16 +9081,253 @@
               }
             },
             {
-              "name": "31-06 주문 취소 실패 - 배송 시작된 주문",
+              "name": "31-06 배송 시작 준비 - 결제 준비",
               "event": [
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 03~04 시연 흐름을 먼저 실행하세요.');",
-                      "if (!pm.environment.get('orderId')) throw new Error('orderId 환경변수가 없습니다. 03~04 시연 흐름을 먼저 실행하세요.');",
-                      "if (!pm.environment.get('orderItemId')) throw new Error('orderItemId 환경변수가 없습니다. 03~04 시연 흐름을 먼저 실행하세요.');"
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestOrderId')) throw new Error('orderTestOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('결제 준비 값이 모두 있다', () => { pm.expect(body.data?.paymentId).to.exist; pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                      "if (body.data?.paymentId) pm.environment.set('orderTestPaymentId', body.data.paymentId);",
+                      "if (body.data?.tossOrderId) pm.environment.set('orderTestTossOrderId', body.data.tossOrderId);",
+                      "if (body.data?.amount !== undefined) pm.environment.set('orderTestPaymentAmount', body.data.amount);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderId\": \"{{orderTestOrderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
+                "description": "31-06~31-09는 31-10(배송 시작된 주문 취소 실패)을 만들기 위해 orderTestOrderId를 결제 완료 후 배송 시작(SHIPPED)까지 진행합니다. 결제 준비 값을 orderTestPaymentId/orderTestTossOrderId/orderTestPaymentAmount로 저장합니다."
+              }
+            },
+            {
+              "name": "31-07 배송 시작 준비 - Mock 결제 승인",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestOrderId')) throw new Error('orderTestOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestTossOrderId')) throw new Error('orderTestTossOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestPaymentAmount')) throw new Error('orderTestPaymentAmount 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "pm.environment.set('orderTestPaymentKey', `MOCK-PAYMENT-${Date.now()}`);",
+                      "pm.environment.set('orderTestPaymentIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('결제와 주문 상태가 완료다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{orderTestPaymentIdempotencyKey}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"paymentKey\": \"{{orderTestPaymentKey}}\",\n  \"tossOrderId\": \"{{orderTestTossOrderId}}\",\n  \"amount\": {{orderTestPaymentAmount}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
+                "description": "결제를 완료해 배송 그룹을 PREPARING으로 전이시킵니다(재고 확정 포함). 31-09에서 운송장을 등록해야 SHIPPED로 넘어갑니다."
+              }
+            },
+            {
+              "name": "31-08 배송 시작 준비 - [해당 상품 판매자] 배송 조회",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestOrderId')) throw new Error('orderTestOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
+                      "if (body.data?.[0]?.deliveryId) pm.environment.set('orderTestDeliveryId', body.data[0].deliveryId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/deliveries?orderId={{orderTestOrderId}}",
+                "description": "판매자 소유 배송을 조회해 orderTestDeliveryId를 저장합니다."
+              }
+            },
+            {
+              "name": "31-09 배송 시작 준비 - [해당 상품 판매자] 운송장 등록",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('sellerAccessToken')) throw new Error('sellerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('sellerId')) throw new Error('sellerId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestDeliveryId')) throw new Error('orderTestDeliveryId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "pm.environment.set('orderTestTrackingNumber', `MVP-TEST-${Date.now()}`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('배송 상태가 SHIPPED이다', () => pm.expect(body.data?.status).to.eql('SHIPPED'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"trackingNumber\": \"{{orderTestTrackingNumber}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/deliveries/{{orderTestDeliveryId}}/ship",
+                "description": "운송장을 등록해 배송 그룹을 SHIPPED로 전이시킵니다. 이어서 31-10에서 이 주문의 취소를 시도합니다."
+              }
+            },
+            {
+              "name": "31-10 주문 취소 실패 - 배송 시작된 주문",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestOrderId')) throw new Error('orderTestOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestItemId')) throw new Error('orderTestItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
                     ]
                   }
                 },
@@ -8869,28 +9370,205 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"orderItemIds\": [\"{{orderItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"배송 시작 후 취소 시도\"\n}",
+                  "raw": "{\n  \"orderItemIds\": [\"{{orderTestItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"배송 시작 후 취소 시도\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 },
-                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderId}}/cancel",
-                "description": "04 흐름에서 이미 DELIVERED까지 진행된 주문상품을 취소 시도합니다. 배송 그룹 상태가 SHIPPED/DELIVERED이면 취소 대신 환불 안내로 409 ORDER_ALREADY_SHIPPED를 반환합니다(§6-2, 판정 기준은 아이템 상태가 아니라 배송 그룹 상태)."
+                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestOrderId}}/cancel",
+                "description": "31-06~31-09에서 결제 완료 후 배송 시작(SHIPPED)까지 진행한 주문상품을 취소 시도합니다. 배송 그룹 상태가 SHIPPED/DELIVERED이면 취소 대신 환불 안내로 409 ORDER_ALREADY_SHIPPED를 반환합니다(§6-2, 판정 기준은 아이템 상태가 아니라 배송 그룹 상태)."
               }
             },
             {
-              "name": "31-07 주문 취소 실패 - 이미 취소된 아이템 재취소",
+              "name": "31-11 재취소 실패 준비 - 취소용 두 번째 주문 생성",
               "event": [
                 {
                   "listen": "prerequest",
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 05 시연 흐름을 먼저 실행하세요.');",
-                      "if (!pm.environment.get('cancelOrderId')) throw new Error('cancelOrderId 환경변수가 없습니다. 05 시연 흐름을 먼저 실행하세요.');",
-                      "if (!pm.environment.get('cancelOrderItemId')) throw new Error('cancelOrderItemId 환경변수가 없습니다. 05 시연 흐름을 먼저 실행하세요.');"
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('productId')) throw new Error('productId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "pm.environment.set('orderTestCancelIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200 또는 201', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));",
+                      "pm.test('orderTestCancelOrderId가 있다', () => pm.expect(body.data?.orderId).to.exist);",
+                      "if (body.data?.orderId) pm.environment.set('orderTestCancelOrderId', body.data.orderId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{orderTestCancelIdempotencyKey}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"MVP 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"101호\",\n    \"deliveryRequest\": null\n  },\n  \"removeFromCart\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/orders",
+                "description": "31-14(이미 취소된 아이템 재취소 실패)를 만들기 위해 orderTestOrderId와 별개로 새 주문을 생성합니다. 이 주문은 결제 없이 바로 취소해 CANCELED 상태를 만듭니다."
+              }
+            },
+            {
+              "name": "31-12 재취소 실패 준비 - 주문 조회로 orderTestCancelItemId 확보",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestCancelOrderId')) throw new Error('orderTestCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "const item = body.data?.deliveryGroups?.[0]?.items?.[0];",
+                      "pm.test('orderTestCancelItemId가 있다', () => pm.expect(item?.orderItemId).to.exist);",
+                      "if (item?.orderItemId) pm.environment.set('orderTestCancelItemId', item.orderItemId);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "GET",
+                "header": [],
+                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestCancelOrderId}}",
+                "description": "결제 전 주문(STOCK_RESERVED)을 조회해 아래 취소 성공 단계에서 쓸 orderTestCancelItemId를 저장합니다."
+              }
+            },
+            {
+              "name": "31-13 재취소 실패 준비 - 주문 취소 성공",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestCancelOrderId')) throw new Error('orderTestCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestCancelItemId')) throw new Error('orderTestCancelItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "pm.environment.set('orderTestCancelRequestIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('주문상품이 CANCELED로 변경된다', () => pm.expect(body.data?.canceledItems?.[0]?.itemStatus).to.eql('CANCELED'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{orderTestCancelRequestIdempotencyKey}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"orderItemIds\": [\"{{orderTestCancelItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"재취소 실패 케이스 준비용 정상 취소\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestCancelOrderId}}/cancel",
+                "description": "배송 시작 전(PENDING) 주문상품을 정상 취소해 배송 그룹을 CANCELED로 만듭니다. 결제 전이라 PG 취소는 생략됩니다. 이어서 31-14에서 같은 아이템을 새 Idempotency-Key로 재취소 시도합니다."
+              }
+            },
+            {
+              "name": "31-14 주문 취소 실패 - 이미 취소된 아이템 재취소",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerAccessToken')) throw new Error('customerAccessToken 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestCancelOrderId')) throw new Error('orderTestCancelOrderId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('orderTestCancelItemId')) throw new Error('orderTestCancelItemId 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
                     ]
                   }
                 },
@@ -8933,15 +9611,15 @@
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"orderItemIds\": [\"{{cancelOrderItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"이미 취소된 건 재취소 시도\"\n}",
+                  "raw": "{\n  \"orderItemIds\": [\"{{orderTestCancelItemId}}\"],\n  \"cancelReasonCode\": \"CUSTOMER_CANCEL\",\n  \"cancelReason\": \"이미 취소된 건 재취소 시도\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
                     }
                   }
                 },
-                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{cancelOrderId}}/cancel",
-                "description": "05에서 이미 CANCELED로 처리된 아이템을 새 Idempotency-Key로 다시 취소 시도합니다. 05-09(같은 키 재요청)와 달리 이번엔 진짜 새 요청이라 멱등 반환을 타지 않고, 배송 그룹이 이미 CANCELED라 취소 불가 상태로 409 INVALID_ORDER_STATUS를 반환합니다(§4 취소 가능 판정)."
+                "url": "{{gatewayBaseUrl}}/api/v1/orders/{{orderTestCancelOrderId}}/cancel",
+                "description": "31-13에서 이미 CANCELED로 처리된 아이템을 새 Idempotency-Key로 다시 취소 시도합니다. 같은 키 재요청과 달리 이번엔 진짜 새 요청이라 멱등 반환을 타지 않고, 배송 그룹이 이미 CANCELED라 취소 불가 상태로 409 INVALID_ORDER_STATUS를 반환합니다(§4 취소 가능 판정)."
               }
             },
             {
@@ -9941,8 +10619,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('검증용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('confirmScenarioDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('검증용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('confirmScenarioDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -11920,8 +12598,8 @@
                         "exec": [
                           "const body = pm.response.json();",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('배송 검증용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                          "if (body.data?.[0]?.deliveryId) pm.environment.set('deliveryScenarioDeliveryId', body.data[0].deliveryId);"
+                          "pm.test('배송 검증용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                          "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('deliveryScenarioDeliveryId', body.data.content[0].deliveryId);"
                         ]
                       }
                     }
@@ -13556,8 +14234,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('shippedRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('shippedRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -13951,8 +14629,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('배송 ID가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('배송 ID가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }
@@ -14368,7 +15046,7 @@
                             }
                           }
                         },
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/conversions",
+                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/conversions",
                         "description": "환불 시나리오에서만 사용할 타임딜을 새로 생성합니다. 06의 timeDealId는 재사용하지 않습니다."
                       },
                       "event": [
@@ -14691,8 +15369,8 @@
                             "exec": [
                               "const body = pm.response.json();",
                               "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.[0]?.deliveryId).to.exist);",
-                              "if (body.data?.[0]?.deliveryId) pm.environment.set('timeDealRefundDeliveryId', body.data[0].deliveryId);"
+                              "pm.test('환불용 deliveryId가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('timeDealRefundDeliveryId', body.data.content[0].deliveryId);"
                             ]
                           }
                         }

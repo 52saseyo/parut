@@ -203,7 +203,7 @@ class PaymentFacadeTest {
     }
 
     @Test
-    @DisplayName("결제 승인: 재고 확정이 실패하면 PG 취소 후 주문을 취소하고 STOCK_SHORTAGE를 던진다")
+    @DisplayName("결제 승인: 재고 확정이 실패하면 PG 취소 후 주문을 취소하고 STOCK_SHORTAGE_PAYMENT_CANCELED를 던진다")
     void 결제승인_재고확정실패_보상처리() {
         PaymentConfirmCommand command = command();
         PaymentConfirmContext context = context();
@@ -223,7 +223,7 @@ class PaymentFacadeTest {
         assertThatThrownBy(() -> paymentFacade.confirm(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.STOCK_SHORTAGE);
+                .isEqualTo(ErrorCode.STOCK_SHORTAGE_PAYMENT_CANCELED);
 
         verify(paymentGateway).cancel(command.paymentKey(), confirmResult.balanceAmount(), "OUT_OF_STOCK");
         verify(paymentService).applyStockShortageCancel(context, cancelResult);
@@ -231,7 +231,7 @@ class PaymentFacadeTest {
     }
 
     @Test
-    @DisplayName("결제 승인: 재고 확정 실패 후 PG 취소마저 실패하면 상태 변경 없이 PG_CANCEL_FAILED를 던진다")
+    @DisplayName("결제 승인: 재고 확정 실패 후 PG 취소마저 실패하면 상태 변경 없이 STOCK_SHORTAGE_PAYMENT_CANCEL_FAILED를 던진다")
     void 결제승인_재고확정실패_PG취소도실패() {
         PaymentConfirmCommand command = command();
         PaymentConfirmContext context = context();
@@ -250,7 +250,7 @@ class PaymentFacadeTest {
         assertThatThrownBy(() -> paymentFacade.confirm(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PG_CANCEL_FAILED);
+                .isEqualTo(ErrorCode.STOCK_SHORTAGE_PAYMENT_CANCEL_FAILED);
 
         verify(paymentService, never()).applyStockShortageCancel(any(), any());
     }

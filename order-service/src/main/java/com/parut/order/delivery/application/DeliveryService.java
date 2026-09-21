@@ -1,11 +1,16 @@
 package com.parut.order.delivery.application;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.parut.order.delivery.application.port.in.DeliveryCompletionQueryUseCase;
@@ -50,12 +55,11 @@ public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletio
         }
 
         orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
-                .map(OrderDeliveryGroupView::deliveryGroupId)
                 .forEach(this::findOrCreateDelivery);
     }
 
     @Override
-    public Optional<Instant> getDeliveredAt (UUID deliveryGroupId) {
+    public Optional<Instant> getDeliveredAt(UUID deliveryGroupId) {
         if (deliveryGroupId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
@@ -65,17 +69,52 @@ public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletio
                 .map(Delivery::getDeliveredAt);
     }
 
-    public List<Delivery> getDeliveries(UUID orderId, UUID sellerId) {
-        if (orderId == null || sellerId == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+    /** 고객과 판매자의 소유자 스냅샷을 기준으로 배송 목록을 커서 조회한다. */
+    public DeliveryPage getDeliveries(
+            UUID requesterId,
+            UserRole requesterRole,
+            UUID orderId,
+            DeliveryStatus status,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        validateQuery(requesterId, requesterRole, cursor, cursorId, size);
+        Instant cursorTime = parseCursor(cursor);
+        PageRequest pageable = PageRequest.of(0, size + 1);
+
+        List<Delivery> deliveries = switch (requesterRole) {
+            case CUSTOMER -> deliveryRepository.findCustomerDeliveries(
+                    requesterId, orderId, status, cursorTime, cursorId, pageable);
+            case SELLER -> deliveryRepository.findSellerDeliveries(
+                    requesterId, orderId, status, cursorTime, cursorId, pageable);
+            default -> throw new BusinessException(ErrorCode.FORBIDDEN);
+        };
+
+        boolean hasNext = deliveries.size() > size;
+        List<Delivery> content = hasNext ? deliveries.subList(0, size) : deliveries;
+        if (!hasNext) {
+            return new DeliveryPage(content, null, null, false);
         }
 
-        return orderDeliveryGroupQueryUseCase.getDeliveryGroups(orderId).stream()
-                .filter(deliveryGroup -> sellerId.equals(deliveryGroup.sellerId()))
-                .map(OrderDeliveryGroupView::deliveryGroupId)
-                .map(deliveryRepository::findByDeliveryGroupId)
-                .flatMap(Optional::stream)
-                .toList();
+        Delivery lastDelivery = content.getLast();
+        return new DeliveryPage(
+                content,
+                lastDelivery.getCreatedAt().toString(),
+                lastDelivery.getId(),
+                true
+        );
+    }
+
+    /** 관리자가 소유자, 주문과 상태 조건으로 전체 배송을 조회한다. */
+    public Page<Delivery> getAdminDeliveries(
+            UUID customerId,
+            UUID sellerId,
+            UUID orderId,
+            DeliveryStatus status,
+            Pageable pageable
+    ) {
+        return deliveryRepository.findAdminDeliveries(customerId, sellerId, orderId, status, pageable);
     }
 
     /**
@@ -92,29 +131,28 @@ public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletio
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
-        if (userRole == UserRole.ADMIN) {
-            return delivery;
-        }
-
-        if (userRole == UserRole.CUSTOMER) {
-            if (!orderDeliveryGroupQueryUseCase.isOwnedByCustomer(delivery.getDeliveryGroupId(), userId)) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
-        } else if (userRole == UserRole.SELLER) {
-            OrderDeliveryGroupView group = orderDeliveryGroupQueryUseCase
-                    .getDeliveryGroup(delivery.getDeliveryGroupId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.FORBIDDEN));
-            if (!userId.equals(group.sellerId())) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
+        boolean accessible = switch (userRole) {
+            case CUSTOMER -> userId.equals(delivery.getCustomerId());
+            case SELLER -> userId.equals(delivery.getSellerId());
+            case ADMIN -> true;
+            default -> false;
+        };
+        if (!accessible) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         return delivery;
     }
 
-    // TODO: 결제 승인 흐름의 재시도 정책 확정 후 동시 생성 충돌 처리를 보강한다.
-    private Delivery findOrCreateDelivery(UUID deliveryGroupId) {
-        return deliveryRepository.findByDeliveryGroupId(deliveryGroupId)
-                .orElseGet(() -> deliveryRepository.save(Delivery.create(deliveryGroupId)));
+    private Delivery findOrCreateDelivery(OrderDeliveryGroupView group) {
+        // NOTE: 동시 최초 생성은 delivery_group_id UNIQUE 제약으로 중복을 차단한다.
+        // 실제 경합이 확인되면 충돌 후 재조회 또는 잠금 정책을 검토한다.
+        return deliveryRepository.findByDeliveryGroupId(group.deliveryGroupId())
+                .orElseGet(() -> deliveryRepository.save(Delivery.create(
+                        group.deliveryGroupId(),
+                        group.orderId(),
+                        group.customerId(),
+                        group.sellerId()
+                )));
     }
 
     /**
@@ -156,9 +194,9 @@ public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletio
 
     /**
      * 배송 한 건과 주문 배송 그룹을 같은 트랜잭션에서 완료한다.
-     * 스케줄러가 이 메서드를 건별로 호출해 한 건의 실패가 다른 건에 영향을 주지 않는다.
+     * 호출자의 트랜잭션 유무와 관계없이 건별 새 트랜잭션을 사용해 다른 배송과 실패를 격리한다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void completeEligibleDelivery(UUID deliveryId, Instant completionTime, Instant completionThreshold) {
         if (deliveryId == null || completionTime == null || completionThreshold == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
@@ -172,5 +210,32 @@ public class DeliveryService implements DeliveryCreateUseCase, DeliveryCompletio
 
         delivery.complete(completionTime);
         orderDeliveryGroupStatusUseCase.markDelivered(delivery.getDeliveryGroupId());
+    }
+
+    private void validateQuery(
+            UUID requesterId,
+            UserRole requesterRole,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        boolean hasOnlyOneCursorValue = (cursor == null) != (cursorId == null);
+        if (requesterId == null || requesterRole == null || hasOnlyOneCursorValue) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (size != 10 && size != 30 && size != 50) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+        }
+    }
+
+    private Instant parseCursor(String cursor) {
+        if (cursor == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(cursor);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 }

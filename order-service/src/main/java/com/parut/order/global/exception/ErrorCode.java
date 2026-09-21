@@ -40,6 +40,8 @@ public enum ErrorCode {
     INVALID_PAYMENT_STATUS(HttpStatus.CONFLICT, "현재 결제 상태에서는 처리할 수 없습니다."),
     PG_APPROVE_FAILED(HttpStatus.BAD_GATEWAY, "PG 승인에 실패했습니다."),
     PG_CANCEL_FAILED(HttpStatus.BAD_GATEWAY, "PG 취소에 실패했습니다."),
+    STOCK_SHORTAGE_PAYMENT_CANCELED(HttpStatus.CONFLICT, "재고가 부족해 결제가 자동 취소·환불 처리되었습니다."),
+    STOCK_SHORTAGE_PAYMENT_CANCEL_FAILED(HttpStatus.BAD_GATEWAY, "결제는 완료되었으나 재고 부족으로 인한 자동 취소에 실패했습니다. 고객센터로 문의해주세요."),
 
     // delivery
     DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 정보를 찾을 수 없습니다."),

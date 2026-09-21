@@ -98,7 +98,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     public void delete(TimeDealDeleteCommand command) {
         TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        authorizationChecker.requireSellerOwnerOrAdmin(
+        authorizationChecker.requireSellerOwner(
                 command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
         TimeDealStock stock = timeDealStockRepository.findByTimeDealId(command.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
@@ -115,7 +115,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     public TimeDealStopResult stop(TimeDealStopCommand command) {
         TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        authorizationChecker.requireSellerOwnerOrAdmin(
+        authorizationChecker.requireSellerOwner(
                 command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
 
         // NOTE: ACTIVE 타임딜만 STOPPED로 전이한다. 상태 전이 규칙은 도메인이 담당한다.
@@ -129,7 +129,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     public TimeDealUpdateResult update(TimeDealUpdateCommand command) {
         TimeDeal timeDeal = timeDealRepository.findByIdForUpdate(command.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        authorizationChecker.requireSellerOwnerOrAdmin(
+        authorizationChecker.requireSellerOwner(
                 command.requesterId(), command.requesterRole(), timeDeal.getSellerId());
 
         Instant now = Instant.now();
@@ -149,7 +149,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     @Transactional
     public TimeDealCreateResult create(TimeDealCreateCommand timeDealCreateCommand) {
-        authorizationChecker.requireSellerOrAdmin(timeDealCreateCommand.requesterRole());
+        authorizationChecker.requireSeller(timeDealCreateCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
@@ -193,7 +193,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     @Transactional
     public TimeDealCreateResult convert(TimeDealConvertCommand timeDealConvertCommand) {
-        authorizationChecker.requireSellerOrAdmin(timeDealConvertCommand.requesterRole());
+        authorizationChecker.requireSeller(timeDealConvertCommand.requesterRole());
         // NOTE: now는 유즈케이스당 한 번만 만들어 모든 도메인 호출에 같은 값을 넘긴다.
         Instant now = Instant.now();
 
