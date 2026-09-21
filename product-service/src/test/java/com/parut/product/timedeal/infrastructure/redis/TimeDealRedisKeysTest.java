@@ -22,7 +22,7 @@ class TimeDealRedisKeysTest {
     }
 
     @Test
-    void reservation_key_ttl은_15분이다() {
-        assertThat(TimeDealRedisKeys.reservationKeyTtl()).isEqualTo(Duration.ofMinutes(15));
+    void reservation_key_ttl은_20분이다() {
+        assertThat(TimeDealRedisKeys.reservationKeyTtl()).isEqualTo(Duration.ofMinutes(20));
     }
 }

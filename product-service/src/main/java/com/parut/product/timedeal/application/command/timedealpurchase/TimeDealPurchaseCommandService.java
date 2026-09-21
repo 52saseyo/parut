@@ -196,6 +196,11 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
         Instant cutoff = Instant.now();
         Instant cursorExpiresAt = null;
         UUID cursorId = null;
+        int processedCount = 0;
+        int failedCount = 0;
+        long startedAtNanos = System.nanoTime();
+
+        log.info("[TimeDealPurchase] 선점 만료 배치 시작: cutoff={}", cutoff);
 
         while (true) {
             List<TimeDealPurchase> purchases = (cursorExpiresAt == null)
@@ -204,6 +209,8 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
                             cutoff, cursorExpiresAt, cursorId, 100);
 
             if (purchases.isEmpty()) {
+                log.info("[TimeDealPurchase] 선점 만료 배치 완료: processedCount={}, failedCount={}, elapsedMillis={}",
+                        processedCount, failedCount, elapsedMillis(startedAtNanos));
                 return;
             }
 
@@ -212,7 +219,9 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
                     // NOTE: 스케쥴러/배치 등에서 항상 auditor를 설정해주고 clear해준다. 이를 안하면 createdBy, updatedBy 등 null 문제 생김
                     AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
                     timeDealPurchaseExpirationProcessor.expireOneReservation(purchase.getId());
+                    processedCount++;
                 } catch (Exception exception) {
+                    failedCount++;
                     log.error("[TimeDealPurchase] 선점 만료 처리 실패: purchaseId={}", purchase.getId(), exception);
                 } finally {
                     AuditorContext.clear();
@@ -223,6 +232,10 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
             cursorExpiresAt = lastPurchase.getExpiresAt();
             cursorId = lastPurchase.getId();
         }
+    }
+
+    private long elapsedMillis(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
     }
 
     private void publishReservationReleasedEvent(TimeDealPurchase purchase, TimeDealStock stock) {
