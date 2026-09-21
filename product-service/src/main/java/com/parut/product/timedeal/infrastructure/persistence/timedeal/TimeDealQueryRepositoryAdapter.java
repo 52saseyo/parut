@@ -33,6 +33,20 @@ public class TimeDealQueryRepositoryAdapter implements TimeDealQueryRepository {
     }
 
     @Override
+    public List<TimeDealPublicDetailView> findSellerOwnedTimeDealList(
+            UUID sellerId, String cursor, UUID cursorId, int size) {
+        PageRequest pageRequest = PageRequest.of(0, size + 1);
+        if (cursor == null) {
+            return jpaTimeDealQueryRepository.findFirstSellerList(sellerId, pageRequest);
+        }
+        return jpaTimeDealQueryRepository.findNextSellerList(
+                sellerId,
+                java.time.Instant.parse(cursor),
+                cursorId,
+                pageRequest);
+    }
+
+    @Override
     public Optional<TimeDealPublicDetailView> findPublicDetailById(UUID timeDealId) {
         return jpaTimeDealQueryRepository.findPublicDetailById(timeDealId);
     }

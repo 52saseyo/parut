@@ -609,8 +609,157 @@
             },
             {
               "name": "external",
-              "description": "/api/v1/time-deals/** — 공개 단건 조회 및 판매자·관리자의 수정·삭제. productBaseUrl, timeDealId, userId는 기존 환경변수를 사용한다. 서비스 직접 호출 기준이며 Gateway 경유 시 해당 Gateway의 인증 계약을 별도로 적용한다. 요청 스크립트는 traceId를 자동 생성하고 userRole이 없으면 SELLER를 사용한다. 대상 ID나 사용자 ID는 임의 생성하지 않는다.",
+              "description": "/api/v1/time-deals/seller/** — 공개 단건 조회 및 판매자 본인의 수정·삭제. productBaseUrl, timeDealId, userId는 기존 환경변수를 사용한다. 서비스 직접 호출 기준이며 Gateway 경유 시 해당 Gateway의 인증 계약을 별도로 적용한다. 요청 스크립트는 traceId를 자동 생성하고 userRole이 없으면 SELLER를 사용한다. 대상 ID나 사용자 ID는 임의 생성하지 않는다.",
               "item": [
+                {
+                  "name": "판매자 소유 타임딜 목록 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller?size=10",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals", "seller"
+                      ],
+                      "query": [
+                        {
+                          "key": "size",
+                          "value": "10",
+                          "description": "페이지 크기. 10, 30, 50 중 하나입니다."
+                        },
+                        {
+                          "key": "cursor",
+                          "value": "",
+                          "disabled": true,
+                          "description": "이전 응답 pageInfo.nextCursor 값"
+                        },
+                        {
+                          "key": "cursorId",
+                          "value": "",
+                          "disabled": true,
+                          "description": "이전 응답 pageInfo.nextIdAfter 값"
+                        }
+                      ]
+                    },
+                    "description": "판매자 본인이 소유한 타임딜만 커서 기반으로 조회합니다. X-User-Id의 판매자 소유권과 SELLER 권한이 필요합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');",
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('커서 응답 형식이다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.content).to.be.an('array'); pm.expect(body.data.pageInfo.paginationType).to.eql('CURSOR'); });"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "판매자 소유 타임딜 재고 목록 조회",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "{{timeDealRequesterRole}}"
+                      },
+                      {
+                        "key": "X-Trace-Id",
+                        "value": "{{timeDealTraceId}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/stocks?size=10",
+                      "host": [
+                        "{{productBaseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "time-deals", "seller",
+                        "stocks"
+                      ],
+                      "query": [
+                        {
+                          "key": "size",
+                          "value": "10",
+                          "description": "페이지 크기. 10, 30, 50 중 하나입니다."
+                        },
+                        {
+                          "key": "cursor",
+                          "value": "",
+                          "disabled": true,
+                          "description": "이전 응답 pageInfo.nextCursor 값"
+                        },
+                        {
+                          "key": "cursorId",
+                          "value": "",
+                          "disabled": true,
+                          "description": "이전 응답 pageInfo.nextIdAfter 값"
+                        }
+                      ]
+                    },
+                    "description": "판매자 본인이 소유한 모든 타임딜의 재고를 커서 기반으로 조회합니다. X-User-Id의 판매자 소유권과 SELLER 권한이 필요합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "pm.variables.set('timeDealRequesterRole', pm.variables.get('userRole') || 'SELLER');",
+                          "pm.variables.set('timeDealTraceId', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('커서 응답 형식이다', () => { pm.expect(body.code).to.eql('OK'); pm.expect(body.data.content).to.be.an('array'); pm.expect(body.data.pageInfo.paginationType).to.eql('CURSOR'); });"
+                        ]
+                      }
+                    }
+                  ]
+                },
                 {
                   "name": "타임딜 상품 목록 조회",
                   "request": {
@@ -755,19 +904,19 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}/stock",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
                       "path": [
                         "api",
                         "v1",
-                        "time-deals",
+                        "time-deals", "seller",
                         "{{timeDealId}}",
                         "stock"
                       ]
                     },
-                    "description": "판매자 본인 또는 ADMIN만 타임딜 재고를 조회한다. userId는 실제 요청자 UUID이며 userRole 미설정 시 SELLER를 사용한다. 성공 200 OK: data에 timeDealId, availableQuantity, reservedQuantity, soldQuantity, lowStockThreshold를 반환한다. 권한이 없으면 403, 삭제되었거나 존재하지 않는 타임딜·재고는 404다."
+                    "description": "판매자 본인만 타임딜 재고를 조회한다. userId는 실제 요청자 UUID이며 userRole 미설정 시 SELLER를 사용한다. 성공 200 OK: data에 timeDealId, availableQuantity, reservedQuantity, soldQuantity, lowStockThreshold를 반환한다. 권한이 없으면 403, 삭제되었거나 존재하지 않는 타임딜·재고는 404다."
                   },
                   "event": [
                     {
@@ -818,18 +967,18 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
                       "path": [
                         "api",
                         "v1",
-                        "time-deals",
+                        "time-deals", "seller",
                         "{{timeDealId}}"
                       ]
                     },
-                    "description": "판매자 본인 또는 ADMIN만 수정 가능. userId는 실제 요청자 UUID. userRole 환경변수가 없으면 SELLER를 사용하며 ADMIN 테스트는 userRole을 ADMIN으로 설정한다. SCHEDULED만 수정 가능하며 null·생략 필드는 유지한다. 예시 Body는 상품명·할인율만 수정한다. 성공 200 OK: timeDealId·status·updatedAt. 주요 실패: 인가 403, 대상 없음 404, 상태·입력 오류. 재고는 변경하지 않는다.",
+                    "description": "판매자 본인만 수정 가능. userId는 실제 요청자 UUID이며 userRole은 SELLER로 설정한다. SCHEDULED만 수정 가능하며 null·생략 필드는 유지한다. 예시 Body는 상품명·할인율만 수정한다. 성공 200 OK: timeDealId·status·updatedAt. 주요 실패: 인가 403, 대상 없음 404, 상태·입력 오류. 재고는 변경하지 않는다.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"수정한 타임딜 상품명\",\n  \"discountRate\": 20\n}",
@@ -889,18 +1038,18 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
                       "path": [
                         "api",
                         "v1",
-                        "time-deals",
+                        "time-deals", "seller",
                         "{{timeDealId}}"
                       ]
                     },
-                    "description": "판매자 본인 또는 ADMIN만 삭제 가능. userRole 미설정 시 SELLER. SCHEDULED 상태이며 선점·판매 수량이 없어야 한다. 타임딜과 재고를 함께 soft delete하며 일반 상품 재고는 반환하지 않는다. 성공 200 OK: code=OK, data=null, timestamp·traceId. 주요 실패: 인가 403, 대상·재고 정보 없음 404, 삭제 불가 상태. 삭제 확인을 위해 성공 후에도 timeDealId는 유지한다."
+                    "description": "판매자 본인만 삭제 가능. userRole은 SELLER로 설정한다. SCHEDULED 상태이며 선점·판매 수량이 없어야 한다. 타임딜과 재고를 함께 soft delete하며 일반 상품 재고는 반환하지 않는다. 성공 200 OK: code=OK, data=null, timestamp·traceId. 주요 실패: 인가 403, 대상·재고 정보 없음 404, 삭제 불가 상태. 삭제 확인을 위해 성공 후에도 timeDealId는 유지한다."
                   },
                   "event": [
                     {
@@ -947,19 +1096,19 @@
                       }
                     ],
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stop",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}/stop",
                       "host": [
                         "{{productBaseUrl}}"
                       ],
                       "path": [
                         "api",
                         "v1",
-                        "time-deals",
+                        "time-deals", "seller",
                         "{{timeDealId}}",
                         "stop"
                       ]
                     },
-                    "description": "판매자 본인 또는 ADMIN만 강제 종료 가능. userRole 미설정 시 SELLER. ACTIVE 상태인 타임딜만 STOPPED로 변경한다. 요청 Body는 없다. 성공 200 OK: data에 timeDealId·status=STOPPED, 최상위에 timestamp·traceId. 주요 실패: 인가 403, 대상 없음 404, ACTIVE가 아닌 상태 409. 남은 재고와 RESERVED 구매 건은 자동 복구·즉시 취소하지 않는다."
+                    "description": "판매자 본인만 강제 종료 가능. userRole은 SELLER로 설정한다. ACTIVE 상태인 타임딜만 STOPPED로 변경한다. 요청 Body는 없다. 성공 200 OK: data에 timeDealId·status=STOPPED, 최상위에 timestamp·traceId. 주요 실패: 인가 403, 대상 없음 404, ACTIVE가 아닌 상태 409. 남은 재고와 RESERVED 구매 건은 자동 복구·즉시 취소하지 않는다."
                   },
                   "event": [
                     {
@@ -1004,11 +1153,11 @@
                       "options": { "raw": { "language": "json" } }
                     },
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}/stock",
                       "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "time-deals", "{{timeDealId}}", "stock"]
+                      "path": ["api", "v1", "time-deals", "seller", "{{timeDealId}}", "stock"]
                     },
-                    "description": "판매자 본인 또는 ADMIN이 타임딜 판매 가능 재고를 조정한다. quantity는 delta이며 양수는 추가, 음수는 회수다."
+                    "description": "판매자 본인이 타임딜 판매 가능 재고를 조정한다. quantity는 delta이며 양수는 추가, 음수는 회수다."
                   },
                   "event": [
                     {
@@ -1051,9 +1200,9 @@
                       "options": { "raw": { "language": "json" } }
                     },
                     "url": {
-                      "raw": "{{productBaseUrl}}/api/v1/time-deals/{{timeDealId}}/stock/transfer",
+                      "raw": "{{productBaseUrl}}/api/v1/time-deals/seller/{{timeDealId}}/stock/transfer",
                       "host": ["{{productBaseUrl}}"],
-                      "path": ["api", "v1", "time-deals", "{{timeDealId}}", "stock", "transfer"]
+                      "path": ["api", "v1", "time-deals", "seller", "{{timeDealId}}", "stock", "transfer"]
                     },
                     "description": "연결된 일반 상품과 타임딜 사이에서 재고를 이동한다. quantity는 타임딜 기준 delta이며 상품 재고에는 반대 방향으로 전달된다."
                   },
