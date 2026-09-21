@@ -54,4 +54,4 @@ order-service:
   base-url: http://order-service:8080
 
 internal:
-  service-key: parut-internal-secret-key-1234
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}
