@@ -29,7 +29,7 @@ public class TimeDealImageService {
     public void registerImage(UUID requesterId, String requesterRole, UUID timeDealId, UUID imageId){
         var timeDeal = timeDealRepository.findById(timeDealId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
-        authorizationChecker.requireSellerOwnerOrAdmin(requesterId, requesterRole, timeDeal.getSellerId());
+        authorizationChecker.requireSellerOwner(requesterId, requesterRole, timeDeal.getSellerId());
         registerImage(requesterId, timeDealId, imageId);
     }
 

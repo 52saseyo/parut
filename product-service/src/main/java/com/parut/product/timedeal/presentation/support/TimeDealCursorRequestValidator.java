@@ -25,4 +25,13 @@ public final class TimeDealCursorRequestValidator {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
     }
+
+    public static void validateSeller(String cursor, UUID cursorId, int size) {
+        if (!ALLOWED_SIZES.contains(size)) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+        }
+        if ((cursor == null) != (cursorId == null)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
 }

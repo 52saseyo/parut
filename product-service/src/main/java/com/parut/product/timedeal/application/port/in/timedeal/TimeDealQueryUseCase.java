@@ -16,6 +16,14 @@ public interface TimeDealQueryUseCase {
             int size
     );
 
+    TimeDealCursorResult<TimeDealPublicDetailResult> getSellerOwnedTimeDealList(
+            UUID sellerId,
+            String requesterRole,
+            String cursor,
+            UUID cursorId,
+            int size
+    );
+
     // NOTE: 인증·소유권 검사 없이 누구나 조회하는 판매 조건과 재고 정보다.
     TimeDealPublicDetailResult getPublicDetail(UUID timeDealId);
 
