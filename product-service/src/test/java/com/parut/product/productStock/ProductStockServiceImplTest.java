@@ -28,6 +28,7 @@ import com.parut.product.product.domain.stock.entity.ProductStockReservation;
 import com.parut.product.product.domain.stock.enums.AllocationEventType;
 import com.parut.product.product.domain.stock.enums.ReservationStatus;
 import com.parut.product.product.domain.stock.enums.StockEventType;
+import com.parut.product.product.domain.stock.enums.StockStatus;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockAllocationLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockEventLogRepository;
 import com.parut.product.product.infrastructure.stock.persistence.ProductStockRepository;
@@ -271,10 +272,10 @@ public class ProductStockServiceImplTest {
             ProductStock stock = ProductStock.create(productId, 100, 10);
             Page<ProductStock> page = new PageImpl<>(List.of(stock));
             given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of(productId));
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId), pageable))
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId),null, pageable))
                     .willReturn(page);
 
-            Page<ProductStock> result = productStockService.getStockList(sellerId, "SELLER", pageable);
+            Page<ProductStock> result = productStockService.getStockList(sellerId, "SELLER", pageable, null);
             log.info("[ProductStockService.getStockList] 조회된 건수={}, 첫 건 productId={}",
                     result.getContent().size(), result.getContent().get(0).getProductId());
 
@@ -288,10 +289,10 @@ public class ProductStockServiceImplTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(), pageable))
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(),null, pageable))
                     .willReturn(Page.empty());
 
-            Page<ProductStock> result = productStockService.getStockList(sellerId, "SELLER", pageable);
+            Page<ProductStock> result = productStockService.getStockList(sellerId, "SELLER", pageable, null);
             assertThat(result.getContent()).isEmpty();
         }
 
@@ -301,11 +302,49 @@ public class ProductStockServiceImplTest {
             Pageable pageable = PageRequest.of(0, 10);
             Page<ProductStock> page = new PageImpl<>(List.of(ProductStock.create(productId, 100, 10)));
             given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
-            given(productStockRepository.findByDeletedAtIsNull(pageable)).willReturn(page);
+            given(productStockRepository.findByDeletedAtIsNull(null, pageable)).willReturn(page);
 
-            Page<ProductStock> result = productStockService.getStockList(UUID.randomUUID(), "ADMIN", pageable);
+            Page<ProductStock> result = productStockService.getStockList(UUID.randomUUID(), "ADMIN", pageable, null);
 
             assertThat(result.getContent()).hasSize(1);
+            verify(productReader, never()).getProductIdsBySellerId(any());
+        }
+
+        @Test
+        @DisplayName("status를 지정하면 판매자 조회 시 리포지토리에 해당 status가 그대로 전달된다")
+        void getStockList_withStatus_bySeller_passesStatusToRepository() {
+            Pageable pageable = PageRequest.of(0, 10);
+            ProductStock stock = ProductStock.create(productId, 100, 10);
+            Page<ProductStock> page = new PageImpl<>(List.of(stock));
+
+            given(productReader.getProductIdsBySellerId(sellerId)).willReturn(List.of(productId));
+            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(
+                    List.of(productId), StockStatus.LOW_STOCK, pageable))
+                    .willReturn(page);
+
+            Page<ProductStock> result = productStockService.getStockList(
+                    sellerId, "SELLER", pageable, StockStatus.LOW_STOCK);
+
+            assertThat(result.getContent()).containsExactly(stock);
+            verify(productStockRepository).findByProductIdInAndDeletedAtIsNull(
+                    List.of(productId), StockStatus.LOW_STOCK, pageable);
+        }
+
+        @Test
+        @DisplayName("status를 지정하면 관리자 조회 시 리포지토리에 해당 status가 그대로 전달된다")
+        void getStockList_withStatus_byAdmin_passesStatusToRepository() {
+            Pageable pageable = PageRequest.of(0, 10);
+            Page<ProductStock> page = new PageImpl<>(List.of(ProductStock.create(productId, 100, 10)));
+
+            given(authorizationChecker.requireSellerOrAdminRole("ADMIN")).willReturn(UserRole.ADMIN);
+            given(productStockRepository.findByDeletedAtIsNull(StockStatus.SOLD_OUT, pageable))
+                    .willReturn(page);
+
+            Page<ProductStock> result = productStockService.getStockList(
+                    UUID.randomUUID(), "ADMIN", pageable, StockStatus.SOLD_OUT);
+
+            assertThat(result.getContent()).hasSize(1);
+            verify(productStockRepository).findByDeletedAtIsNull(StockStatus.SOLD_OUT, pageable);
             verify(productReader, never()).getProductIdsBySellerId(any());
         }
     }

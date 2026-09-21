@@ -537,13 +537,13 @@ public class ProductStockServiceImpl implements ProductStockService{
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable) {
+    public Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable, StockStatus status) {
         UserRole role = authorizationChecker.requireSellerOrAdminRole(requesterRole);
         if (role == UserRole.ADMIN) {
-            return productStockRepository.findByDeletedAtIsNull(pageable);
+            return productStockRepository.findByDeletedAtIsNull(status, pageable);
         }
         List<UUID> productIds = productReader.getProductIdsBySellerId(requesterId);
-        return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, pageable);
+        return productStockRepository.findByProductIdInAndDeletedAtIsNull(productIds, status, pageable);
     }
 
     // 타임딜 전환 메서드
@@ -631,8 +631,7 @@ public class ProductStockServiceImpl implements ProductStockService{
         try {
             productStateManager.resumeSaleAfterRestock(productId);
         } catch (BusinessException e) {
-            if (e.getErrorCode() != ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED
-                    && e.getErrorCode() != ErrorCode.PRODUCT_IMAGE_REQUIRED) {
+            if (e.getErrorCode() != ErrorCode.PRODUCT_STATUS_TRANSITION_NOT_ALLOWED) {
                 throw e;
             }
         }
