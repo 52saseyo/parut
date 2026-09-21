@@ -9358,155 +9358,155 @@
             },
             {
               "name": "24-08 삭제·soft delete 불변식",
-                  "description": "삭제 시나리오에서 사용할 상태 픽스처를 먼저 준비한다. 타임딜과 재고는 함께 soft delete되며 재고만 단독 삭제하지 않는다.",
-                  "item": [
+              "description": "삭제 시나리오에서 사용할 상태 픽스처를 먼저 준비한다. 타임딜과 재고는 함께 soft delete되며 재고만 단독 삭제하지 않는다.",
+              "item": [
+                {
+                  "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 생성",
+                  "request": {
+                    "method": "POST",
+                    "header": [{"key": "Content-Type", "value": "application/json"}],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"ACTIVE 삭제 거부 검증용 타임딜\",\n  \"description\": \"24-08 삭제 불변식 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealDeleteFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealDeleteFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                      "options": {"raw": {"language": "json"}}
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
+                    "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 삭제 검증 전용 픽스처를 생성합니다. 생성 직후 삭제하지 말고 ACTIVE 대기 요청을 먼저 실행합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('timeDealDeleteFixtureStartAt', new Date(now + 3000).toISOString());",
+                      "pm.environment.set('timeDealDeleteFixtureEndAt', new Date(now + 600000).toISOString());",
+                      "pm.environment.unset('timeDealDeleteFixtureId');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "pm.test('삭제 검증 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('timeDealDeleteFixtureId', body.data.timeDealId);",
+                      "pm.execution.setNextRequest('24-08-00 ACTIVE 삭제 거부용 픽스처 대기');"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 대기",
+                  "request": {
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
+                    "description": "생성 후 최소 1분을 기다립니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
+                  },
+                  "event": [
+                    {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
+                      "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처 생성을 먼저 실행하세요.');"
+                    ]}},
+                    {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "const body = pm.response.json();",
+                      "const status = body.data?.status;",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "pm.test('삭제 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
+                      "if (status === 'ACTIVE') pm.execution.setNextRequest('24-08-01 ACTIVE 타임딜 삭제 거부'); else pm.execution.setNextRequest(null);"
+                    ]}}
+                  ]
+                },
+                {
+                  "name": "24-08-01 ACTIVE 타임딜 삭제 거부",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealDeleteFixtureId}}",
+                    "description": "24-08 전용 ACTIVE 픽스처 삭제를 시도합니다. 409 TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED를 기대합니다."
+                  },
+                  "event": [
                     {
-                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 생성",
-                      "request": {
-                        "method": "POST",
-                        "header": [{"key": "Content-Type", "value": "application/json"}],
-                        "body": {
-                          "mode": "raw",
-                          "raw": "{\n  \"name\": \"ACTIVE 삭제 거부 검증용 타임딜\",\n  \"description\": \"24-08 삭제 불변식 전용 ACTIVE 픽스처\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"2026-09-01\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 10,\n  \"startAt\": \"{{timeDealDeleteFixtureStartAt}}\",\n  \"endAt\": \"{{timeDealDeleteFixtureEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
-                          "options": {"raw": {"language": "json"}}
-                        },
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller",
-                        "description": "생성 후 약 3초 뒤 ACTIVE가 되고 약 10분 뒤 종료되는 삭제 검증 전용 픽스처를 생성합니다. 생성 직후 삭제하지 말고 ACTIVE 대기 요청을 먼저 실행합니다."
-                      },
-                      "event": [
-                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
-                          "const now = Date.now();",
-                          "pm.environment.set('timeDealDeleteFixtureStartAt', new Date(now + 3000).toISOString());",
-                          "pm.environment.set('timeDealDeleteFixtureEndAt', new Date(now + 600000).toISOString());",
-                          "pm.environment.unset('timeDealDeleteFixtureId');"
-                        ]}},
-                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
                           "const body = pm.response.json();",
-                          "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
-                          "pm.test('삭제 검증 픽스처가 SCHEDULED로 생성됨', () => pm.expect(body.data?.status).to.eql('SCHEDULED'));",
-                          "pm.environment.set('timeDealDeleteFixtureId', body.data.timeDealId);",
-                          "pm.execution.setNextRequest('24-08-00 ACTIVE 삭제 거부용 픽스처 대기');"
-                        ]}}
-                      ]
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('ACTIVE 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED'));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-08-02 STOPPED 타임딜 삭제 거부",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}",
+                    "description": "24-06에서 STOPPED로 전환한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('stoppedFixtureId')) throw new Error('24-06 STOPPED 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
                     },
                     {
-                      "name": "24-08-00 ACTIVE 삭제 거부용 픽스처 대기",
-                      "request": {
-                        "method": "GET",
-                        "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/{{timeDealDeleteFixtureId}}",
-                        "description": "생성 후 최소 1분을 기다립니다. 스케줄러가 ACTIVE로 전환하지 않았다면 이 요청부터 다시 실행합니다."
-                      },
-                      "event": [
-                        {"listen": "prerequest", "script": {"type": "text/javascript", "exec": [
-                          "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처 생성을 먼저 실행하세요.');"
-                        ]}},
-                        {"listen": "test", "script": {"type": "text/javascript", "exec": [
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
                           "const body = pm.response.json();",
-                          "const status = body.data?.status;",
-                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('삭제 거부 픽스처가 ACTIVE 상태다', () => pm.expect(status).to.eql('ACTIVE'));",
-                          "if (status === 'ACTIVE') pm.execution.setNextRequest('24-08-01 ACTIVE 타임딜 삭제 거부'); else pm.execution.setNextRequest(null);"
-                        ]}}
-                      ]
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('STOPPED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "name": "24-08-03 ENDED 타임딜 삭제 거부",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{endedFixtureId}}",
+                    "description": "24-06에서 ENDED로 확인한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
+                  },
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('endedFixtureId')) throw new Error('24-06 ENDED 픽스처를 먼저 실행하세요.');"
+                        ]
+                      }
                     },
                     {
-                      "name": "24-08-01 ACTIVE 타임딜 삭제 거부",
-                      "request": {
-                        "method": "DELETE",
-                        "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{timeDealDeleteFixtureId}}",
-                        "description": "24-08 전용 ACTIVE 픽스처 삭제를 시도합니다. 409 TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED를 기대합니다."
-                      },
-                      "event": [
-                        {
-                          "listen": "prerequest",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "if (!pm.environment.get('timeDealDeleteFixtureId')) throw new Error('24-08-00 ACTIVE 삭제 픽스처를 먼저 실행하세요.');"
-                            ]
-                          }
-                        },
-                        {
-                          "listen": "test",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "const body = pm.response.json();",
-                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                              "pm.test('ACTIVE 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_ACTIVE_DELETE_NOT_ALLOWED'));"
-                            ]
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "name": "24-08-02 STOPPED 타임딜 삭제 거부",
-                      "request": {
-                        "method": "DELETE",
-                        "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{stoppedFixtureId}}",
-                        "description": "24-06에서 STOPPED로 전환한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
-                      },
-                      "event": [
-                        {
-                          "listen": "prerequest",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "if (!pm.environment.get('stoppedFixtureId')) throw new Error('24-06 STOPPED 픽스처를 먼저 실행하세요.');"
-                            ]
-                          }
-                        },
-                        {
-                          "listen": "test",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "const body = pm.response.json();",
-                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                              "pm.test('STOPPED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
-                            ]
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "name": "24-08-03 ENDED 타임딜 삭제 거부",
-                      "request": {
-                        "method": "DELETE",
-                        "header": [],
-                        "url": "{{gatewayBaseUrl}}/api/v1/time-deals/seller/{{endedFixtureId}}",
-                        "description": "24-06에서 ENDED로 확인한 픽스처 삭제를 시도합니다. 409 TIME_DEAL_INVALID_STATUS를 기대합니다."
-                      },
-                      "event": [
-                        {
-                          "listen": "prerequest",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "if (!pm.environment.get('endedFixtureId')) throw new Error('24-06 ENDED 픽스처를 먼저 실행하세요.');"
-                            ]
-                          }
-                        },
-                        {
-                          "listen": "test",
-                          "script": {
-                            "type": "text/javascript",
-                            "exec": [
-                              "const body = pm.response.json();",
-                              "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                              "pm.test('ENDED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
-                            ]
-                          }
-                        }
-                      ]
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('ENDED 삭제 거부', () => pm.expect(body.code).to.eql('TIME_DEAL_INVALID_STATUS'));"
+                        ]
+                      }
                     }
                   ]
                 }
               ]
             }
+          ]
+        }
 
       ]
     },
@@ -13713,388 +13713,388 @@
               "description": "34-00이 준비한 고객과 상품 2건으로 주문, 결제와 배송 시작까지 진행한 뒤 SHIPPED 상태에서 환불 요청 거부를 확인한다. 여기서 만든 주문을 34-02와 34-03이 이어서 사용하므로 34-00 → 34-01 → 34-02 → 34-03 순서로 실행한다.",
               "item": [
                 {
-                                                      "name": "34-01-01 [주문 고객] 다건 환불용 주문 생성",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "if (!pm.environment.get('refundScenarioProductId') || !pm.environment.get('refundScenarioSecondProductId')) throw new Error('환불 대상 상품 2건이 준비되지 않았습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "pm.environment.set('multiRefundOrderIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                                                              "pm.test('다건 환불용 orderId가 있다', () => pm.expect(body.data?.orderId).to.exist);",
-                                                              "if (body.data?.orderId) pm.environment.set('multiRefundOrderId', body.data.orderId);"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioCustomerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "POST",
-                                                        "header": [
-                                                          {
-                                                            "key": "Content-Type",
-                                                            "value": "application/json"
-                                                          },
-                                                          {
-                                                            "key": "Idempotency-Key",
-                                                            "value": "{{multiRefundOrderIdempotencyKey}}"
-                                                          }
-                                                        ],
-                                                        "body": {
-                                                          "mode": "raw",
-                                                          "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{refundScenarioProductId}}\",\n      \"quantity\": 1\n    },\n    {\n      \"productId\": \"{{refundScenarioSecondProductId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"다건 환불 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"103호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  },\n  \"removeFromCart\": false\n}",
-                                                          "options": {
-                                                            "raw": {
-                                                              "language": "json"
-                                                            }
-                                                          }
-                                                        },
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                                                        "description": "같은 판매자의 서로 다른 일반 상품 2건으로 독립된 다건 환불용 주문을 생성합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-01 [주문 고객] 다건 환불용 주문 생성",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "if (!pm.environment.get('refundScenarioProductId') || !pm.environment.get('refundScenarioSecondProductId')) throw new Error('환불 대상 상품 2건이 준비되지 않았습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "pm.environment.set('multiRefundOrderIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('다건 환불용 orderId가 있다', () => pm.expect(body.data?.orderId).to.exist);",
+                          "if (body.data?.orderId) pm.environment.set('multiRefundOrderId', body.data.orderId);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{multiRefundOrderIdempotencyKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{refundScenarioProductId}}\",\n      \"quantity\": 1\n    },\n    {\n      \"productId\": \"{{refundScenarioSecondProductId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"recipient\": {\n    \"recipientName\": \"다건 환불 고객\",\n    \"recipientPhone\": \"010-1111-2222\",\n    \"zipCode\": \"05544\",\n    \"addressBase\": \"서울시 송파구\",\n    \"addressDetail\": \"103호\",\n    \"deliveryRequest\": \"문 앞에 놓아주세요\"\n  },\n  \"removeFromCart\": false\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/orders",
+                    "description": "같은 판매자의 서로 다른 일반 상품 2건으로 독립된 다건 환불용 주문을 생성합니다."
+                  }
+                },
                 {
-                                                      "name": "34-01-02 [주문 고객] 다건 환불용 결제 준비",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                                                              "pm.test('결제 준비 값이 있다', () => { pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
-                                                              "if (body.data?.tossOrderId) pm.environment.set('multiRefundTossOrderId', body.data.tossOrderId);",
-                                                              "if (body.data?.amount !== undefined) pm.environment.set('multiRefundPaymentAmount', body.data.amount);"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioCustomerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "POST",
-                                                        "header": [
-                                                          {
-                                                            "key": "Content-Type",
-                                                            "value": "application/json"
-                                                          }
-                                                        ],
-                                                        "body": {
-                                                          "mode": "raw",
-                                                          "raw": "{\n  \"orderId\": \"{{multiRefundOrderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
-                                                          "options": {
-                                                            "raw": {
-                                                              "language": "json"
-                                                            }
-                                                          }
-                                                        },
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
-                                                        "description": "다건 환불용 주문의 결제를 준비합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-02 [주문 고객] 다건 환불용 결제 준비",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('결제 준비 값이 있다', () => { pm.expect(body.data?.tossOrderId).to.exist; pm.expect(body.data?.amount).to.exist; });",
+                          "if (body.data?.tossOrderId) pm.environment.set('multiRefundTossOrderId', body.data.tossOrderId);",
+                          "if (body.data?.amount !== undefined) pm.environment.set('multiRefundPaymentAmount', body.data.amount);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"orderId\": \"{{multiRefundOrderId}}\",\n  \"paymentMethod\": \"CREDIT_CARD\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/payments/ready",
+                    "description": "다건 환불용 주문의 결제를 준비합니다."
+                  }
+                },
                 {
-                                                      "name": "34-01-03 [주문 고객] 다건 환불용 결제 승인",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('multiRefundTossOrderId') || !pm.environment.get('multiRefundPaymentAmount')) throw new Error('결제 준비 값이 없습니다. 34-02-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "pm.environment.set('multiRefundPaymentKey', `MOCK-MULTI-REFUND-${Date.now()}`);",
-                                                              "pm.environment.set('multiRefundPaymentIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                                                              "pm.test('결제와 주문이 완료 상태다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioCustomerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "POST",
-                                                        "header": [
-                                                          {
-                                                            "key": "Content-Type",
-                                                            "value": "application/json"
-                                                          },
-                                                          {
-                                                            "key": "Idempotency-Key",
-                                                            "value": "{{multiRefundPaymentIdempotencyKey}}"
-                                                          }
-                                                        ],
-                                                        "body": {
-                                                          "mode": "raw",
-                                                          "raw": "{\n  \"paymentKey\": \"{{multiRefundPaymentKey}}\",\n  \"tossOrderId\": \"{{multiRefundTossOrderId}}\",\n  \"amount\": {{multiRefundPaymentAmount}}\n}",
-                                                          "options": {
-                                                            "raw": {
-                                                              "language": "json"
-                                                            }
-                                                          }
-                                                        },
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
-                                                        "description": "다건 환불용 주문을 PAID, Payment를 DONE으로 변경합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-03 [주문 고객] 다건 환불용 결제 승인",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('multiRefundTossOrderId') || !pm.environment.get('multiRefundPaymentAmount')) throw new Error('결제 준비 값이 없습니다. 34-02-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "pm.environment.set('multiRefundPaymentKey', `MOCK-MULTI-REFUND-${Date.now()}`);",
+                          "pm.environment.set('multiRefundPaymentIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('결제와 주문이 완료 상태다', () => { pm.expect(body.data?.paymentStatus).to.eql('DONE'); pm.expect(body.data?.orderStatus).to.eql('PAID'); });"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Idempotency-Key",
+                        "value": "{{multiRefundPaymentIdempotencyKey}}"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"paymentKey\": \"{{multiRefundPaymentKey}}\",\n  \"tossOrderId\": \"{{multiRefundTossOrderId}}\",\n  \"amount\": {{multiRefundPaymentAmount}}\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/payments/confirm",
+                    "description": "다건 환불용 주문을 PAID, Payment를 DONE으로 변경합니다."
+                  }
+                },
                 {
-                                                      "name": "34-01-04 [주문 고객] 다건 환불 대상 주문 조회",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "const groups = body.data?.deliveryGroups ?? [];",
-                                                              "const items = groups.flatMap(group => group.items ?? []);",
-                                                              "const first = items.find(item => item.productId === pm.environment.get('refundScenarioProductId'));",
-                                                              "const second = items.find(item => item.productId === pm.environment.get('refundScenarioSecondProductId'));",
-                                                              "pm.test('같은 주문에 환불 대상 주문상품 2건이 있다', () => { pm.expect(groups).to.have.lengthOf(1); pm.expect(first?.orderItemId).to.exist; pm.expect(second?.orderItemId).to.exist; });",
-                                                              "if (first?.orderItemId) pm.environment.set('multiRefundOrderItemId1', first.orderItemId);",
-                                                              "if (second?.orderItemId) pm.environment.set('multiRefundOrderItemId2', second.orderItemId);"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioCustomerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "GET",
-                                                        "header": [],
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/orders/{{multiRefundOrderId}}",
-                                                        "description": "주문 조회 API는 데이터를 변경하지 않습니다. Postman 테스트 스크립트가 상품 ID로 주문상품 2건을 찾아 이후 요청용 변수에 저장합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-04 [주문 고객] 다건 환불 대상 주문 조회",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('refundScenarioCustomerAccessToken')) throw new Error('refundScenarioCustomerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "const groups = body.data?.deliveryGroups ?? [];",
+                          "const items = groups.flatMap(group => group.items ?? []);",
+                          "const first = items.find(item => item.productId === pm.environment.get('refundScenarioProductId'));",
+                          "const second = items.find(item => item.productId === pm.environment.get('refundScenarioSecondProductId'));",
+                          "pm.test('같은 주문에 환불 대상 주문상품 2건이 있다', () => { pm.expect(groups).to.have.lengthOf(1); pm.expect(first?.orderItemId).to.exist; pm.expect(second?.orderItemId).to.exist; });",
+                          "if (first?.orderItemId) pm.environment.set('multiRefundOrderItemId1', first.orderItemId);",
+                          "if (second?.orderItemId) pm.environment.set('multiRefundOrderItemId2', second.orderItemId);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/orders/{{multiRefundOrderId}}",
+                    "description": "주문 조회 API는 데이터를 변경하지 않습니다. Postman 테스트 스크립트가 상품 ID로 주문상품 2건을 찾아 이후 요청용 변수에 저장합니다."
+                  }
+                },
                 {
-                                                      "name": "34-01-05 [해당 상품 판매자] 다건 환불용 배송 조회",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('refundScenarioSellerAccessToken')) throw new Error('refundScenarioSellerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                                                              "pm.test('배송 ID가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
-                                                              "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data.content[0].deliveryId);"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioSellerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "GET",
-                                                        "header": [],
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/deliveries?orderId={{multiRefundOrderId}}",
-                                                        "description": "다건 환불용 주문의 배송 ID를 저장합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-05 [해당 상품 판매자] 다건 환불용 배송 조회",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('refundScenarioSellerAccessToken')) throw new Error('refundScenarioSellerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "if (!pm.environment.get('multiRefundOrderId')) throw new Error('multiRefundOrderId 환경변수가 없습니다. 34-02-00-01을 먼저 실행하세요.');"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('배송 ID가 있다', () => pm.expect(body.data?.content?.[0]?.deliveryId).to.exist);",
+                          "if (body.data?.content?.[0]?.deliveryId) pm.environment.set('multiRefundDeliveryId', body.data.content[0].deliveryId);"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioSellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "GET",
+                    "header": [],
+                    "url": "{{gatewayBaseUrl}}/api/v1/deliveries?orderId={{multiRefundOrderId}}",
+                    "description": "다건 환불용 주문의 배송 ID를 저장합니다."
+                  }
+                },
                 {
-                                                      "name": "34-01-06 [해당 상품 판매자] 다건 환불용 배송 시작",
-                                                      "event": [
-                                                        {
-                                                          "listen": "prerequest",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "if (!pm.environment.get('refundScenarioSellerAccessToken')) throw new Error('refundScenarioSellerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
-                                                              "if (!pm.environment.get('multiRefundDeliveryId')) throw new Error('multiRefundDeliveryId 환경변수가 없습니다. 34-02-00-05를 먼저 실행하세요.');",
-                                                              "pm.environment.set('multiRefundTrackingNumber', `MULTI-REFUND-${Date.now()}`);"
-                                                            ]
-                                                          }
-                                                        },
-                                                        {
-                                                          "listen": "test",
-                                                          "script": {
-                                                            "type": "text/javascript",
-                                                            "exec": [
-                                                              "const body = pm.response.json();",
-                                                              "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                                                              "pm.test('배송 상태가 SHIPPED이다', () => pm.expect(body.data?.status).to.eql('SHIPPED'));"
-                                                            ]
-                                                          }
-                                                        }
-                                                      ],
-                                                      "request": {
-                                                        "auth": {
-                                                          "type": "bearer",
-                                                          "bearer": [
-                                                            {
-                                                              "key": "token",
-                                                              "value": "{{refundScenarioSellerAccessToken}}",
-                                                              "type": "string"
-                                                            }
-                                                          ]
-                                                        },
-                                                        "method": "PATCH",
-                                                        "header": [
-                                                          {
-                                                            "key": "Content-Type",
-                                                            "value": "application/json"
-                                                          }
-                                                        ],
-                                                        "body": {
-                                                          "mode": "raw",
-                                                          "raw": "{\n  \"trackingNumber\": \"{{multiRefundTrackingNumber}}\"\n}",
-                                                          "options": {
-                                                            "raw": {
-                                                              "language": "json"
-                                                            }
-                                                          }
-                                                        },
-                                                        "url": "{{gatewayBaseUrl}}/api/v1/deliveries/{{multiRefundDeliveryId}}/ship",
-                                                        "description": "다건 환불용 주문의 배송을 SHIPPED로 변경합니다."
-                                                      }
-                                                    },
+                  "name": "34-01-06 [해당 상품 판매자] 다건 환불용 배송 시작",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "if (!pm.environment.get('refundScenarioSellerAccessToken')) throw new Error('refundScenarioSellerAccessToken 환경변수가 없습니다. 34-00부터 해당 준비 폴더를 순서대로 실행하세요.');",
+                          "if (!pm.environment.get('multiRefundDeliveryId')) throw new Error('multiRefundDeliveryId 환경변수가 없습니다. 34-02-00-05를 먼저 실행하세요.');",
+                          "pm.environment.set('multiRefundTrackingNumber', `MULTI-REFUND-${Date.now()}`);"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('배송 상태가 SHIPPED이다', () => pm.expect(body.data?.status).to.eql('SHIPPED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioSellerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"trackingNumber\": \"{{multiRefundTrackingNumber}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/deliveries/{{multiRefundDeliveryId}}/ship",
+                    "description": "다건 환불용 주문의 배송을 SHIPPED로 변경합니다."
+                  }
+                },
                 {
-                                  "name": "34-01-07 [주문 고객] 배송 중 환불 요청 거부",
-                                  "event": [
-                                    {
-                                      "listen": "prerequest",
-                                      "script": {
-                                        "type": "text/javascript",
-                                        "exec": [
-                                          "['refundScenarioCustomerAccessToken', 'multiRefundOrderItemId1'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "listen": "test",
-                                      "script": {
-                                        "type": "text/javascript",
-                                        "exec": [
-                                          "const body = pm.response.json();",
-                                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                                          "pm.test('REFUND_NOT_ALLOWED', () => pm.expect(body.code).to.eql('REFUND_NOT_ALLOWED'));"
-                                        ]
-                                      }
-                                    }
-                                  ],
-                                  "request": {
-                                    "auth": {
-                                      "type": "bearer",
-                                      "bearer": [
-                                        {
-                                          "key": "token",
-                                          "value": "{{refundScenarioCustomerAccessToken}}",
-                                          "type": "string"
-                                        }
-                                      ]
-                                    },
-                                    "method": "POST",
-                                    "header": [
-                                      {
-                                        "key": "Content-Type",
-                                        "value": "application/json"
-                                      }
-                                    ],
-                                    "body": {
-                                      "mode": "raw",
-                                      "raw": "{\n  \"reason\": \"배송 중 환불 요청\"\n}",
-                                      "options": {
-                                        "raw": {
-                                          "language": "json"
-                                        }
-                                      }
-                                    },
-                                    "url": "{{gatewayBaseUrl}}/api/v1/order-items/{{multiRefundOrderItemId1}}/refunds",
-                                    "description": "배송 시작 직후 SHIPPED 상태에서 실행합니다. 로컬 환경에서는 약 10초 후 배송 완료 대상이 되므로 34-01 폴더를 중단하지 않고 순서대로 실행해야 합니다. 이 요청은 409로 거부되며 주문 상태를 바꾸지 않으므로 같은 주문을 34-02와 34-03에서 이어서 사용합니다. 원래 설명: 34-01-00에서 만든 SHIPPED 주문상품의 환불 요청이 REFUND_NOT_ALLOWED로 거부되는지 확인합니다."
-                                  }
-                                }
+                  "name": "34-01-07 [주문 고객] 배송 중 환불 요청 거부",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "['refundScenarioCustomerAccessToken', 'multiRefundOrderItemId1'].forEach(key => { if (!pm.environment.get(key)) throw new Error(`${key} 변수가 필요합니다.`); });"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
+                          "pm.test('REFUND_NOT_ALLOWED', () => pm.expect(body.code).to.eql('REFUND_NOT_ALLOWED'));"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "auth": {
+                      "type": "bearer",
+                      "bearer": [
+                        {
+                          "key": "token",
+                          "value": "{{refundScenarioCustomerAccessToken}}",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"배송 중 환불 요청\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": "{{gatewayBaseUrl}}/api/v1/order-items/{{multiRefundOrderItemId1}}/refunds",
+                    "description": "배송 시작 직후 SHIPPED 상태에서 실행합니다. 로컬 환경에서는 약 10초 후 배송 완료 대상이 되므로 34-01 폴더를 중단하지 않고 순서대로 실행해야 합니다. 이 요청은 409로 거부되며 주문 상태를 바꾸지 않으므로 같은 주문을 34-02와 34-03에서 이어서 사용합니다. 원래 설명: 34-01-00에서 만든 SHIPPED 주문상품의 환불 요청이 REFUND_NOT_ALLOWED로 거부되는지 확인합니다."
+                  }
+                }
               ]
             },
             {
