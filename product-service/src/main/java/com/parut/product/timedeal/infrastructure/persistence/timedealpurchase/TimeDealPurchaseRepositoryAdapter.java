@@ -7,9 +7,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumSet;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 
 
 @Component
@@ -31,6 +34,26 @@ public class TimeDealPurchaseRepositoryAdapter implements TimeDealPurchaseReposi
     @Override
     public Optional<TimeDealPurchase> findByOrderIdForUpdate(UUID orderId) {
         return jpaTimeDealPurchaseRepository.findByOrderIdForUpdate(orderId);
+    }
+
+    @Override
+    public List<TimeDealPurchase> findFirstExpiredReservationBatch(Instant cutoff, int limit) {
+        return jpaTimeDealPurchaseRepository.findFirstExpiredReservationBatch(cutoff, PageRequest.of(0, limit));
+    }
+
+    @Override
+    public List<TimeDealPurchase> findNextExpiredReservationBatchByCursor(
+            Instant cutoff,
+            Instant cursorExpiresAt,
+            UUID cursorId,
+            int limit
+    ) {
+        return jpaTimeDealPurchaseRepository.findNextExpiredReservationBatchByCursor(
+                cutoff,
+                cursorExpiresAt,
+                cursorId,
+                PageRequest.of(0, limit)
+        );
     }
 
     @Override
