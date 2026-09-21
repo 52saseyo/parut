@@ -95,6 +95,8 @@ public class SellerController {
             @RequestHeader("X-User-Role") String role,
             @RequestBody SellerUpdateRequest request
     ) {
+        System.out.println("Gateway가 넘겨준 Role 확인: " + role);
+
         // 1. ADMIN 또는 SELLER 권한 체크
         if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) && !String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
