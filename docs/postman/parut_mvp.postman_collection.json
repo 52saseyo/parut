@@ -3921,8 +3921,10 @@
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
                   "pm.test('오프셋 응답 형식이다', () => pm.expect(body.data?.pageInfo?.paginationType).to.eql('OFFSET'));",
                   "const target = content.find(settlement => settlement.settlementId === pm.environment.get('settlementId'));",
+                  "const adminToken = pm.environment.get('adminAccessToken');",
+                  "const adminPayload = JSON.parse(atob(adminToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
                   "pm.test('완료한 정산이 COMPLETED 목록에 있다', () => pm.expect(target).to.exist);",
-                  "pm.test('정산 완료 시각과 처리한 관리자가 기록된다', () => { pm.expect(target?.settledAt).to.exist; pm.expect(target?.processedBy).to.eql(pm.environment.get('adminId')); });"
+                  "pm.test('정산 완료 시각과 처리한 관리자가 기록된다', () => { pm.expect(target?.settledAt).to.exist; pm.expect(target?.processedBy).to.eql(adminPayload.sub); });"
                 ]
               }
             }
