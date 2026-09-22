@@ -43,7 +43,7 @@ class SellerTimeDealControllerTest {
                 .thenReturn(TimeDealCursorResult.withoutNextCursor(List.of()));
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/api/v1/time-deals/seller")
+                        .get("/api/v1/seller/time-deals")
                         .header("X-User-Id", sellerId)
                         .header("X-User-Role", "SELLER"))
                 .andExpect(status().isOk())
@@ -60,7 +60,7 @@ class SellerTimeDealControllerTest {
         UUID id = UUID.randomUUID();
         UUID requesterId = UUID.randomUUID();
 
-        mvc.perform(delete("/api/v1/time-deals/seller/{id}", id)
+        mvc.perform(delete("/api/v1/seller/time-deals/{id}", id)
                         .header("X-User-Id", requesterId)
                         .header("X-User-Role", "SELLER")
                         .header("X-Trace-Id", "trace-123"))
@@ -79,7 +79,7 @@ class SellerTimeDealControllerTest {
         when(useCase.stop(new TimeDealStopCommand(id, requesterId, "SELLER")))
                 .thenReturn(new TimeDealStopResult(id, TimeDealStatus.STOPPED));
 
-        mvc.perform(patch("/api/v1/time-deals/seller/{id}/stop", id)
+        mvc.perform(patch("/api/v1/seller/time-deals/{id}/stop", id)
                         .header("X-User-Id", requesterId)
                         .header("X-User-Role", "SELLER"))
                 .andExpect(status().isOk())

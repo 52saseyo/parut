@@ -41,7 +41,7 @@ class TimeDealStockControllerTest {
                         new TimeDealStockQueryResult(UUID.randomUUID(), 90, 5, 25, 10)
                 )));
 
-        mvc.perform(get("/api/v1/time-deals/seller/stocks")
+        mvc.perform(get("/api/v1/seller/time-deals/stocks")
                         .header("X-User-Id", sellerId)
                         .header("X-User-Role", "SELLER"))
                 .andExpect(status().isOk())
@@ -60,7 +60,7 @@ class TimeDealStockControllerTest {
         when(useCase.getStock(timeDealId, requesterId, "SELLER"))
                 .thenReturn(new TimeDealStockQueryResult(timeDealId, 90, 5, 25, 10));
 
-        mvc.perform(get("/api/v1/time-deals/seller/{timeDealId}/stock", timeDealId)
+        mvc.perform(get("/api/v1/seller/time-deals/{timeDealId}/stock", timeDealId)
                         .header("X-User-Id", requesterId)
                         .header("X-User-Role", "SELLER")
                         .header("X-Trace-Id", "trace-stock-123"))
@@ -84,7 +84,7 @@ class TimeDealStockControllerTest {
         when(useCase.getStock(timeDealId, requesterId, "SELLER"))
                 .thenThrow(new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
 
-        mvc.perform(get("/api/v1/time-deals/seller/{timeDealId}/stock", timeDealId)
+        mvc.perform(get("/api/v1/seller/time-deals/{timeDealId}/stock", timeDealId)
                         .header("X-User-Id", requesterId)
                         .header("X-User-Role", "SELLER"))
                 .andExpect(status().isNotFound())
@@ -93,7 +93,7 @@ class TimeDealStockControllerTest {
 
     @Test
     void 사용자_헤더가_없으면_400을_반환한다() throws Exception {
-        mvc.perform(get("/api/v1/time-deals/seller/{timeDealId}/stock", UUID.randomUUID()))
+        mvc.perform(get("/api/v1/seller/time-deals/{timeDealId}/stock", UUID.randomUUID()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"));
     }
