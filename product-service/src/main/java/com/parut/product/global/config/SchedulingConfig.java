@@ -22,6 +22,11 @@ public class SchedulingConfig {
         return scheduler("time-deal-purchase-expiration-", 1);
     }
 
+    @Bean
+    public ThreadPoolTaskScheduler timeDealOpeningSoonTaskScheduler() {
+        return scheduler("time-deal-opening-soon-", 1);
+    }
+
     private ThreadPoolTaskScheduler scheduler(String prefix, int poolSize) {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(poolSize);
