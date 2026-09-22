@@ -34,6 +34,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class ProductControllerTest {
 
+    private static final String IMAGE_URL = "https://example.com/images/apple.jpg";
+
     @Mock
     private ProductService productService;
 
@@ -58,7 +60,8 @@ class ProductControllerTest {
                 ProductCategory.FRUIT,
                 3_000L,
                 AppearanceType.UGLY,
-                "충주"
+                "충주",
+                IMAGE_URL
         );
 
         given(productService.searchPublicProducts(
@@ -82,6 +85,7 @@ class ProductControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().data().content()).hasSize(1);
         assertThat(response.getBody().data().content().getFirst().productId()).isEqualTo(productId);
+        assertThat(response.getBody().data().content().getFirst().imageUrl()).isEqualTo(IMAGE_URL);
         assertThat(response.getBody().data().pageInfo().nextIdAfter()).isEqualTo(nextId);
         assertThat(response.getBody().data().pageInfo().hasNext()).isTrue();
 

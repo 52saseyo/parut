@@ -1,20 +1,20 @@
 package com.parut.order.order.infrastructure.client;
 
-import java.util.UUID;
-
-import org.springframework.stereotype.Component;
-
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.order.application.port.out.TimeDealClient;
 import com.parut.order.order.application.port.out.dto.TimeDealInfo;
+import com.parut.order.order.infrastructure.client.dto.TimeDealBulkDetailApiRequest;
 import com.parut.order.order.infrastructure.client.dto.TimeDealInfoApiResponse;
 import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseCancelApiRequest;
 import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseReserveApiRequest;
-
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -26,7 +26,10 @@ public class FeignTimeDealClient implements TimeDealClient {
     @Override
     public TimeDealInfo getOrderInfo(UUID timeDealId) {
         try {
-            TimeDealInfoApiResponse response = timeDealInternalFeignClient.getOrderInfo(timeDealId).data();
+            List<TimeDealInfoApiResponse> responses = timeDealInternalFeignClient
+                    .getOrderInfos(new TimeDealBulkDetailApiRequest(List.of(timeDealId)))
+                    .data();
+            TimeDealInfoApiResponse response = responses.get(0);
             return new TimeDealInfo(
                     response.timeDealId(),
                     response.productId(),

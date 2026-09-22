@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class ProductImageServiceTest {
@@ -70,16 +72,32 @@ class ProductImageServiceTest {
     }
 
     @Test
-    void 상품의_모든_이미지_URL을_반환한다() {
-        given(productImageRepository.findAllByProductIdAndDeletedAtIsNull(PRODUCT_ID))
+    void 여러_상품의_이미지_정보를_상품아이디별로_반환한다() {
+        UUID secondProductId = UUID.randomUUID();
+        UUID secondImageId = UUID.randomUUID();
+        String secondImageUrl = "https://example.com/image2.jpg";
+        List<UUID> productIds = List.of(PRODUCT_ID, secondProductId);
+        given(productImageRepository.findAllByProductIdInAndDeletedAtIsNull(productIds))
                 .willReturn(List.of(
                         ProductImage.create(PRODUCT_ID, IMAGE_ID, IMAGE_URL),
-                        ProductImage.create(PRODUCT_ID, UUID.randomUUID(), "https://example.com/image2.jpg")
+                        ProductImage.create(secondProductId, secondImageId, secondImageUrl)
                 ));
 
-        assertThat(productImageService.getImageUrls(PRODUCT_ID))
-                .containsExactly(IMAGE_URL, "https://example.com/image2.jpg");
+        Map<UUID, LinkedImage> result = productImageService.getImageInfos(productIds);
+
+        assertThat(result)
+                .containsEntry(PRODUCT_ID, new LinkedImage(IMAGE_ID, IMAGE_URL))
+                .containsEntry(secondProductId, new LinkedImage(secondImageId, secondImageUrl));
     }
+
+    @Test
+    void 상품아이디가_비어있으면_이미지를_조회하지_않는다() {
+        assertThat(productImageService.getImageInfos(List.of())).isEmpty();
+
+        verifyNoInteractions(productImageRepository);
+    }
+
+
 
     private Image image() {
         Image image = Image.create(

@@ -41,6 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -477,23 +478,37 @@ class ProductServiceTest {
     }
 
     @Test
-    void 공개_가능한_상태의_상품_검색을_Repository에_위임한다() {
+    void 공개_상품_검색_결과에_이미지_URL을_결합한다() {
         PublicProductSearchCondition condition = publicSearchCondition(ProductStatus.ON_SALE);
-        ProductCursorResult<PublicProductQueryResult> expected =
-                ProductCursorResult.empty(List.of());
+        PublicProductQueryResult product = new PublicProductQueryResult(
+                PRODUCT_ID, "사과", ProductCategory.FRUIT, 3_000L,
+                AppearanceType.NORMAL, "충주", null
+        );
+        ProductCursorResult<PublicProductQueryResult> expected = ProductCursorResult.of(
+                List.of(product), "next-cursor", PRODUCT_ID, true
+        );
         given(productQueryRepository.searchPublicProducts(
                 condition, null, null, 10, "createdAt", SortDirection.DESC
         )).willReturn(expected);
+        given(productImagePort.findImages(List.of(PRODUCT_ID)))
+                .willReturn(Map.of(PRODUCT_ID, new ProductImageResult(IMAGE_ID, IMAGE_URL)));
 
         ProductCursorResult<PublicProductQueryResult> result =
                 productService.searchPublicProducts(
                         condition, null, null, 10, "createdAt", SortDirection.DESC
                 );
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.content()).singleElement().satisfies(item -> {
+            assertThat(item.productId()).isEqualTo(PRODUCT_ID);
+            assertThat(item.imageUrl()).isEqualTo(IMAGE_URL);
+        });
+        assertThat(result.nextCursor()).isEqualTo("next-cursor");
+        assertThat(result.nextIdAfter()).isEqualTo(PRODUCT_ID);
+        assertThat(result.hasNext()).isTrue();
         verify(productQueryRepository).searchPublicProducts(
                 condition, null, null, 10, "createdAt", SortDirection.DESC
         );
+        verify(productImagePort).findImages(List.of(PRODUCT_ID));
     }
 
     @Test
@@ -512,7 +527,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void 판매자_상품_검색을_Repository에_위임한다() {
+    void 판매자_상품_검색_결과에_이미지_URL을_결합한다() {
         SellerProductSearchCondition condition = new SellerProductSearchCondition(
                 "사과",
                 ProductCategory.FRUIT,
@@ -520,15 +535,28 @@ class ProductServiceTest {
                 AppearanceType.NORMAL
         );
         Pageable pageable = PageRequest.of(0, 10);
-        Page<SellerProductQueryResult> expected = new PageImpl<>(List.of(), pageable, 0);
+        SellerProductQueryResult product = new SellerProductQueryResult(
+                PRODUCT_ID, "사과", ProductCategory.FRUIT, 3_000L,
+                ProductStatus.ON_SALE, null
+        );
+        Page<SellerProductQueryResult> expected =
+                new PageImpl<>(List.of(product), pageable, 1);
         given(productQueryRepository.searchSellerProducts(SELLER_ID, condition, pageable))
                 .willReturn(expected);
+        given(productImagePort.findImages(List.of(PRODUCT_ID)))
+                .willReturn(Map.of(PRODUCT_ID, new ProductImageResult(IMAGE_ID, IMAGE_URL)));
 
         Page<SellerProductQueryResult> result =
                 productService.searchSellerProducts(SELLER_ID, SELLER_ROLE, condition, pageable);
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result.getContent()).singleElement().satisfies(item -> {
+            assertThat(item.productId()).isEqualTo(PRODUCT_ID);
+            assertThat(item.imageUrl()).isEqualTo(IMAGE_URL);
+        });
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getPageable()).isEqualTo(pageable);
         verify(productQueryRepository).searchSellerProducts(SELLER_ID, condition, pageable);
+        verify(productImagePort).findImages(List.of(PRODUCT_ID));
         verify(authorizationChecker).requireSeller(SELLER_ROLE);
     }
 
