@@ -9,11 +9,11 @@ import com.parut.product.global.dto.ProductStockTransferResult;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.product.application.authorization.stock.ProductStockAuthorizationChecker;
-import com.parut.product.product.application.stock.dto.*;
 import com.parut.product.product.application.product.manager.ProductStateManager;
-import com.parut.product.product.application.product.reader.ProductReader;
 import com.parut.product.product.application.product.port.out.ProductImagePort;
 import com.parut.product.product.application.product.port.out.dto.ProductImageResult;
+import com.parut.product.product.application.product.reader.ProductReader;
+import com.parut.product.product.application.stock.dto.*;
 import com.parut.product.product.domain.product.Product;
 import com.parut.product.product.domain.product.ProductStatus;
 import com.parut.product.product.domain.stock.entity.ProductStock;
@@ -37,7 +37,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -750,9 +749,5 @@ public class ProductStockServiceImpl implements ProductStockService{
                     reservationId, orderItemId);
             throw new BusinessException(ErrorCode.PRODUCT_STOCK_RESERVATION_ALREADY_PROCESSED);
         }
-    }
-    @Recover
-    public void recoverUpdateStock(BusinessException e, UUID productId, UUID requesterId, String requesterRole, int newTotalQuantity) {
-        throw e;
     }
 }
