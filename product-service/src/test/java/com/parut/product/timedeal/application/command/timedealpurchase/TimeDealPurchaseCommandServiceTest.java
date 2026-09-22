@@ -33,6 +33,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,9 @@ class TimeDealPurchaseCommandServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private TimeDealPurchaseExpirationProcessor timeDealPurchaseExpirationProcessor;
+
     private TimeDealPurchaseCommandService timeDealPurchaseCommandService;
 
     private TimeDeal timeDeal;
@@ -87,7 +91,8 @@ class TimeDealPurchaseCommandServiceTest {
                 timeDealPurchaseRepository,
                 new TimeDealPolicy(),
                 timeDealStockReservationPort,
-                eventPublisher
+                eventPublisher,
+                timeDealPurchaseExpirationProcessor
         );
 
         // NOTE: endAt을 먼 미래로 두어 Instant.now()를 쓰는 서비스에서도 판매 기간 안에 들도록 한다.
@@ -400,6 +405,62 @@ class TimeDealPurchaseCommandServiceTest {
                     .isInstanceOf(BusinessException.class)
                     .extracting("errorCode")
                     .isEqualTo(ErrorCode.TIME_DEAL_PURCHASE_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("구매 선점 만료 배치")
+    class ExpireReservations {
+
+        @Test
+        @DisplayName("후보를 페이지 단위로 조회하고 건별 Processor에 위임한다")
+        void 만료_후보_페이지_처리() {
+            TimeDealPurchase firstPurchase = org.mockito.Mockito.mock(TimeDealPurchase.class);
+            TimeDealPurchase secondPurchase = org.mockito.Mockito.mock(TimeDealPurchase.class);
+            Instant firstExpiresAt = Instant.parse("2026-09-04T11:10:00Z");
+            Instant secondExpiresAt = Instant.parse("2026-09-04T11:11:00Z");
+            UUID firstId = UUID.randomUUID();
+            UUID secondId = UUID.randomUUID();
+            when(firstPurchase.getId()).thenReturn(firstId);
+            when(secondPurchase.getId()).thenReturn(secondId);
+            when(secondPurchase.getExpiresAt()).thenReturn(secondExpiresAt);
+            when(timeDealPurchaseRepository.findFirstExpiredReservationBatch(any(), anyInt()))
+                    .thenReturn(List.of(firstPurchase, secondPurchase));
+            when(timeDealPurchaseRepository.findNextExpiredReservationBatchByCursor(
+                    any(), any(), any(), anyInt()))
+                    .thenReturn(List.of());
+
+            timeDealPurchaseCommandService.expireReservations();
+
+            verify(timeDealPurchaseExpirationProcessor).expireOneReservation(firstId);
+            verify(timeDealPurchaseExpirationProcessor).expireOneReservation(secondId);
+            verify(timeDealPurchaseRepository).findNextExpiredReservationBatchByCursor(
+                    any(), org.mockito.ArgumentMatchers.eq(secondExpiresAt),
+                    org.mockito.ArgumentMatchers.eq(secondId), anyInt());
+        }
+
+        @Test
+        @DisplayName("한 건의 실패가 다음 건 처리를 중단시키지 않는다")
+        void 만료_처리_실패_격리() {
+            TimeDealPurchase firstPurchase = org.mockito.Mockito.mock(TimeDealPurchase.class);
+            TimeDealPurchase secondPurchase = org.mockito.Mockito.mock(TimeDealPurchase.class);
+            UUID firstId = UUID.randomUUID();
+            UUID secondId = UUID.randomUUID();
+            when(firstPurchase.getId()).thenReturn(firstId);
+            when(secondPurchase.getId()).thenReturn(secondId);
+            when(secondPurchase.getExpiresAt()).thenReturn(Instant.parse("2026-09-04T11:11:00Z"));
+            when(timeDealPurchaseRepository.findFirstExpiredReservationBatch(any(), anyInt()))
+                    .thenReturn(List.of(firstPurchase, secondPurchase));
+            when(timeDealPurchaseRepository.findNextExpiredReservationBatchByCursor(
+                    any(), any(), any(), anyInt()))
+                    .thenReturn(List.of());
+            doThrow(new IllegalStateException("processing failure"))
+                    .when(timeDealPurchaseExpirationProcessor).expireOneReservation(firstId);
+
+            timeDealPurchaseCommandService.expireReservations();
+
+            verify(timeDealPurchaseExpirationProcessor).expireOneReservation(firstId);
+            verify(timeDealPurchaseExpirationProcessor).expireOneReservation(secondId);
         }
     }
 }

@@ -42,7 +42,7 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
         TimeDeal timeDeal = timeDealRepository.findById(timeDealStockAdjustCommand.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
 
-        authorizationChecker.requireSellerOwnerOrAdmin(
+        authorizationChecker.requireSellerOwner(
                 timeDealStockAdjustCommand.requesterId(),
                 timeDealStockAdjustCommand.requesterRole(),
                 timeDeal.getSellerId()
@@ -74,7 +74,7 @@ public class TimeDealStockCommandService implements TimeDealStockCommandUseCase 
         TimeDeal timeDeal = timeDealRepository.findById(timeDealStockTransferCommand.timeDealId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_NOT_FOUND));
 
-        authorizationChecker.requireSellerOwnerOrAdmin(
+        authorizationChecker.requireSellerOwner(
                 timeDealStockTransferCommand.requesterId(),
                 timeDealStockTransferCommand.requesterRole(),
                 timeDeal.getSellerId()

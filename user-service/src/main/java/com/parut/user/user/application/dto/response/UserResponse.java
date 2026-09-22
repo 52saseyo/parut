@@ -9,7 +9,8 @@ public record UserResponse(
         String username,
         String name,
         String slackId,
-        ZonedDateTime createdAt
+        ZonedDateTime createdAt,
+        ZonedDateTime deletedAt
 ) {
     public static UserResponse from(User user) {
         return new UserResponse(
@@ -17,7 +18,8 @@ public record UserResponse(
                 user.getUsername(),
                 user.getName(),
                 user.getSlackId(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                user.getDeletedAt()
         );
     }
 }

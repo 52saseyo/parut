@@ -18,6 +18,14 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
     int countByDeliveryGroupIdAndItemStatus(UUID deliveryGroupId, OrderItemStatus itemStatus);
 
+    // 판매자 탈퇴 검증(미처리 주문 조회)을 위해 배송그룹의 sellerId와 조인한다.
+    @Query("""
+            SELECT COUNT(item) > 0
+            FROM OrderItem item JOIN OrderDeliveryGroup g ON g.id = item.deliveryGroupId
+            WHERE g.sellerId = :sellerId AND item.itemStatus = :status
+            """)
+    boolean existsBySellerIdAndItemStatus(@Param("sellerId") UUID sellerId, @Param("status") OrderItemStatus status);
+
     @Query("""
             SELECT item.id FROM OrderItem item
             WHERE item.itemStatus = :status

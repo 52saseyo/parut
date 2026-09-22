@@ -48,3 +48,10 @@ logging:
     com.parut.user: debug
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
+
+
+order-service:
+  base-url: http://order-service:8080
+
+internal:
+  service-key: ${INTERNAL_SERVICE_KEY:local-dev-key}

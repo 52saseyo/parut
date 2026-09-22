@@ -92,7 +92,8 @@ class DeliveryCompletionTransactionTest {
                         UUID.randomUUID(), UUID.randomUUID(), 1000L, 0L);
                 group.markPreparing();
                 groupRepository.save(group);
-                Delivery delivery = Delivery.create(group.getId());
+                Delivery delivery = Delivery.create(
+                        group.getId(), group.getOrderId(), UUID.randomUUID(), group.getSellerId());
                 delivery.ship("1234567890", SHIPPED_AT);
                 result.add(deliveryRepository.save(delivery));
             }

@@ -9,6 +9,7 @@ import com.parut.product.product.application.stock.dto.ProductStockHistoryResult
 import com.parut.product.product.application.stock.dto.ProductStockItem;
 import com.parut.product.product.application.stock.dto.ProductStockReserveItem;
 import com.parut.product.product.domain.stock.entity.ProductStock;
+import com.parut.product.product.domain.stock.enums.StockStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -36,7 +37,7 @@ public interface ProductStockService {
 
     void restore(UUID orderId, List<ProductStockItem> items);
 
-    Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable);
+    Page<ProductStock> getStockList(UUID requesterId, String requesterRole, Pageable pageable, StockStatus status);
 
     ProductStockAllocateResult allocate(ProductStockAllocateCommand command);
 

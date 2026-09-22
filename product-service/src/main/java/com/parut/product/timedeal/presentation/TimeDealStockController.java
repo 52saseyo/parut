@@ -1,10 +1,14 @@
 package com.parut.product.timedeal.presentation;
 
 import com.parut.product.global.common.ApiResponse;
+import com.parut.product.global.common.CursorPageInfo;
+import com.parut.product.global.common.CursorResponse;
+import com.parut.product.global.common.SortDirection;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockAdjustResult;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockQueryResult;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealCursorResult;
 import com.parut.product.timedeal.application.dto.timedealstock.TimeDealStockTransferResult;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockCommandUseCase;
 import com.parut.product.timedeal.application.port.in.timedealstock.TimeDealStockQueryUseCase;
@@ -13,6 +17,7 @@ import com.parut.product.timedeal.presentation.dto.timedealstock.request.TimeDea
 import com.parut.product.timedeal.presentation.dto.timedealstock.request.TimeDealStockTransferRequest;
 import com.parut.product.timedeal.presentation.dto.timedealstock.response.TimeDealStockAdjustResponse;
 import com.parut.product.timedeal.presentation.dto.timedealstock.response.TimeDealStockTransferResponse;
+import com.parut.product.timedeal.presentation.support.TimeDealCursorRequestValidator;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,12 +26,38 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/time-deals")
+@RequestMapping("/api/v1/time-deals/seller")
 @RequiredArgsConstructor
 public class TimeDealStockController {
 
     private final TimeDealStockQueryUseCase timeDealStockQueryUseCase;
     private final TimeDealStockCommandUseCase timeDealStockCommandUseCase;
+
+    @GetMapping("/stocks")
+    public ResponseEntity<ApiResponse<CursorResponse<TimeDealStockResponse>>> getSellerOwnedStockList(
+            @RequestHeader(HeaderConstants.USER_ID) UUID sellerId,
+            @RequestHeader(HeaderConstants.USER_ROLE) String requesterRole,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) UUID cursorId,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        TimeDealCursorRequestValidator.validateSeller(cursor, cursorId, size);
+        TimeDealCursorResult<TimeDealStockQueryResult> result =
+                timeDealStockQueryUseCase.getSellerOwnedTimeDealStockList(
+                        sellerId, requesterRole, cursor, cursorId, size);
+        CursorResponse<TimeDealStockResponse> response = new CursorResponse<>(
+                result.content().stream()
+                        .map(TimeDealStockResponse::from)
+                        .toList(),
+                CursorPageInfo.of(
+                        result.nextCursor(),
+                        result.nextIdAfter(),
+                        result.hasNext(),
+                        "startAt",
+                        SortDirection.DESC)
+        );
+        return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
+    }
 
     @GetMapping("/{timeDealId}/stock")
     public ResponseEntity<ApiResponse<TimeDealStockResponse>> getStock(
