@@ -1,20 +1,20 @@
 package com.parut.order.order.infrastructure.client;
 
-import java.util.UUID;
-
+import com.parut.order.global.common.ApiResponse;
+import com.parut.order.global.config.InternalFeignConfig;
+import com.parut.order.global.constant.HeaderConstants;
+import com.parut.order.order.infrastructure.client.dto.TimeDealBulkDetailApiRequest;
+import com.parut.order.order.infrastructure.client.dto.TimeDealInfoApiResponse;
+import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseCancelApiRequest;
+import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseReserveApiRequest;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-import com.parut.order.global.common.ApiResponse;
-import com.parut.order.global.config.InternalFeignConfig;
-import com.parut.order.global.constant.HeaderConstants;
-import com.parut.order.order.infrastructure.client.dto.TimeDealInfoApiResponse;
-import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseCancelApiRequest;
-import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseReserveApiRequest;
+import java.util.List;
+import java.util.UUID;
 
 @FeignClient(
         name = "product-service",
@@ -24,8 +24,8 @@ import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseReserveAp
 )
 public interface TimeDealInternalFeignClient {
 
-    @GetMapping("/api/v1/internal/time-deals/{timeDealId}")
-    ApiResponse<TimeDealInfoApiResponse> getOrderInfo(@PathVariable("timeDealId") UUID timeDealId);
+    @PostMapping("/api/v1/internal/time-deals/bulk")
+    ApiResponse<List<TimeDealInfoApiResponse>> getOrderInfos(@RequestBody TimeDealBulkDetailApiRequest request);
 
     @PostMapping("/api/v1/internal/time-deals/{timeDealId}/purchases")
     void reserveStock(
