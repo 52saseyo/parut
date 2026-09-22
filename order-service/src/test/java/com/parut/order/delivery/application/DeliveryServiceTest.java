@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Pageable;
 
 import com.parut.order.delivery.domain.Delivery;
 import com.parut.order.delivery.domain.DeliveryStatus;
@@ -39,6 +41,7 @@ class DeliveryServiceTest {
     private static final UUID ORDER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
     private static final UUID DELIVERY_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bd");
     private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bb");
+    private static final UUID CUSTOMER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6be");
     private static final Instant COMPLETION_TIME = Instant.parse("2026-09-05T07:00:00Z");
     private static final Instant COMPLETION_THRESHOLD = Instant.parse("2026-09-05T06:59:00Z");
 
@@ -58,8 +61,8 @@ class DeliveryServiceTest {
     @DisplayName("주문의 배송 그룹별로 PREPARING 배송을 한 건씩 생성한다")
     void 주문_배송_생성() {
         when(orderDeliveryGroupQueryUseCase.getDeliveryGroups(ORDER_ID)).thenReturn(List.of(
-                new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1),
-                new OrderDeliveryGroupView(SECOND_DELIVERY_GROUP_ID, SELLER_ID, 1)
+                group(DELIVERY_GROUP_ID, SELLER_ID),
+                group(SECOND_DELIVERY_GROUP_ID, SELLER_ID)
         ));
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID)).thenReturn(Optional.empty());
         when(deliveryRepository.findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID)).thenReturn(Optional.empty());
@@ -80,9 +83,9 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("배송 그룹에 기존 배송이 있으면 중복 생성하지 않는다")
     void 기존_배송_재사용() {
-        Delivery existingDelivery = Delivery.create(DELIVERY_GROUP_ID);
+        Delivery existingDelivery = delivery(DELIVERY_GROUP_ID, SELLER_ID);
         when(orderDeliveryGroupQueryUseCase.getDeliveryGroups(ORDER_ID)).thenReturn(List.of(
-                new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)
+                group(DELIVERY_GROUP_ID, SELLER_ID)
         ));
         when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
                 .thenReturn(Optional.of(existingDelivery));
@@ -102,35 +105,34 @@ class DeliveryServiceTest {
     }
 
     @Test
-    @DisplayName("판매자는 자신의 배송 그룹에 생성된 배송만 조회한다")
-    void 판매자_배송_조회() {
-        UUID otherSellerId = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bc");
-        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
-        when(orderDeliveryGroupQueryUseCase.getDeliveryGroups(ORDER_ID)).thenReturn(List.of(
-                new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1),
-                new OrderDeliveryGroupView(SECOND_DELIVERY_GROUP_ID, otherSellerId, 1)
-        ));
-        when(deliveryRepository.findByDeliveryGroupId(DELIVERY_GROUP_ID))
-                .thenReturn(Optional.of(delivery));
+    @DisplayName("고객 배송 목록은 소유자 조건으로 조회한다")
+    void 고객_배송_목록_조회() {
+        Delivery first = mock(Delivery.class);
+        List<Delivery> deliveries = List.of(first);
+        when(deliveryRepository.findCustomerDeliveries(
+                org.mockito.ArgumentMatchers.eq(CUSTOMER_ID),
+                org.mockito.ArgumentMatchers.eq(ORDER_ID),
+                org.mockito.ArgumentMatchers.eq(DeliveryStatus.PREPARING),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.isNull(),
+                any(Pageable.class)
+        )).thenReturn(deliveries);
 
-        List<Delivery> result = deliveryService.getDeliveries(ORDER_ID, SELLER_ID);
+        DeliveryPage result = deliveryService.getDeliveries(
+                CUSTOMER_ID, UserRole.CUSTOMER, ORDER_ID, DeliveryStatus.PREPARING, null, null, 10);
 
-        assertThat(result).containsExactly(delivery);
-        verify(deliveryRepository, never()).findByDeliveryGroupId(SECOND_DELIVERY_GROUP_ID);
+        assertThat(result.content()).containsExactly(first);
+        assertThat(result.hasNext()).isFalse();
     }
 
     @Test
     @DisplayName("구매자와 판매자는 본인 배송을, 관리자는 모든 배송을 단건 조회한다")
     void 배송_단건_조회() {
         UUID deliveryId = UUID.randomUUID();
-        UUID userId = UUID.randomUUID();
-        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        Delivery delivery = delivery(DELIVERY_GROUP_ID, SELLER_ID);
         when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(delivery));
-        when(orderDeliveryGroupQueryUseCase.isOwnedByCustomer(DELIVERY_GROUP_ID, userId)).thenReturn(true);
-        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
-                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
 
-        assertThat(deliveryService.getDelivery(deliveryId, userId, UserRole.CUSTOMER)).isSameAs(delivery);
+        assertThat(deliveryService.getDelivery(deliveryId, CUSTOMER_ID, UserRole.CUSTOMER)).isSameAs(delivery);
         assertThat(deliveryService.getDelivery(deliveryId, SELLER_ID, UserRole.SELLER)).isSameAs(delivery);
         assertThat(deliveryService.getDelivery(deliveryId, UUID.randomUUID(), UserRole.ADMIN)).isSameAs(delivery);
     }
@@ -140,9 +142,8 @@ class DeliveryServiceTest {
     void 배송_단건_조회_권한_없음() {
         UUID deliveryId = UUID.randomUUID();
         UUID otherUserId = UUID.randomUUID();
-        when(deliveryRepository.findById(deliveryId)).thenReturn(Optional.of(Delivery.create(DELIVERY_GROUP_ID)));
-        when(orderDeliveryGroupQueryUseCase.getDeliveryGroup(DELIVERY_GROUP_ID))
-                .thenReturn(Optional.of(new OrderDeliveryGroupView(DELIVERY_GROUP_ID, SELLER_ID, 1)));
+        when(deliveryRepository.findById(deliveryId))
+                .thenReturn(Optional.of(delivery(DELIVERY_GROUP_ID, SELLER_ID)));
 
         assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, otherUserId, UserRole.CUSTOMER))
                 .isInstanceOf(BusinessException.class)
@@ -163,7 +164,7 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("완료 대상 배송과 주문 배송 그룹을 함께 완료한다")
     void 배송_자동_완료() {
-        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        Delivery delivery = delivery(DELIVERY_GROUP_ID, SELLER_ID);
         delivery.ship("1234567890", COMPLETION_THRESHOLD);
         when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
 
@@ -177,7 +178,7 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("완료 기준보다 늦게 시작한 배송은 건너뛴다")
     void 완료_대상_재확인() {
-        Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+        Delivery delivery = delivery(DELIVERY_GROUP_ID, SELLER_ID);
         delivery.ship("1234567890", COMPLETION_THRESHOLD.plusSeconds(1));
         when(deliveryRepository.findById(DELIVERY_ID)).thenReturn(Optional.of(delivery));
 
@@ -185,5 +186,13 @@ class DeliveryServiceTest {
 
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
         verify(orderDeliveryGroupStatusUseCase, never()).markDelivered(DELIVERY_GROUP_ID);
+    }
+
+    private OrderDeliveryGroupView group(UUID deliveryGroupId, UUID sellerId) {
+        return new OrderDeliveryGroupView(deliveryGroupId, ORDER_ID, CUSTOMER_ID, sellerId, 1);
+    }
+
+    private Delivery delivery(UUID deliveryGroupId, UUID sellerId) {
+        return Delivery.create(deliveryGroupId, ORDER_ID, CUSTOMER_ID, sellerId);
     }
 }

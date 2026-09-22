@@ -15,19 +15,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -270,5 +273,97 @@ class OrderServiceTest {
         assertThat(detail.orderNo()).isEqualTo(order.getOrderNo());
         assertThat(detail.payment()).isNull();
         assertThat(detail.deliveryGroups()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("주문 상품 목록은 Order/OrderDeliveryGroup의 필드를 아이템에 정확히 조합한다")
+    void 주문상품목록_필드조합() {
+        Order order = withId(existingOrder("ORD-20260908-EEEEEEEE"));
+        OrderDeliveryGroup group = withId(OrderDeliveryGroup.create(order.getId(), SELLER_ID, 15_000L, 3_000L));
+        group.markPreparing();
+        OrderItem item = withId(OrderItem.create(
+                order.getId(), group.getId(), PRODUCT_ID, null,
+                "신고배 5kg 특품", "NORMAL", "국내산(전남 나주)",
+                LocalDate.of(2026, 8, 20), "KG", BigDecimal.valueOf(5), 15_000L, 15_000L, 1
+        ));
+
+        when(orderItemRepository.findBuyerOrderItems(
+                eq(USER_ID), isNull(), isNull(), isNull(), any(Instant.class), any(Instant.class),
+                eq(CancelReasonCode.SYSTEM_TIMEOUT), any(Instant.class), isNull(), eq(PageRequest.of(0, 11))))
+                .thenReturn(List.of(item));
+        when(orderRepository.findAllById(List.of(order.getId()))).thenReturn(List.of(order));
+        when(orderDeliveryGroupRepository.findAllById(List.of(group.getId()))).thenReturn(List.of(group));
+
+        OrderItemPage page = orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, null, null, null, null, 10);
+
+        assertThat(page.hasNext()).isFalse();
+        assertThat(page.content()).hasSize(1);
+        OrderItemSummary summary = page.content().get(0);
+        assertThat(summary.orderNo()).isEqualTo(order.getOrderNo());
+        assertThat(summary.orderType()).isEqualTo(order.getOrderType());
+        assertThat(summary.sellerId()).isEqualTo(SELLER_ID);
+        assertThat(summary.groupStatus()).isEqualTo(DeliveryGroupStatus.PREPARING);
+        assertThat(summary.productName()).isEqualTo("신고배 5kg 특품");
+        assertThat(summary.itemStatus()).isEqualTo(OrderItemStatus.ORDERED);
+    }
+
+    @Test
+    @DisplayName("요청 크기보다 한 건 더 조회되면 hasNext가 true이고 다음 커서는 컷오프 직전 아이템 기준이다")
+    void 주문상품목록_페이지경계() {
+        Order order = withId(existingOrder("ORD-20260908-FFFFFFFF"));
+        OrderDeliveryGroup group = withId(OrderDeliveryGroup.create(order.getId(), SELLER_ID, 15_000L, 3_000L));
+        List<OrderItem> items = IntStream.range(0, 11)
+                .mapToObj(i -> {
+                    OrderItem item = withId(OrderItem.create(
+                            order.getId(), group.getId(), PRODUCT_ID, null,
+                            "신고배 5kg 특품", "NORMAL", "국내산(전남 나주)",
+                            LocalDate.of(2026, 8, 20), "KG", BigDecimal.valueOf(5), 15_000L, 15_000L, 1
+                    ));
+                    ReflectionTestUtils.setField(item, "createdAt", Instant.now().minusSeconds(i));
+                    return item;
+                })
+                .toList();
+
+        when(orderItemRepository.findBuyerOrderItems(
+                eq(USER_ID), isNull(), isNull(), isNull(), any(Instant.class), any(Instant.class),
+                eq(CancelReasonCode.SYSTEM_TIMEOUT), any(Instant.class), isNull(), eq(PageRequest.of(0, 11))))
+                .thenReturn(items);
+        when(orderRepository.findAllById(any())).thenReturn(List.of(order));
+        when(orderDeliveryGroupRepository.findAllById(any())).thenReturn(List.of(group));
+
+        OrderItemPage page = orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, null, null, null, null, 10);
+
+        OrderItem cutoffItem = items.get(9);
+        assertThat(page.hasNext()).isTrue();
+        assertThat(page.content()).hasSize(10);
+        assertThat(page.nextCursor()).isEqualTo(cutoffItem.getCreatedAt().toString());
+        assertThat(page.nextIdAfter()).isEqualTo(cutoffItem.getId());
+    }
+
+    @Test
+    @DisplayName("주문 상품 목록의 페이지 크기와 커서·날짜 범위 입력값을 검증한다")
+    void 주문상품목록_입력값_검증() {
+        assertThatThrownBy(() -> orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, null, null, null, null, 20))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_PAGE_SIZE));
+
+        assertThatThrownBy(() -> orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, null, null, "2026-08-28T15:30:00Z", null, 10))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        Instant start = Instant.parse("2026-08-01T00:00:00Z");
+        assertThatThrownBy(() -> orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, start, start.minusSeconds(1), null, null, 10))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        assertThatThrownBy(() -> orderService.getBuyerOrderItems(
+                USER_ID, null, null, null, start, start.plus(java.time.Duration.ofDays(366)), null, null, 10))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
     }
 }

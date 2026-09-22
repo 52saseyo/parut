@@ -10,6 +10,17 @@ public record SellerProductQueryResult(
         String name,
         ProductCategory category,
         Long price,
-        ProductStatus status
+        ProductStatus status,
+        String imageUrl
 ) {
+    public SellerProductQueryResult withImageUrl(String imageUrl) {
+        return new SellerProductQueryResult(
+                productId,
+                name,
+                category,
+                price,
+                status,
+                imageUrl
+        );
+    }
 }

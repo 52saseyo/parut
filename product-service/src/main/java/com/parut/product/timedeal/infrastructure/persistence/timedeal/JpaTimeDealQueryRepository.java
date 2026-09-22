@@ -57,6 +57,46 @@ public interface JpaTimeDealQueryRepository extends JpaRepository<TimeDeal, UUID
             Pageable pageable
     );
 
+    @Query("""
+            select new com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView(
+                       t.id, t.productId, t.sellerId, t.name, t.description,
+                       t.productGrade, t.origin, t.harvestedDate, t.originalPrice, t.discountRate,
+                       t.dealPrice, t.startAt, t.endAt, t.maxPurchaseQuantity, t.status,
+                       s.availableQuantity, s.reservedQuantity, s.soldQuantity, s.lowStockThreshold)
+              from TimeDeal t
+              join TimeDealStock s on s.timeDealId = t.id
+             where t.sellerId = :sellerId
+               and t.deletedAt is null
+               and s.deletedAt is null
+             order by t.startAt desc, t.id desc
+            """)
+    List<TimeDealPublicDetailView> findFirstSellerList(
+            @Param("sellerId") UUID sellerId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select new com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView(
+                       t.id, t.productId, t.sellerId, t.name, t.description,
+                       t.productGrade, t.origin, t.harvestedDate, t.originalPrice, t.discountRate,
+                       t.dealPrice, t.startAt, t.endAt, t.maxPurchaseQuantity, t.status,
+                       s.availableQuantity, s.reservedQuantity, s.soldQuantity, s.lowStockThreshold)
+              from TimeDeal t
+              join TimeDealStock s on s.timeDealId = t.id
+             where t.sellerId = :sellerId
+               and t.deletedAt is null
+               and s.deletedAt is null
+               and (t.startAt < :cursor
+                    or (t.startAt = :cursor and t.id < :cursorId))
+             order by t.startAt desc, t.id desc
+            """)
+    List<TimeDealPublicDetailView> findNextSellerList(
+            @Param("sellerId") UUID sellerId,
+            @Param("cursor") Instant cursor,
+            @Param("cursorId") UUID cursorId,
+            Pageable pageable
+    );
+
     // NOTE: 판매 조건과 재고를 한 번에 조회하고, 삭제된 타임딜·재고는 제외한다.
     @Query("""
             select new com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView(
@@ -92,4 +132,23 @@ public interface JpaTimeDealQueryRepository extends JpaRepository<TimeDeal, UUID
                and t.deletedAt is null
             """)
     Optional<TimeDealDetailView> findDetailById(@Param("timeDealId") UUID timeDealId);
+
+    @Query("""
+            select new com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView(
+                       t.id,
+                       t.productId,
+                       t.sellerId,
+                       t.name,
+                       t.description,
+                       t.originalPrice,
+                       t.discountRate,
+                       t.dealPrice,
+                       t.productGrade,
+                       t.origin,
+                       t.harvestedDate)
+              from TimeDeal t
+             where t.id in :timeDealIds
+               and t.deletedAt is null
+            """)
+    List<TimeDealDetailView> findDetailsByIds(@Param("timeDealIds") List<UUID> timeDealIds);
 }

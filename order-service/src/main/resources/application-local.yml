@@ -40,3 +40,9 @@ logging:
     com.parut.order: debug
     org.hibernate.SQL: debug
     org.hibernate.orm.jdbc.bind: trace
+
+# 로컬 검증에서 배송 상태 전이를 빠르게 확인하기 위한 설정이며 운영 기본값은 변경하지 않는다.
+delivery:
+  completion:
+    delay-seconds: 10
+    fixed-delay: 1s
