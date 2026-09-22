@@ -11,8 +11,7 @@
 - `data/product-stock-seed.sql`을 product-service DB에서 실행하면 테스트 전용 상품과 재고가 생성된다.
 - Concurrency Test fixture `productId`: `33333333-3333-4333-8333-333333333333` (초기 재고 100개)
 - UpdateStock Conflict Test fixture `productId`: `44444444-4444-4444-8444-444444444444` / `sellerId`: `dddddddd-dddd-4ddd-8ddd-dddddddddddd` (초기 재고 1,000개, 예약 없음)
-- Isolated Reservation fixture `productId`: `55555555-5555-4555-8555-555555555555` / `sellerId`: `eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee` (재고 50개 중 20개가 `EXPIRATION_FAILED` 상태 예약(`reservationId`: `55555555-5555-4555-8555-555555555557`)에 물려 격리되어 있음, JMeter 테스트 대상이 아니라 격리 재고 조회/복구 API 확인용)
-- 앞의 두 JMeter 테스트는 요청마다 `orderId`/`orderItemId`를 JMeter `__UUID()` 함수로 생성한다.
+- 두 JMeter 테스트 모두 요청마다 `orderId`/`orderItemId`를 JMeter `__UUID()` 함수로 생성한다.
 - JMeter 요청은 실제 DB 트랜잭션을 수행하므로 테스트 후 자동 롤백되지 않는다. 전용 상품·DB를 사용하고 성공한 예약과 재고 변동은 seed 재실행으로 정리한다(seed는 실행 전 이전 결과를 먼저 삭제한다).
 
 모든 명령은 `product-service` 디렉터리를 현재 작업 디렉터리로 두고 실행한다.
@@ -122,24 +121,3 @@ jmeter -g test-results/product_stock/update-conflict.jtl \
 ```
 
 Report 출력 디렉터리는 기존에 존재하면 안 되므로 재생성할 때는 기존 Report 디렉터리를 비우거나 다른 이름을 사용한다.
-
-## 3. 격리된 예약(EXPIRATION_FAILED) 확인
-JMeter 시나리오가 아니라, seed로 만들어 둔 격리 상태를 API로 바로 확인하기 위한 fixture다. 만료 배치가 재고 복구(RESTORE)에 실패했을 때를 흉내 내, 재고 50개 중 20개가 예약에 물린 채(`available_quantity=30`) `EXPIRATION_FAILED` 상태로 남아 있다.
-
-조회 (관리자 또는 해당 판매자):
-
-```bash
-curl http://localhost:8082/api/v1/stocks/reservations/isolated \
-  -H "X-User-Id: eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" \
-  -H "X-User-Role: SELLER"
-```
-
-복구 (관리자만 가능):
-
-```bash
-curl -X POST http://localhost:8082/api/v1/stocks/reservations/55555555-5555-4555-8555-555555555557/recover \
-  -H "X-User-Id: <관리자 UUID>" \
-  -H "X-User-Role: ADMIN"
-```
-
-복구에 성공하면 예약이 `RESTORE` 이벤트로 정리되고 재고의 `available_quantity`가 50으로 돌아온다. 다시 격리 상태로 확인하려면 seed를 재실행한다(재실행 시 이전 예약·이벤트로그를 삭제하고 다시 만든다).
