@@ -11,7 +11,8 @@ public record SellerProductListResponse(
         String name,
         ProductCategory category,
         Long price,
-        ProductStatus status
+        ProductStatus status,
+        String imageUrl
 ) {
     public static SellerProductListResponse from(SellerProductQueryResult result) {
         return new SellerProductListResponse(
@@ -19,7 +20,8 @@ public record SellerProductListResponse(
                 result.name(),
                 result.category(),
                 result.price(),
-                result.status()
+                result.status(),
+                result.imageUrl()
         );
     }
 }

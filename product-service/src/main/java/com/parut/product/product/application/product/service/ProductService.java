@@ -311,13 +311,32 @@ public class ProductService {
     ){
         validatePublicStatus(condition.status());
 
-        return productQueryRepository.searchPublicProducts(
-                condition,
-                cursor,
-                cursorId,
-                size,
-                sort,
-                direction
+        ProductCursorResult<PublicProductQueryResult> result =
+                productQueryRepository.searchPublicProducts(
+                        condition,
+                        cursor,
+                        cursorId,
+                        size,
+                        sort,
+                        direction
+                );
+        List<UUID> productIds = result.content().stream()
+                .map(PublicProductQueryResult::productId)
+                .toList();
+
+        Map<UUID, ProductImageResult> images = productImagePort.findImages(productIds);
+        List<PublicProductQueryResult> content =
+                result.content().stream()
+                        .map(product -> {
+                            ProductImageResult image = images.get(product.productId());
+                            return product.withImageUrl(image == null ? null : image.imageUrl());
+                        }).toList();
+
+        return new ProductCursorResult<>(
+                content,
+                result.nextCursor(),
+                result.nextIdAfter(),
+                result.hasNext()
         );
     }
 
@@ -329,11 +348,26 @@ public class ProductService {
             Pageable pageable
     ){
         authorizationChecker.requireSeller(requesterRole);
-        return productQueryRepository.searchSellerProducts(
-                requesterId,
-                condition,
-                pageable
-        );
+        Page<SellerProductQueryResult> result =
+                productQueryRepository.searchSellerProducts(
+                        requesterId,
+                        condition,
+                        pageable
+                );
+        List<UUID> productIds = result.getContent().stream()
+                .map(SellerProductQueryResult::productId)
+                .toList();
+
+        Map<UUID, ProductImageResult> images =
+                productImagePort.findImages(productIds);
+
+        return result.map(product -> {
+            ProductImageResult image = images.get(product.productId());
+
+            return product.withImageUrl(
+                    image == null ? null : image.imageUrl()
+            );
+        });
     }
 
     private void validatePublicStatus(ProductStatus status) {

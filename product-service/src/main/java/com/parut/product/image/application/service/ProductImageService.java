@@ -9,9 +9,9 @@ import com.parut.product.image.infrastructure.persistence.ProductImageRepository
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -53,15 +53,23 @@ public class ProductImageService
     }
 
 
-    @Transactional(readOnly = true)
-    public List<String> getImageUrls(UUID productId){
-        return productImageRepository.
-                findAllByProductIdAndDeletedAtIsNull(productId)
-                .stream()
-                .map(ProductImage::getImageUrl)
-                .toList();
-    }
 
+
+    @Transactional(readOnly = true)
+    public Map<UUID, LinkedImage> getImageInfos(Collection<UUID> productIds){
+        if(productIds == null || productIds.isEmpty()){
+            return Map.of();
+        }
+
+        return productImageRepository
+                .findAllByProductIdInAndDeletedAtIsNull(productIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        ProductImage::getProductId,
+                        image -> new LinkedImage(image.getImageId(), image.getImageUrl()
+                        )
+                ));
+    }
 
 
 }

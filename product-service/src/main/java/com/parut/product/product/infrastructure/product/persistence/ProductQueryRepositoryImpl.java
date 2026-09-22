@@ -9,6 +9,7 @@ import com.parut.product.product.application.product.query.result.PublicProductQ
 import com.parut.product.product.application.product.query.result.SellerProductQueryResult;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -112,7 +113,8 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
                 row.get(product.category),
                 row.get(product.price),
                 row.get(product.appearanceType),
-                row.get(product.origin)
+                row.get(product.origin),
+                null
         );
     }
 
@@ -157,7 +159,8 @@ public class ProductQueryRepositoryImpl implements ProductQueryRepository {
                                 product.name,
                                 product.category,
                                 product.price,
-                                product.status
+                                product.status,
+                                Expressions.nullExpression(String.class)
                         )
                 )
                 .from(product)
