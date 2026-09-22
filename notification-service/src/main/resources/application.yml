@@ -1,6 +1,7 @@
 spring:
   application:
     name: notification
+
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
@@ -9,8 +10,15 @@ spring:
       hibernate:
         format_sql: true
         default_batch_fetch_size: 50
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
     open-in-view: false
+
 
 logging:
   level:
     root: info
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"

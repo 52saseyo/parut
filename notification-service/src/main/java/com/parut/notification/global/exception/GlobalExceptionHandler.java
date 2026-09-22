@@ -1,11 +1,13 @@
 package com.parut.notification.global.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import com.parut.notification.global.logging.TraceIdContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -67,6 +69,19 @@ public class GlobalExceptionHandler {
         return createResponse(ErrorCode.INVALID_INPUT_VALUE);
     }
 
+    // NOTE: 필수 헤더 값이 빠졌을때 예외. 인증은 게이트웨이가 JWT를 검증해 X-User-Id로 내려주는 구조이므로, 헤더가 비어 있다는 것은 사용자의 인증 실패가 아니라 호출자가 헤더 전파를 빠뜨린 계약 위반.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(
+            MissingRequestHeaderException e
+    ) {
+        log.warn(
+                "[MissingRequestHeaderException] header={}",
+                e.getHeaderName()
+        );
+
+        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ErrorResponse> handleMissingServletRequestPartException(
             MissingServletRequestPartException e
@@ -89,7 +104,7 @@ public class GlobalExceptionHandler {
                 e.getValue()
         );
 
-        return createResponse(ErrorCode.INVALID_INPUT_VALUE);
+        return createResponse(ErrorCode.INVALID_REQUEST);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -148,7 +163,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(
-                        ErrorResponse.of(errorCode, null) // TODO tracing 연동 후 traceId 전달
+                        ErrorResponse.of(errorCode, TraceIdContext.currentTraceId())
                 );
     }
 }

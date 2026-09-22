@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.parut.notification.global.common.entity.UpdatableEntity;
 
+import com.parut.notification.global.exception.BusinessException;
+import com.parut.notification.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -122,7 +124,7 @@ public class Notification extends UpdatableEntity {
             return;
         }
         if (readAt == null) {
-            throw new IllegalArgumentException("알림 읽음 시각은 필수입니다.");
+            throw new BusinessException(ErrorCode.NOTIFICATION_READ_AT_REQUIRED);
         }
 
         this.isRead = true;

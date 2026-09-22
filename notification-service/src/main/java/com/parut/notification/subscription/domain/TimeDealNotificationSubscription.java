@@ -1,10 +1,12 @@
-package com.parut.notification.notification.domain;
+package com.parut.notification.subscription.domain;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import com.parut.notification.global.common.entity.UpdatableEntity;
 
+import com.parut.notification.global.exception.BusinessException;
+import com.parut.notification.global.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -33,10 +35,10 @@ public class TimeDealNotificationSubscription extends UpdatableEntity {
 
     private TimeDealNotificationSubscription(UUID userId, UUID timeDealId) {
         if (userId == null) {
-            throw new IllegalArgumentException("사용자 ID는 필수입니다.");
+            throw new BusinessException(ErrorCode.NOTIFICATION_SUBSCRIPTION_USER_ID_REQUIRED);
         }
         if (timeDealId == null) {
-            throw new IllegalArgumentException("타임딜 ID는 필수입니다.");
+            throw new BusinessException(ErrorCode.NOTIFICATION_SUBSCRIPTION_TIME_DEAL_ID_REQUIRED);
         }
 
         this.userId = userId;
@@ -48,7 +50,7 @@ public class TimeDealNotificationSubscription extends UpdatableEntity {
             return;
         }
         if (deletedAt == null) {
-            throw new IllegalArgumentException("알림 신청 취소 시각은 필수입니다.");
+            throw new BusinessException(ErrorCode.NOTIFICATION_SUBSCRIPTION_CANCEL_TIME_REQUIRED);
         }
 
         this.deletedAt = deletedAt;
@@ -60,5 +62,9 @@ public class TimeDealNotificationSubscription extends UpdatableEntity {
         }
 
         this.deletedAt = null;
+    }
+
+    public boolean isSubscribed() {
+        return deletedAt == null;
     }
 }

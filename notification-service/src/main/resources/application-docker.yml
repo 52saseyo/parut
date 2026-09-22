@@ -17,6 +17,9 @@ spring:
     schemas: notification_schema
     default-schema: notification_schema
 
+  kafka:
+    bootstrap-servers: kafka:29092
+
 management:
   endpoints:
     web:
