@@ -80,6 +80,18 @@ public enum ErrorCode {
     ),
     // E: ADMIN
 
+    // S: ADDRESS
+    ADDRESS_NOT_FOUND(
+            HttpStatus.NOT_FOUND,
+            "배송지를 찾을 수 없습니다."
+    ),
+
+    ADDRESS_DEFAULT_CONFLICT(
+            HttpStatus.CONFLICT,
+            "기본 배송지가 변경 중입니다. 잠시 후 다시 시도해주세요."
+    ),
+    // E: ADDRESS
+
     // S: AUTH
     INVALID_TOKEN(
             HttpStatus.UNAUTHORIZED,
