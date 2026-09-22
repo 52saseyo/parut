@@ -79,6 +79,9 @@ public class UserAddress {
             boolean isDefault,
             String createdBy
     ) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
         this.userId = userId;
         this.addressName = requireText(addressName);
         this.recipientName = requireText(recipientName);
@@ -87,7 +90,7 @@ public class UserAddress {
         this.addressBase = requireText(addressBase);
         this.addressDetail = normalizeDetail(addressDetail);
         this.isDefault = isDefault;
-        this.createdBy = createdBy;
+        this.createdBy = requireText(createdBy);
         this.createdAt = ZonedDateTime.now(KST);
     }
 

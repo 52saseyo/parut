@@ -11,6 +11,7 @@ import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.user.domain.User;
 import com.parut.user.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserAddressService {
+
+    private static final String DEFAULT_ADDRESS_CONSTRAINT = "uq_p_user_addresses_default_active";
 
     private final UserAddressRepository userAddressRepository;
     private final UserRepository userRepository;
@@ -146,7 +149,22 @@ public class UserAddressService {
         try {
             return userAddressRepository.saveAndFlush(address);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(ErrorCode.ADDRESS_DEFAULT_CONFLICT);
+            if (isDefaultAddressConflict(e)) {
+                throw new BusinessException(ErrorCode.ADDRESS_DEFAULT_CONFLICT);
+            }
+            throw e;
         }
+    }
+
+    private boolean isDefaultAddressConflict(Throwable throwable) {
+        Throwable cause = throwable;
+        while (cause != null) {
+            if (cause instanceof ConstraintViolationException constraintViolation
+                    && DEFAULT_ADDRESS_CONSTRAINT.equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }
