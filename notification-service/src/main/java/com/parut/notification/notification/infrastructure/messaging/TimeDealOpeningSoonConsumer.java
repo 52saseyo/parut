@@ -26,10 +26,9 @@ public class TimeDealOpeningSoonConsumer {
     public void consume(
             TimeDealOpeningSoonEvent event,
             @Header(name = HeaderConstants.TRACE_ID, required = false)
-            byte[] traceIdHeader
+            String traceId
     ) {
-        String traceId = resolveTraceId(traceIdHeader);
-        try{
+        try {
             TraceIdContext.set(traceId);
             log.info(
                     "타임딜 임박 이벤트 수신 "
@@ -38,17 +37,8 @@ public class TimeDealOpeningSoonConsumer {
                     event.timeDealId()
             );
             timeDealOpeningSoonNotificationUseCase.createNotifications(event.toCommand(traceId));
-        }finally {
+        } finally {
             TraceIdContext.clear();
         }
-
-    }
-
-
-    private String resolveTraceId(byte[] traceIdHeader) {
-        if (traceIdHeader == null || traceIdHeader.length == 0) {
-            return UUID.randomUUID().toString();
-        }
-        return new String(traceIdHeader, StandardCharsets.UTF_8);
     }
 }

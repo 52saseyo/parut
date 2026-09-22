@@ -76,14 +76,14 @@ public class TimeDealOpeningSoonNotificationService implements TimeDealOpeningSo
 
     private Notification createNotification(TimeDealOpeningSoonCommand command, UUID userId) {
         String formattedStartAt = command
-                .startAt()
+                .timeDealStartAt()
                 .atZone(SERVICE_ZONE)
                 .format(START_AT_FORMATTER);
 
         String content =
                 "%s 타임딜이 %s에 시작됩니다."
                         .formatted(
-                                command.name(),
+                                command.timeDealName(),
                                 formattedStartAt
                         );
 

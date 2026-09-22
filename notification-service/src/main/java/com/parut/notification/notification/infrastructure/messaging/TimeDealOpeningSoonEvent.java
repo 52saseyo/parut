@@ -9,10 +9,10 @@ import java.util.UUID;
 public record TimeDealOpeningSoonEvent(
         UUID eventId,
         UUID timeDealId,
-        String name,
-        Instant startAt
+        String timeDealName,
+        Instant timeDealStartAt
 ) {
     public TimeDealOpeningSoonCommand toCommand(String traceId) {
-        return new TimeDealOpeningSoonCommand(eventId, traceId, timeDealId, name, startAt);
+        return new TimeDealOpeningSoonCommand(eventId, traceId, timeDealId, timeDealName, timeDealStartAt);
     }
 }

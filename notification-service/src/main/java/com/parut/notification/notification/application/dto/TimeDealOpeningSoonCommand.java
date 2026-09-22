@@ -7,7 +7,7 @@ public record TimeDealOpeningSoonCommand(
         UUID eventId,
         String traceId,
         UUID timeDealId,
-        String name,
-        Instant startAt
+        String timeDealName,
+        Instant timeDealStartAt
 ) {
 }
