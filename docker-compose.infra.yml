@@ -76,8 +76,34 @@ services:
     networks:
       - parut-net
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - parut-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+
+    depends_on:
+      - prometheus
+    networks:
+      - parut-net
+
+
 volumes:
   local_postgres_data:
+  grafana_data:
 
 networks:
   parut-net:

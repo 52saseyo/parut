@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="일반 재고 선점(reserve) 동시성 테스트">
+      <stringProp name="TestPlan.comments">일반재고 reserve는 타임딜과 달리 Redis 원자적 연산 없이 JPA 낙관적 락(version) + 재시도(최대 3회)만으로 동시성을 제어한다. 타임딜처럼 500명을 SyncTimer로 완전히 동시에 발사하면 낙관적 락이 못 버티는 게 당연한 결과라 의미가 없어, 50개 Thread가 5초에 걸쳐 기동해 각 10회씩 요청(총 500건)하는 기존 수준을 유지한다. 재고 정합성(성공 건수 ≤ 초기 재고 100개)과, 이 수준의 동시성에서 낙관적 락 재시도가 충돌을 얼마나 흡수하는지를 확인한다.</stringProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="productHost" elementType="Argument">
+            <stringProp name="Argument.name">productHost</stringProp>
+            <stringProp name="Argument.value">${__P(productHost,localhost)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="productPort" elementType="Argument">
+            <stringProp name="Argument.name">productPort</stringProp>
+            <stringProp name="Argument.value">${__P(productPort,8080)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="productId" elementType="Argument">
+            <stringProp name="Argument.name">productId</stringProp>
+            <stringProp name="Argument.value">${__P(productId,33333333-3333-4333-8333-333333333333)}</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="serviceKey" elementType="Argument">
+            <stringProp name="Argument.name">serviceKey</stringProp>
+            <stringProp name="Argument.value">local-dev-key</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="50 Thread reserve 요청 Thread Group">
+        <intProp name="ThreadGroup.num_threads">50</intProp>
+        <intProp name="ThreadGroup.ramp_time">5</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">10</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="reserve">
+          <stringProp name="HTTPSampler.domain">${productHost}</stringProp>
+          <stringProp name="HTTPSampler.port">${productPort}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/v1/internal/stocks/reserve</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&quot;orderId&quot;:&quot;${__UUID()}&quot;,&quot;items&quot;:[{&quot;productId&quot;:&quot;${productId}&quot;,&quot;orderItemId&quot;:&quot;${__UUID()}&quot;,&quot;quantity&quot;:1}]}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="내부 reserve API Header Manager" enabled="true">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="Content-Type" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+              <elementProp name="X-Service-Key" elementType="Header">
+                <stringProp name="Header.name">X-Service-Key</stringProp>
+                <stringProp name="Header.value">${serviceKey}</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="errorCode 라벨링" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">try {
+    def body = prev.getResponseDataAsString()
+    def json = new groovy.json.JsonSlurper().parseText(body)
+    def code = json.code ?: &quot;UNKNOWN&quot;
+    prev.setSampleLabel(prev.getSampleLabel() + &quot; [&quot; + code + &quot;]&quot;)
+} catch (e) {
+    prev.setSampleLabel(prev.getSampleLabel() + &quot; [PARSE_ERROR]&quot;)
+}</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
