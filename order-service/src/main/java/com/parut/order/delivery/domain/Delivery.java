@@ -15,6 +15,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 배송 상태와 운송 정보를 관리한다.
+ *
+ * <p>주문과 소유자 ID는 배송 생성 시점의 스냅샷이며 역할별 조회와 소유권 판단에 사용한다.
+ */
 @Entity
 @Table(name = "p_deliveries")
 @Getter
@@ -23,6 +28,15 @@ public class Delivery extends UpdatableEntity {
 
     @Column(name = "delivery_group_id", nullable = false)
     private UUID deliveryGroupId;
+
+    @Column(name = "order_id", nullable = false)
+    private UUID orderId;
+
+    @Column(name = "customer_id", nullable = false)
+    private UUID customerId;
+
+    @Column(name = "seller_id", nullable = false)
+    private UUID sellerId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -41,16 +55,28 @@ public class Delivery extends UpdatableEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 
-    public static Delivery create(UUID deliveryGroupId) {
-        return new Delivery(deliveryGroupId);
+    public static Delivery create(UUID deliveryGroupId, UUID orderId, UUID customerId, UUID sellerId) {
+        return new Delivery(deliveryGroupId, orderId, customerId, sellerId);
     }
 
-    private Delivery(UUID deliveryGroupId) {
+    private Delivery(UUID deliveryGroupId, UUID orderId, UUID customerId, UUID sellerId) {
         if (deliveryGroupId == null) {
             throw new IllegalArgumentException("배송 그룹 ID는 필수입니다.");
         }
+        if (orderId == null) {
+            throw new IllegalArgumentException("주문 ID는 필수입니다.");
+        }
+        if (customerId == null) {
+            throw new IllegalArgumentException("구매자 ID는 필수입니다.");
+        }
+        if (sellerId == null) {
+            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
+        }
 
         this.deliveryGroupId = deliveryGroupId;
+        this.orderId = orderId;
+        this.customerId = customerId;
+        this.sellerId = sellerId;
         this.status = DeliveryStatus.PREPARING;
     }
 

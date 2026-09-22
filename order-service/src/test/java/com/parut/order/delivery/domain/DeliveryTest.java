@@ -13,6 +13,9 @@ import org.junit.jupiter.api.Test;
 class DeliveryTest {
 
     private static final UUID DELIVERY_GROUP_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b8");
+    private static final UUID ORDER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6b9");
+    private static final UUID CUSTOMER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6ba");
+    private static final UUID SELLER_ID = UUID.fromString("01991a36-dfe8-78b4-aeb5-ec869d15a6bb");
     private static final Instant SHIPPED_AT = Instant.parse("2026-09-05T01:00:00Z");
     private static final Instant DELIVERED_AT = Instant.parse("2026-09-05T07:00:00Z");
 
@@ -23,16 +26,19 @@ class DeliveryTest {
         @Test
         @DisplayName("배송 준비 상태로 생성된다")
         void 생성_성공() {
-            Delivery delivery = Delivery.create(DELIVERY_GROUP_ID);
+            Delivery delivery = delivery();
 
             assertThat(delivery.getDeliveryGroupId()).isEqualTo(DELIVERY_GROUP_ID);
+            assertThat(delivery.getOrderId()).isEqualTo(ORDER_ID);
+            assertThat(delivery.getCustomerId()).isEqualTo(CUSTOMER_ID);
+            assertThat(delivery.getSellerId()).isEqualTo(SELLER_ID);
             assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.PREPARING);
         }
 
         @Test
         @DisplayName("배송 그룹 ID가 없으면 생성할 수 없다")
         void 배송_그룹_ID_필수() {
-            assertThatThrownBy(() -> Delivery.create(null))
+            assertThatThrownBy(() -> Delivery.create(null, ORDER_ID, CUSTOMER_ID, SELLER_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("배송 그룹 ID는 필수입니다.");
         }
@@ -106,7 +112,7 @@ class DeliveryTest {
     }
 
     private Delivery delivery() {
-        return Delivery.create(DELIVERY_GROUP_ID);
+        return Delivery.create(DELIVERY_GROUP_ID, ORDER_ID, CUSTOMER_ID, SELLER_ID);
     }
 
     private Delivery shippedDelivery() {

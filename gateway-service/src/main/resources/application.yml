@@ -33,7 +33,7 @@ spring:
               #uri: ${ORDER_URL:http://localhost:8083}
               uri: http://order-service:8080
               predicates:
-                - Path=/api/v1/carts/**, /api/v1/orders/**, /api/v1/payments/**, /api/v1/deliveries/**, /api/v1/order-items/**, /api/v1/refunds/**, /api/v1/settlements/**
+                - Path=/api/v1/carts/**, /api/v1/orders/**, /api/v1/payments/**, /api/v1/deliveries/**, /api/v1/admin/deliveries/**, /api/v1/order-items/**, /api/v1/refunds/**, /api/v1/admin/refunds/**, /api/v1/settlements/**, /api/v1/admin/settlements/**
               filters:
                 - name: JwtAuthFilter
 

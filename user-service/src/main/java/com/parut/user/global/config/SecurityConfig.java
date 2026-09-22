@@ -4,6 +4,7 @@ import com.parut.user.auth.infrastructure.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,8 +29,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.disable()) // Spring Security의 자체 CORS 개입을 끄고, 우리가 만든 CorsConfig를 따르게 함
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 브라우저의 CORS 사전 요청(OPTIONS)을 무조건 허용
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // 1. 인증/인가 없이 누구나 접근 가능한 API
                         .requestMatchers("/api/v1/auth/**", "/actuator/**", "/api/v1/sellers/apply").permitAll()
 

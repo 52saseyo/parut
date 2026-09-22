@@ -5,6 +5,8 @@ import com.parut.user.user.domain.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,4 +24,24 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByUsername(String username);
 
     Optional<User> findByIdAndDeletedAtIsNull(UUID userUuid);
+
+    // 3. 단건 조회 (탈퇴자 포함)
+    @Query(value = "SELECT * FROM p_users WHERE id = :userId", nativeQuery = true)
+    Optional<User> findByIdIncludeDeleted(@Param("userId") UUID userId);
+
+    // 4. 전체 조회 (탈퇴자 포함)
+    @Query(
+            value = "SELECT * FROM p_users",
+            countQuery = "SELECT count(*) FROM p_users",
+            nativeQuery = true
+    )
+    Page<User> findAllIncludeDeleted(Pageable pageable);
+
+    // 5. 키워드 검색 (탈퇴자 포함)
+    @Query(
+            value = "SELECT * FROM p_users WHERE username LIKE CONCAT('%', :keyword, '%') OR name LIKE CONCAT('%', :keyword, '%')",
+            countQuery = "SELECT count(*) FROM p_users WHERE username LIKE CONCAT('%', :keyword, '%') OR name LIKE CONCAT('%', :keyword, '%')",
+            nativeQuery = true
+    )
+    Page<User> searchIncludeDeleted(@Param("keyword") String keyword, Pageable pageable);
 }

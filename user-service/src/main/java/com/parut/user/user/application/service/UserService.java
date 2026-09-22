@@ -33,7 +33,7 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserResponse getUser(UUID userId) {
-        return userRepository.findById(userId)
+        return userRepository.findByIdIncludeDeleted(userId)
                 .map(UserResponse::from)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
@@ -45,9 +45,9 @@ public class UserService {
 
         // 1. 데이터 조회
         if (keyword == null || keyword.isBlank()) {
-            userPage = userRepository.findAll(pageable);
+            userPage = userRepository.findAllIncludeDeleted(pageable);
         } else {
-            userPage = userRepository.findByUsernameContainingOrNameContaining(keyword, keyword, pageable);
+            userPage = userRepository.searchIncludeDeleted(keyword, pageable);
         }
 
         // 2. Content(데이터 리스트) 변환
@@ -56,7 +56,7 @@ public class UserService {
                 .toList();
 
         // 3. 정렬 정보 추출 (첫 번째 정렬 기준 적용)
-        String sortProperty = "createdAt";
+        String sortProperty = "created_at";
         SortDirection sortDirection = SortDirection.DESC;
 
         if (userPage.getSort().isSorted()) {

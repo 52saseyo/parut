@@ -62,7 +62,7 @@ class TimeDealStockReservationAdapterTest {
                 eq(RScript.ReturnType.LONG),
                 anyList(),
                 eq("1"),
-                eq("900")
+                eq("1200")
         );
     }
 
