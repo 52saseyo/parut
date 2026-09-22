@@ -11,6 +11,7 @@ import com.parut.order.order.infrastructure.persistence.*;
 import com.parut.order.payment.application.port.in.PaymentQueryUseCase;
 import com.parut.order.payment.application.port.in.dto.PaymentView;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -242,5 +244,95 @@ public class OrderService {
         List<OrderCancel> cancels = orderCancelRepository.findByOrderId(orderId);
 
         return OrderDetailData.from(order, groups, items, payment, cancels);
+    }
+
+    public OrderItemPage getBuyerOrderItems(
+            UUID userId,
+            OrderItemStatus itemStatus,
+            OrderStatus orderStatus,
+            OrderType orderType,
+            Instant startDate,
+            Instant endDate,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        validateOrderItemListQuery(userId, startDate, endDate, cursor, cursorId, size);
+        Instant cursorTime = parseCursor(cursor);
+
+        PageRequest pageable = PageRequest.of(0, size + 1);
+        List<OrderItem> items = orderItemRepository.findBuyerOrderItems(
+                userId, itemStatus, orderStatus, orderType,
+                startDate == null ? Instant.EPOCH : startDate,
+                endDate == null ? Instant.now().plusSeconds(60) : endDate,
+                CancelReasonCode.SYSTEM_TIMEOUT,
+                cursorTime == null ? Instant.now().plusSeconds(60) : cursorTime,
+                cursorId, pageable
+        );
+
+        boolean hasNext = items.size() > size;
+        List<OrderItem> content = hasNext ? items.subList(0, size) : items;
+        List<OrderItemSummary> summaries = toSummaries(content);
+
+        if (!hasNext) {
+            return new OrderItemPage(summaries, null, null, false);
+        }
+
+        OrderItem lastItem = content.getLast();
+        return new OrderItemPage(summaries, lastItem.getCreatedAt().toString(), lastItem.getId(), true);
+    }
+
+    private List<OrderItemSummary> toSummaries(List<OrderItem> items) {
+        if (items.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, Order> ordersById = orderRepository.findAllById(
+                items.stream().map(OrderItem::getOrderId).distinct().toList()
+        ).stream().collect(Collectors.toMap(Order::getId, order -> order));
+
+        Map<UUID, OrderDeliveryGroup> groupsById = orderDeliveryGroupRepository.findAllById(
+                items.stream().map(OrderItem::getDeliveryGroupId).distinct().toList()
+        ).stream().collect(Collectors.toMap(OrderDeliveryGroup::getId, group -> group));
+
+        return items.stream()
+                .map(item -> OrderItemSummary.from(
+                        item,
+                        ordersById.get(item.getOrderId()),
+                        groupsById.get(item.getDeliveryGroupId())
+                ))
+                .toList();
+    }
+
+    private void validateOrderItemListQuery(
+            UUID userId,
+            Instant startDate,
+            Instant endDate,
+            String cursor,
+            UUID cursorId,
+            int size
+    ) {
+        boolean hasOnlyOneCursorValue = (cursor == null) != (cursorId == null);
+        if (userId == null || hasOnlyOneCursorValue) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (size != 10 && size != 30 && size != 50) {
+            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+        }
+        if (startDate != null && endDate != null
+                && (endDate.isBefore(startDate) || Duration.between(startDate, endDate).toDays() > 365)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private Instant parseCursor(String cursor) {
+        if (cursor == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(cursor);
+        } catch (DateTimeParseException e) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
     }
 }

@@ -4,28 +4,26 @@ import com.parut.order.global.auth.RequireRole;
 import com.parut.order.global.auth.UserContext;
 import com.parut.order.global.auth.UserRole;
 import com.parut.order.global.common.ApiResponse;
+import com.parut.order.global.common.CursorPageInfo;
+import com.parut.order.global.common.CursorResponse;
+import com.parut.order.global.common.SortDirection;
 import com.parut.order.global.constant.HeaderConstants;
-import com.parut.order.order.application.OrderCancelFacade;
-import com.parut.order.order.application.OrderFacade;
-import com.parut.order.order.application.OrderItemConfirmationService;
-import com.parut.order.order.application.OrderService;
+import com.parut.order.order.application.*;
 import com.parut.order.order.application.dto.CreateOrderCommand;
 import com.parut.order.order.application.dto.CreateTimeDealOrderCommand;
 import com.parut.order.order.application.dto.OrderCancelResult;
 import com.parut.order.order.application.dto.OrderDetailData;
-import com.parut.order.order.domain.Order;
-import com.parut.order.order.domain.OrderItem;
+import com.parut.order.order.domain.*;
 import com.parut.order.order.presentation.dto.request.CancelOrderRequest;
 import com.parut.order.order.presentation.dto.request.CreateOrderRequest;
 import com.parut.order.order.presentation.dto.request.CreateTimeDealOrderRequest;
-import com.parut.order.order.presentation.dto.response.OrderCancelResponse;
-import com.parut.order.order.presentation.dto.response.OrderCreateResponse;
-import com.parut.order.order.presentation.dto.response.OrderDetailResponse;
-import com.parut.order.order.presentation.dto.response.OrderItemConfirmationResponse;
+import com.parut.order.order.presentation.dto.response.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -64,6 +62,45 @@ public class OrderController {
         Order order = orderFacade.createTimeDealOrder(command);
 
         return ApiResponse.success(OrderCreateResponse.from(order));
+    }
+
+    @GetMapping
+    @RequireRole(UserRole.CUSTOMER)
+    public ApiResponse<CursorResponse<OrderItemSummaryResponse>> getOrders(
+            UserContext userContext,
+            @RequestParam(required = false) OrderItemStatus itemStatus,
+            @RequestParam(required = false) OrderStatus orderStatus,
+            @RequestParam(required = false) OrderType orderType,
+            @RequestParam(required = false) Instant startDate,
+            @RequestParam(required = false) Instant endDate,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) UUID cursorId,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        OrderItemPage page = orderService.getBuyerOrderItems(
+                userContext.userId(),
+                itemStatus,
+                orderStatus,
+                orderType,
+                startDate,
+                endDate,
+                cursor,
+                cursorId,
+                size
+        );
+
+        List<OrderItemSummaryResponse> content = page.content().stream()
+                .map(OrderItemSummaryResponse::from)
+                .toList();
+        CursorPageInfo pageInfo = CursorPageInfo.of(
+                page.nextCursor(),
+                page.nextIdAfter(),
+                page.hasNext(),
+                "createdAt",
+                SortDirection.DESC
+        );
+
+        return ApiResponse.success(new CursorResponse<>(content, pageInfo));
     }
 
     @GetMapping("/{orderId}")
