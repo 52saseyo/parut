@@ -12,8 +12,6 @@ public record CreateTimeDealOrderRequest(
         @NotNull
         UUID timeDealId,
 
-        UUID productId,
-
         @NotNull
         @Min(1)
         Integer quantity,
@@ -27,7 +25,6 @@ public record CreateTimeDealOrderRequest(
                 userId,
                 idempotencyKey,
                 timeDealId,
-                productId,
                 quantity,
                 recipient.recipientName(),
                 recipient.recipientPhone(),
