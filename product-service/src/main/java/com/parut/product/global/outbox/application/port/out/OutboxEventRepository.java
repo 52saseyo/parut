@@ -7,5 +7,8 @@ public interface OutboxEventRepository {
 
     OutboxEvent save(OutboxEvent event);
 
+    // NOTE: 동일한 멱등 키가 있으면 저장하지 않고 false를 반환한다.
+    boolean saveIfAbsent(OutboxEvent event);
+
     List<OutboxEvent> findPending(int limit);
 }
