@@ -437,7 +437,7 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .distinct()
                 .toList();
         Map<UUID, ProductStock> stockById = productStockRepository
-                .findAllById(stockIds)
+                .findAllByIdForUpdate(stockIds)
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
 
@@ -532,7 +532,7 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .distinct()
                 .toList();
         Map<UUID, ProductStock> stockById = productStockRepository
-                .findAllById(stockIds)
+                .findAllByIdForUpdate(stockIds)
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
         Map<UUID, StockStatus> previousStatusByStockId = stockById.values().stream()
