@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.infrastructure.persistence.timedeal;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealOpeningSoonTarget;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealQueryRepository;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
+import java.time.Instant;
 import org.springframework.data.domain.PageRequest;
 
 @Component
@@ -17,6 +19,12 @@ import org.springframework.data.domain.PageRequest;
 public class TimeDealQueryRepositoryAdapter implements TimeDealQueryRepository {
 
     private final JpaTimeDealQueryRepository jpaTimeDealQueryRepository;
+
+    @Override
+    public List<TimeDealOpeningSoonTarget> findOpeningSoonTargets(Instant now, Instant deadline) {
+        return jpaTimeDealQueryRepository.findOpeningSoonTargets(
+                TimeDealStatus.SCHEDULED, now, deadline);
+    }
 
     @Override
     public List<TimeDealPublicDetailView> findPublicList(

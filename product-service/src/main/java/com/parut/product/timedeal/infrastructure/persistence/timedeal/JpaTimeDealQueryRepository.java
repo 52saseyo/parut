@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.infrastructure.persistence.timedeal;
 
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealDetailView;
+import com.parut.product.timedeal.application.dto.timedeal.TimeDealOpeningSoonTarget;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealStatus;
@@ -16,6 +17,23 @@ import org.springframework.data.domain.Pageable;
 
 
 public interface JpaTimeDealQueryRepository extends JpaRepository<TimeDeal, UUID> {
+
+    // NOTE: 알림 이벤트에 필요한 타임딜 필드만 Projection으로 조회한다. 재고와 사용자 알림 신청자는 이 단계에서 조회하지 않는다.
+    @Query("""
+            select new com.parut.product.timedeal.application.dto.timedeal.TimeDealOpeningSoonTarget(
+                       t.id, t.name, t.startAt)
+              from TimeDeal t
+             where t.deletedAt is null
+               and t.status = :status
+               and t.startAt > :now
+               and t.startAt <= :deadline
+             order by t.startAt asc, t.id asc
+            """)
+    List<TimeDealOpeningSoonTarget> findOpeningSoonTargets(
+            @Param("status") TimeDealStatus status,
+            @Param("now") Instant now,
+            @Param("deadline") Instant deadline
+    );
 
     @Query("""
             select new com.parut.product.timedeal.application.dto.timedeal.TimeDealPublicDetailView(
