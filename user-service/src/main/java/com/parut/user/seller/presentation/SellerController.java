@@ -116,7 +116,8 @@ public class SellerController {
     public ResponseEntity<ApiResponse<SellerDeleteResponse>> deleteMyInfo(
             @PathVariable UUID id,
             @RequestHeader("X-User-Id") UUID sellerId,
-            @RequestHeader("X-User-Role") String role
+            @RequestHeader("X-User-Role") String role,
+            @RequestHeader("X-Trace-Id") String traceId
     ) {
         // 1. ADMIN 또는 SELLER 권한 체크
         if (!String.valueOf(UserRole.ADMIN).equalsIgnoreCase(role) && !String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) && !String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) {
@@ -127,7 +128,7 @@ public class SellerController {
         if ((String.valueOf(UserRole.SELLER).equalsIgnoreCase(role) || String.valueOf(UserRole.PENDING_SELLER).equalsIgnoreCase(role)) && !id.equals(sellerId)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
         }
-        SellerDeleteResponse response = sellerService.deleteSeller(id, sellerId);
+        SellerDeleteResponse response = sellerService.deleteSeller(id, sellerId, traceId);
         return ResponseEntity.ok(ApiResponse.success(response, ""));
     }
 }
