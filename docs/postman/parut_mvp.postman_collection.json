@@ -4373,7 +4373,65 @@
           "name": "12 user",
           "item": [
             {
-              "name": "12-01 내 정보 조회",
+              "name": "12-01 고객 로그인",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('customerUsername')) throw new Error('customerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('customerPassword')) throw new Error('customerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('고객 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                      "pm.test('고객 Refresh Token이 있다', () => pm.expect(body.data?.refresh_token ?? body.data?.refreshToken).to.be.a('string').and.not.empty);",
+                      "const token = body.data?.access_token ?? body.data?.accessToken;",
+                      "const refreshToken = body.data?.refresh_token ?? body.data?.refreshToken;",
+                      "if (token) {",
+                      "  pm.environment.set('customerAccessToken', token);",
+                      "  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                      "  if (payload.sub) pm.environment.set('customerId', payload.sub);",
+                      "}",
+                      "if (refreshToken) pm.environment.set('customerRefreshToken', refreshToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{customerUsername}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/login/user",
+                "description": "고객 Access Token과 JWT subject인 customerId를 자동 저장합니다."
+              }
+            },
+            {
+              "name": "12-02 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4421,7 +4479,7 @@
               }
             },
             {
-              "name": "12-02 내(사용자) 정보 수정",
+              "name": "12-03 내(사용자) 정보 수정",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4454,7 +4512,7 @@
               }
             },
             {
-              "name": "12-03 수정된 내 정보 조회",
+              "name": "12-04 수정된 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4502,7 +4560,7 @@
               }
             },
             {
-              "name": "12-04 내(사용자) 탈퇴·비활성화",
+              "name": "12-05 내(사용자) 탈퇴·비활성화",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4521,7 +4579,7 @@
               }
             },
             {
-              "name": "12-05 탈퇴한 내 정보 조회",
+              "name": "12-06 탈퇴한 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4569,7 +4627,53 @@
               }
             },
             {
-              "name": "12-06 사용자 단건 조회(관리자)",
+              "name": "12-07 관리자 로그인",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('관리자 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                      "pm.test('고객 Refresh Token이 있다', () => pm.expect(body.data?.refresh_token ?? body.data?.refreshToken).to.be.a('string').and.not.empty);",
+                      "const token = body.data?.access_token ?? body.data?.accessToken;",
+                      "const refreshToken = body.data?.refresh_token ?? body.data?.refreshToken;",
+                      "if (token) {",
+                      "  pm.environment.set('adminAccessToken', token);",
+                      "}",
+                      "if (refreshToken) pm.environment.set('adminRefreshToken', refreshToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"username\": \"{{adminUsername}}\",\n    \"password\": \"{{adminPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/login/admin",
+                "description": "임시 관리자 토큰과 JWT subject인 adminId를 자동 저장합니다."
+              }
+            },
+            {
+              "name": "12-08 사용자 단건 조회(관리자)",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4588,7 +4692,7 @@
               }
             },
             {
-              "name": "12-07 사용자 목록 조회 및 검색(관리자)",
+              "name": "12-09 사용자 목록 조회 및 검색(관리자)",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4612,7 +4716,65 @@
           "name": "13 seller",
           "item": [
             {
-              "name": "13-01 판매자 내 정보 조회",
+              "name": "13-01 승인 판매자 재로그인",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('sellerUsername')) throw new Error('sellerUsername 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');",
+                      "if (!pm.environment.get('sellerPassword')) throw new Error('sellerPassword 환경변수가 없습니다. 이전 번호 요청부터 다시 실행하세요.');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "let body = {};",
+                      "if (pm.response.text()) {",
+                      "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                      "}",
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                      "pm.test('판매자 Access Token이 있다', () => pm.expect(body.data?.access_token ?? body.data?.accessToken).to.be.a('string').and.not.empty);",
+                      "pm.test('고객 Refresh Token이 있다', () => pm.expect(body.data?.refresh_token ?? body.data?.refreshToken).to.be.a('string').and.not.empty);",
+                      "const token = body.data?.access_token ?? body.data?.accessToken;",
+                      "const refreshToken = body.data?.refresh_token ?? body.data?.refreshToken;",
+                      "if (token) {",
+                      "  pm.environment.set('sellerAccessToken', token);",
+                      "  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                      "  if (payload.sub) pm.environment.set('sellerId', payload.sub);",
+                      "}",
+                      "if (refreshToken) pm.environment.set('sellerRefreshToken', refreshToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"username\": \"{{sellerUsername}}\",\n  \"password\": \"{{sellerPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/auth/login/seller",
+                "description": "승인 후 다시 로그인해 일반 SELLER Access Token을 자동 저장합니다."
+              }
+            },
+            {
+              "name": "13-02 판매자 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4660,7 +4822,7 @@
               }
             },
             {
-              "name": "13-02 판매자 정보 수정",
+              "name": "13-03 판매자 정보 수정",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4693,7 +4855,7 @@
               }
             },
             {
-              "name": "13-03 수정된 판매자 내 정보 조회",
+              "name": "13-04 수정된 판매자 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4741,7 +4903,7 @@
               }
             },
             {
-              "name": "13-04 판매자 탈퇴",
+              "name": "13-05 판매자 탈퇴",
               "request": {
                 "auth": {
                   "type": "bearer",
@@ -4760,7 +4922,7 @@
               }
             },
             {
-              "name": "13-05 탈퇴한 판매자 내 정보 조회",
+              "name": "13-06 탈퇴한 판매자 내 정보 조회",
               "event": [
                 {
                   "listen": "prerequest",
@@ -4808,7 +4970,7 @@
               }
             },
             {
-              "name": "13-06 가입 신청 목록 조회(관리자)",
+              "name": "13-07 가입 신청 목록 조회(관리자)",
               "request": {
                 "auth": {
                   "type": "bearer",
