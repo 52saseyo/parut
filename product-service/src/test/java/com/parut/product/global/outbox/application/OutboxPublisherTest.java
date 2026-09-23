@@ -71,6 +71,34 @@ class OutboxPublisherTest {
         verify(outboxEventRepository).save(event);
     }
 
+    @Test
+    void Kafka_발행이_최대_재시도_횟수에_도달하면_FAILED로_변경한다() {
+        OutboxEvent event = OutboxEvent.rehydrate(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "TIME_DEAL_OPENING_SOON",
+                UUID.randomUUID(),
+                "2026-09-23T10:10:00Z",
+                "trace-id",
+                "{\"eventId\":\"event\"}",
+                com.parut.product.global.outbox.domain.OutboxPublishStatus.PENDING,
+                4,
+                "previous error",
+                null,
+                Instant.parse("2026-09-23T10:00:00Z")
+        );
+        when(outboxEventRepository.findPending(50)).thenReturn(List.of(event));
+        org.mockito.Mockito.doThrow(new IllegalStateException("Kafka unavailable"))
+                .when(outboxMessagePublisher).publish(event);
+
+        int publishedCount = outboxPublisher.publishPendingEvents(50);
+
+        assertThat(publishedCount).isZero();
+        assertThat(event.getPublishStatus().name()).isEqualTo("FAILED");
+        assertThat(event.getRetryCount()).isEqualTo(5);
+        verify(outboxEventRepository).save(event);
+    }
+
     private static OutboxEvent pending() {
         return OutboxEvent.pending(
                 UUID.randomUUID(),

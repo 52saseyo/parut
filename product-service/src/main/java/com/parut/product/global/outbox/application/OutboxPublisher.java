@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OutboxPublisher {
 
+    private static final int MAX_RETRY_COUNT = 5;
+
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxMessagePublisher outboxMessagePublisher;
 
@@ -42,12 +44,20 @@ public class OutboxPublisher {
                 outboxEventRepository.save(event);
                 publishedCount++;
             } catch (Exception exception) {
-                event.markRetryableFailure(resolveErrorMessage(exception));
+                markFailure(event, resolveErrorMessage(exception));
                 outboxEventRepository.save(event);
             }
         }
 
         return publishedCount;
+    }
+
+    private void markFailure(OutboxEvent event, String errorMessage) {
+        if (event.getRetryCount() + 1 >= MAX_RETRY_COUNT) {
+            event.markFailed(errorMessage);
+            return;
+        }
+        event.markRetryableFailure(errorMessage);
     }
 
     private String resolveErrorMessage(Exception exception) {
