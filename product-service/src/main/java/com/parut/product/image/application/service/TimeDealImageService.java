@@ -55,7 +55,7 @@ public class TimeDealImageService {
         if(timeDealImageRepository.existsByTimeDealIdAndDeletedAtIsNull(timeDealId)) {
             throw new BusinessException(ErrorCode.TIME_DEAL_IMAGE_ALREADY_EXISTS);
         }
-        Image image = imageRepository.findById(imageId)
+        Image image = imageRepository.findByIdAndDeletedAtIsNull(imageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.IMAGE_NOT_FOUND));
 
         TimeDealImage timeDealImage = TimeDealImage.create(timeDealId, image.getId(), image.getImageUrl());

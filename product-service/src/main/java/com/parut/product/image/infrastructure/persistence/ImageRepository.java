@@ -10,4 +10,6 @@ public interface ImageRepository extends JpaRepository<Image, UUID> {
     boolean existsByImageKey(String imageKey);
 
     Optional<Image> findByIdAndUploaderIdAndDeletedAtIsNull(UUID imageId, UUID uploaderId);
+
+    Optional<Image> findByIdAndDeletedAtIsNull(UUID imageId);
 }
