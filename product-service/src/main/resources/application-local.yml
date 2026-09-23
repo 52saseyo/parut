@@ -21,6 +21,9 @@ spring:
     schemas: product_schema
     default-schema: product_schema
 
+  kafka:
+    bootstrap-servers: localhost:9092
+
 
 management:
   endpoints:

@@ -27,6 +27,9 @@ spring:
     schemas: product_schema
     default-schema: product_schema
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
   data:
     redis:
       host: ${REDIS_HOST}
