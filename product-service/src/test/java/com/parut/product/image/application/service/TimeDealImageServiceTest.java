@@ -63,7 +63,8 @@ class TimeDealImageServiceTest {
     @Test
     void 상품_이미지를_조회하여_타임딜에_연결한다() {
         Image image = image();
-        given(imageRepository.findById(IMAGE_ID)).willReturn(Optional.of(image));
+        given(imageRepository.findByIdAndDeletedAtIsNull(IMAGE_ID))
+                .willReturn(Optional.of(image));
 
         timeDealImageService.copyFromProductImage(TIME_DEAL_ID, IMAGE_ID);
 
@@ -76,7 +77,8 @@ class TimeDealImageServiceTest {
 
     @Test
     void 복사할_상품_이미지가_없으면_예외가_발생한다() {
-        given(imageRepository.findById(IMAGE_ID)).willReturn(Optional.empty());
+        given(imageRepository.findByIdAndDeletedAtIsNull(IMAGE_ID))
+                .willReturn(Optional.empty());
 
         assertBusinessException(
                 () -> timeDealImageService.copyFromProductImage(TIME_DEAL_ID, IMAGE_ID),
@@ -96,7 +98,8 @@ class TimeDealImageServiceTest {
                 ErrorCode.TIME_DEAL_IMAGE_ALREADY_EXISTS
         );
 
-        verify(imageRepository, never()).findById(IMAGE_ID);
+        verify(imageRepository, never())
+                .findByIdAndDeletedAtIsNull(IMAGE_ID);
     }
 
     @Test
