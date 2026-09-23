@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.constant.KafkaTopicConstants;
 import com.parut.product.global.outbox.domain.OutboxEvent;
 import java.nio.charset.StandardCharsets;
@@ -51,7 +52,7 @@ class OutboxKafkaPublisherTest {
         assertThat(record.topic()).isEqualTo(KafkaTopicConstants.TIME_DEAL_OPENING_SOON);
         assertThat(record.key()).isNull();
         assertThat(record.value()).isEqualTo("{\"timeDealId\":\"deal\"}");
-        assertThat(record.headers().lastHeader("traceId").value())
+        assertThat(record.headers().lastHeader(HeaderConstants.TRACE_ID).value())
                 .isEqualTo(traceId.getBytes(StandardCharsets.UTF_8));
     }
 }

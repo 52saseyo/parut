@@ -17666,8 +17666,974 @@
       "name": "40 notification-service",
       "item": [
         {
-          "name": "41 notification",
-          "item": []
+          "name": "41 타임딜 임박 알림 E2E (픽스처 포함)",
+          "description": "01 공통 시작 완료 후 이 폴더 전체를 Collection Runner로 실행합니다. product/notification 서비스, Kafka, Outbox publisher 및 임박 감지 스케줄러가 필요합니다. 기본 감지 주기 1분 기준 최대 약 5분. 매 실행 새 타임딜 3개를 API로 생성하고 정상 수신·중복 구독·구독 취소·10분 밖 제외·반복 감지·읽음·정리를 확인합니다. 별도 SQL 불필요. 수동 Send는 다음 요청 자동 반복이 동작하지 않습니다.",
+          "item": [
+            {
+              "name": "41-01 정상 수신 픽스처 생성",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"임박 알림 정상 수신 픽스처\",\n  \"description\": \"41 전용: 구독 준비 후 임박 구간으로 이동\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"{{openingSoonHarvestedDate}}\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 20,\n  \"startAt\": \"{{openingSoonStartAt}}\",\n  \"endAt\": \"{{openingSoonEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "for (const key of ['customerAccessToken','sellerAccessToken']) { if (!pm.environment.get(key)) { pm.execution.setNextRequest(null); throw new Error('01 공통 시작을 먼저 실행하세요: ' + key); } }",
+                      "pm.environment.unset('openingSoonTargetId');",
+                      "pm.environment.unset('openingSoonCancelledId');",
+                      "pm.environment.unset('openingSoonFarId');",
+                      "pm.environment.unset('openingSoonStartAt');",
+                      "pm.environment.unset('openingSoonEndAt');",
+                      "pm.environment.unset('openingSoonHarvestedDate');",
+                      "pm.environment.unset('openingSoonNotificationId');",
+                      "pm.environment.unset('openingSoonPollStartedAt');",
+                      "pm.environment.unset('openingSoonObservedAt');",
+                      "const now = Date.now();",
+                      "pm.environment.set('openingSoonStartAt', new Date(now + 1800000).toISOString());",
+                      "pm.environment.set('openingSoonEndAt', new Date(now + 5400000).toISOString());",
+                      "pm.environment.set('openingSoonHarvestedDate', new Date(now - 86400000).toISOString().slice(0, 10));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.timeDealId).to.be.a('string'); pm.environment.set('openingSoonTargetId', data.timeDealId);",
+                      "pm.test('SCHEDULED 생성', () => pm.expect(data.status).to.eql('SCHEDULED'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-02 구독 취소 픽스처 생성",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"임박 알림 구독 취소 픽스처\",\n  \"description\": \"41 전용: 구독 준비 후 임박 구간으로 이동\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"{{openingSoonHarvestedDate}}\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 20,\n  \"startAt\": \"{{openingSoonStartAt}}\",\n  \"endAt\": \"{{openingSoonEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('openingSoonStartAt', new Date(now + 1800000).toISOString());",
+                      "pm.environment.set('openingSoonEndAt', new Date(now + 5400000).toISOString());",
+                      "pm.environment.set('openingSoonHarvestedDate', new Date(now - 86400000).toISOString().slice(0, 10));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.timeDealId).to.be.a('string'); pm.environment.set('openingSoonCancelledId', data.timeDealId);",
+                      "pm.test('SCHEDULED 생성', () => pm.expect(data.status).to.eql('SCHEDULED'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-03 10분 밖 제외 픽스처 생성",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"임박 알림 10분 밖 제외 픽스처\",\n  \"description\": \"41 전용: 구독 준비 후 임박 구간으로 이동\",\n  \"productGrade\": \"NORMAL\",\n  \"origin\": \"국내산\",\n  \"harvestedDate\": \"{{openingSoonHarvestedDate}}\",\n  \"originalPrice\": 10000,\n  \"discountRate\": 20,\n  \"startAt\": \"{{openingSoonStartAt}}\",\n  \"endAt\": \"{{openingSoonEndAt}}\",\n  \"maxPurchaseQuantity\": 3,\n  \"initialQuantity\": 10,\n  \"lowStockThreshold\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('openingSoonStartAt', new Date(now + 1800000).toISOString());",
+                      "pm.environment.set('openingSoonEndAt', new Date(now + 5400000).toISOString());",
+                      "pm.environment.set('openingSoonHarvestedDate', new Date(now - 86400000).toISOString().slice(0, 10));"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 201', () => pm.expect(pm.response.code).to.eql(201));",
+                      "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.timeDealId).to.be.a('string'); pm.environment.set('openingSoonFarId', data.timeDealId);",
+                      "pm.test('SCHEDULED 생성', () => pm.expect(data.status).to.eql('SCHEDULED'));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-04 픽스처 알림 구독",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"timeDealId\": \"{{openingSoonTargetId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('구독 활성', () => pm.expect(data.subscribed).to.eql(true));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-05 픽스처 알림 구독",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"timeDealId\": \"{{openingSoonCancelledId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('구독 활성', () => pm.expect(data.subscribed).to.eql(true));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-06 픽스처 알림 구독",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"timeDealId\": \"{{openingSoonFarId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('구독 활성', () => pm.expect(data.subscribed).to.eql(true));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-07 중복 구독 멱등성",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"timeDealId\": \"{{openingSoonTargetId}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('중복 신청도 활성 상태', () => pm.expect(data.subscribed).to.eql(true));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-08 제외 대상 구독 취소",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonCancelledId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-09 취소 상태 확인",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonCancelledId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('구독 취소됨', () => pm.expect(data.subscribed).to.eql(false));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-10 시작 시각을 8분 후로 변경",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals/{{openingSoonTargetId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startAt\": \"{{openingSoonStartAt}}\",\n  \"endAt\": \"{{openingSoonEndAt}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('openingSoonStartAt', new Date(now + 480000).toISOString());",
+                      "pm.environment.set('openingSoonEndAt', new Date(now + 4080000).toISOString());"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('임박 구간 SCHEDULED', () => pm.expect(data.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('openingSoonPollStartedAt', String(Date.now()));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-11 시작 시각을 8분 후로 변경",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals/{{openingSoonCancelledId}}",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"startAt\": \"{{openingSoonStartAt}}\",\n  \"endAt\": \"{{openingSoonEndAt}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const now = Date.now();",
+                      "pm.environment.set('openingSoonStartAt', new Date(now + 480000).toISOString());",
+                      "pm.environment.set('openingSoonEndAt', new Date(now + 4080000).toISOString());"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.test('임박 구간 SCHEDULED', () => pm.expect(data.status).to.eql('SCHEDULED'));",
+                      "pm.environment.set('openingSoonPollStartedAt', String(Date.now()));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-12 임박 알림 수신 대기 (최대 180초)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notifications?type=TIME_DEAL_OPENING_SOON&size=50"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.content).to.be.an('array');",
+                      "pm.test('첫 페이지 범위 내 검증 가능', () => pm.expect(data.pageInfo.hasNext, '알림이 많습니다. 새 고객으로 01부터 실행하세요.').to.eql(false));",
+                      "if (data.pageInfo.hasNext) { pm.execution.setNextRequest(null); throw new Error('페이지 범위를 넘어 검증할 수 없습니다. 새 고객을 사용하세요.'); }",
+                      "const matches = data.content.filter(n => n.referenceId === pm.environment.get('openingSoonTargetId'));",
+                      "const excluded = data.content.filter(n => [pm.environment.get('openingSoonCancelledId'), pm.environment.get('openingSoonFarId')].includes(n.referenceId));",
+                      "pm.test('취소 및 10분 밖 타임딜 알림 없음', () => pm.expect(excluded).to.have.lengthOf(0));",
+                      "if (matches.length === 0 && Date.now() - Number(pm.environment.get('openingSoonPollStartedAt')) < 180000) {",
+                      "  pm.execution.setNextRequest(pm.info.requestId); setTimeout(() => {}, 3000);",
+                      "} else {",
+                      "  pm.test('정상 대상 알림 정확히 1개', () => pm.expect(matches).to.have.lengthOf(1));",
+                      "  if (matches.length !== 1) { pm.execution.setNextRequest(null); throw new Error('수신 실패: 스케줄러, Outbox, Kafka 및 consumer를 확인하세요.'); }",
+                      "  pm.test('미읽음 타임딜 알림', () => { pm.expect(matches[0].read).to.eql(false); pm.expect(matches[0].referenceType).to.eql('TIME_DEAL'); });",
+                      "  pm.environment.set('openingSoonNotificationId', matches[0].notificationId);",
+                      "  pm.environment.set('openingSoonObservedAt', String(Date.now()));",
+                      "}"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-13 다음 감지 주기까지 중복 및 제외 대상 확인 (75초)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notifications?type=TIME_DEAL_OPENING_SOON&size=50"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.content).to.be.an('array');",
+                      "pm.test('첫 페이지 범위 내 검증 가능', () => pm.expect(data.pageInfo.hasNext, '알림이 많습니다. 새 고객으로 01부터 실행하세요.').to.eql(false));",
+                      "if (data.pageInfo.hasNext) { pm.execution.setNextRequest(null); throw new Error('페이지 범위를 넘어 검증할 수 없습니다. 새 고객을 사용하세요.'); }",
+                      "const matches = data.content.filter(n => n.referenceId === pm.environment.get('openingSoonTargetId'));",
+                      "const excluded = data.content.filter(n => [pm.environment.get('openingSoonCancelledId'), pm.environment.get('openingSoonFarId')].includes(n.referenceId));",
+                      "pm.test('취소 및 10분 밖 타임딜 알림 없음', () => pm.expect(excluded).to.have.lengthOf(0));",
+                      "pm.test('반복 감지 후 알림 1개 유지', () => pm.expect(matches).to.have.lengthOf(1));",
+                      "if (Date.now() - Number(pm.environment.get('openingSoonObservedAt')) < 75000) { pm.execution.setNextRequest(pm.info.requestId); setTimeout(() => {}, 3000); }"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-14 알림 읽음 처리",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notifications/{{openingSoonNotificationId}}/read"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-15 읽음 결과 확인",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notifications?type=TIME_DEAL_OPENING_SOON&size=50"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;",
+                      "pm.expect(data.content).to.be.an('array');",
+                      "pm.test('첫 페이지 범위 내 검증 가능', () => pm.expect(data.pageInfo.hasNext, '알림이 많습니다. 새 고객으로 01부터 실행하세요.').to.eql(false));",
+                      "if (data.pageInfo.hasNext) { pm.execution.setNextRequest(null); throw new Error('페이지 범위를 넘어 검증할 수 없습니다. 새 고객을 사용하세요.'); }",
+                      "const matches = data.content.filter(n => n.referenceId === pm.environment.get('openingSoonTargetId'));",
+                      "const excluded = data.content.filter(n => [pm.environment.get('openingSoonCancelledId'), pm.environment.get('openingSoonFarId')].includes(n.referenceId));",
+                      "pm.test('취소 및 10분 밖 타임딜 알림 없음', () => pm.expect(excluded).to.have.lengthOf(0));",
+                      "pm.test('대상 알림 읽음', () => { pm.expect(matches).to.have.lengthOf(1); pm.expect(matches[0].read).to.eql(true); pm.expect(matches[0].readAt).to.be.a('string'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-16 남은 구독 정리",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonTargetId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-17 남은 구독 정리",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{customerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonFarId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-18 타임딜 픽스처 정리",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals/{{openingSoonTargetId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-19 타임딜 픽스처 정리",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals/{{openingSoonCancelledId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "41-20 타임딜 픽스처 정리",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{sellerAccessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "url": "{{gatewayBaseUrl}}/api/v1/seller/time-deals/{{openingSoonFarId}}"
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": []
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                      "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('요청 실패: 실행을 중단합니다.'); }",
+                      "const data = pm.response.json().data;"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
