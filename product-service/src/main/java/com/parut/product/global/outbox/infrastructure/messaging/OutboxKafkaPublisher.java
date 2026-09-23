@@ -1,5 +1,6 @@
 package com.parut.product.global.outbox.infrastructure.messaging;
 
+import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.outbox.application.port.out.OutboxMessagePublisher;
 import com.parut.product.global.outbox.domain.OutboxEvent;
 import com.parut.product.global.constant.KafkaTopicConstants;
@@ -13,8 +14,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OutboxKafkaPublisher implements OutboxMessagePublisher {
 
-    private static final String TRACE_ID_HEADER = "traceId";
-
     private final KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
@@ -23,7 +22,7 @@ public class OutboxKafkaPublisher implements OutboxMessagePublisher {
         ProducerRecord<String, String> record =
                 new ProducerRecord<>(topic, null, event.getPayload());
         record.headers().add(
-                TRACE_ID_HEADER,
+                    HeaderConstants.TRACE_ID,
                 event.getTraceId().getBytes(StandardCharsets.UTF_8)
         ); // NOTE: header에 traceId 를 넣어야하기에 기존 간단한버전보다 record를 별도 생성, header추가하는 방식
 
