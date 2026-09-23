@@ -753,7 +753,7 @@ public class ProductStockServiceImplTest {
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
             given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
-            given(productReader.getProduct(productId)).willReturn(product);
+            given(productReader.getProducts(List.of(productId))).willReturn(List.of(product));
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");
 
@@ -783,7 +783,7 @@ public class ProductStockServiceImplTest {
             given(productStockReservationRepository.findByStatusAndStockIdIn(ReservationStatus.EXPIRATION_FAILED, List.of(stock.getId())))
                     .willReturn(List.of(reservation));
             given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
-            given(productReader.getProduct(productId)).willReturn(product);
+            given(productReader.getProducts(List.of(productId))).willReturn(List.of(product));
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(sellerId, "SELLER");
 
@@ -826,7 +826,7 @@ public class ProductStockServiceImplTest {
             given(productStockReservationRepository.findByStatus(ReservationStatus.EXPIRATION_FAILED))
                     .willReturn(List.of(reservation));
             given(productStockRepository.findAllById(List.of(stockId))).willReturn(List.of(stock));
-            given(productReader.getProduct(productId)).willReturn(product);
+            given(productReader.getProducts(List.of(productId))).willReturn(List.of(product));
 
             List<IsolatedReservationResult> result = productStockService.getIsolatedReservations(UUID.randomUUID(), "ADMIN");
 
