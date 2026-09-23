@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,7 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.UUID;
 
+@Slf4j
 @Component
 public class JwtProvider {
 
@@ -72,12 +74,25 @@ public class JwtProvider {
 
     // 토큰 유효성 검증
     public boolean validateToken(String token) {
-        try {
+        /*try {
             parseClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
+        }*/
+        try {
+            parseClaims(token);
+            return true;
+        } catch (io.jsonwebtoken.security.SignatureException e) {
+            log.error("잘못된 JWT 서명입니다.");
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            log.error("만료된 JWT 토큰입니다.");
+        } catch (io.jsonwebtoken.MalformedJwtException e) {
+            log.error("지원되지 않는 형식이거나 손상된 JWT 토큰입니다. (Bearer 접두사 확인 필요)");
+        } catch (IllegalArgumentException e) {
+            log.error("JWT 토큰이 잘못되었습니다.");
         }
+        return false;
     }
 
     // 남은 유효시간 계산 (로그아웃 블랙리스트 등록용)

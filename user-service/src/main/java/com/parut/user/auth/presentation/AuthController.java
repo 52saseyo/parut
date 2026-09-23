@@ -41,6 +41,11 @@ public class AuthController {
     // 4. 토큰 재발급
     @PostMapping("/reissue")
     public ResponseEntity<ApiResponse<TokenResponse>> reissue(@RequestHeader("Refresh-Token") String refreshToken) {
+        // Bearer가 붙어있으면 떼어내는 방어 로직
+        if (refreshToken != null && refreshToken.startsWith("Bearer ")) {
+            refreshToken = refreshToken.substring(7);
+        }
+
         TokenResponse response = authService.reissue(refreshToken);
         return ResponseEntity.ok(ApiResponse.success(response, null));
     }

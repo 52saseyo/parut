@@ -60,8 +60,8 @@ public class UserController {
     // 관리자 화면이므로 Offset 방식이 적합하다 판단하여 Offset방식으로 진행
     @GetMapping
     public ResponseEntity<ApiResponse<OffsetResponse<UserResponse>>> getUserList(
-            @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 10, sort = "createdAt", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(name = "search", required = false) String keyword,
+            @PageableDefault(size = 10, sort = "created_at", direction = org.springframework.data.domain.Sort.Direction.DESC) Pageable pageable,
             @RequestHeader("X-User-Role") String role
     ) {
         log.warn("[USER-SERVICE] role: {}", role);
