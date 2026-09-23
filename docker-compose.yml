@@ -91,23 +91,23 @@ services:
     networks:
       - parut-net
 
-#  notification-service:
-#    build:
-#      context: ./notification-service
-#      dockerfile: Dockerfile
-#    container_name: notification-service
-#    env_file:
-#      - .env
-#    environment:
-#      <<: *app-env
-#      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
-#      NOTIFICATION_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
-#    ports:
-#      - "${NOTIFICATION_PORT:-8084}:8080"
-#    healthcheck: *app-healthcheck
-#    depends_on: *infra-deps
-#    networks:
-#      - parut-net
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    env_file:
+      - .env
+    environment:
+      <<: *app-env
+      POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
+      NOTIFICATION_POSTGRES_URL: jdbc:postgresql://postgres:5432/parut?currentSchema=notification_schema
+    ports:
+      - "${NOTIFICATION_PORT:-8084}:8080"
+    healthcheck: *app-healthcheck
+    depends_on: *infra-deps
+    networks:
+      - parut-net
 
   gateway-service:
     build:
@@ -128,7 +128,7 @@ services:
         condition: service_healthy
       order-service:
         condition: service_healthy
-#      notification-service:
-#        condition: service_healthy
+      notification-service:
+        condition: service_healthy
     networks:
       - parut-net
