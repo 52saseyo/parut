@@ -359,10 +359,11 @@ public class ProductStockServiceImpl implements ProductStockService{
         if (targetItems.isEmpty()) {
             return; // 전부 이미 처리됨 - 멱등 반환
         }
-        // 2. 재고 조회 - IN절 한 번
-        List<UUID> productIds = targetItems.stream().map(ProductStockReserveItem::productId).distinct().toList();
-        Map<UUID, ProductStock> stockByProductId = productStockRepository
-                .findByProductIdInAndDeletedAtIsNull(productIds)
+        // 2. 재고 조회 - IN절 한 번, 비관적 락으로 잠그고 조회 (동시 선점 시 충돌 대신 순서대로 대기)
+        List<UUID> productIds = targetItems.stream().map(ProductStockReserveItem::productId)
+                .distinct()
+                .toList();        Map<UUID, ProductStock> stockByProductId = productStockRepository
+                .findByProductIdInForUpdate(productIds)
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getProductId, s -> s));
 
