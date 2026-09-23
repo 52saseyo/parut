@@ -46,6 +46,7 @@ public class JwtAuthFilter extends AbstractGatewayFilterFactory<JwtAuthFilter.Co
             "/api/v1/auth/login/seller", // 판매자 로그인
             "/api/v1/auth/signup",       // 일반회원 회원가입
             "/api/v1/auth/login/admin",  // 관리자 로그인
+            "/api/v1/auth/reissue",      // 토큰 재발행
             "/api/v1/sellers/apply"      // 판매자 입점 신청
     );
 
