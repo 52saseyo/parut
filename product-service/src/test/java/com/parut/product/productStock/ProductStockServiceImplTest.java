@@ -1080,7 +1080,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1124,7 +1124,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog2));
             given(productStockReservationRepository.findAllById(List.of(reservationId2)))
                     .willReturn(List.of(reservation2));
-            given(productStockRepository.findAllById(List.of(stockId2)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId2)))
                     .willReturn(List.of(stock2));
 
             List<ProductStockItem> items = List.of(
@@ -1166,7 +1166,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1229,7 +1229,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
             given(productStockReservationRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
@@ -1263,7 +1263,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1321,7 +1321,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog2));
             given(productStockReservationRepository.findAllById(List.of(reservationId2)))
                     .willReturn(List.of(reservation2));
-            given(productStockRepository.findAllById(List.of(stockId2)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId2)))
                     .willReturn(List.of(stock2));
 
             List<ProductStockItem> items = List.of(
@@ -1361,7 +1361,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1398,7 +1398,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1462,7 +1462,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
             given(productStockReservationRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
@@ -1502,7 +1502,7 @@ public class ProductStockServiceImplTest {
 
             productStockService.restore(orderId, items);
 
-            verify(productStockRepository, never()).findAllById(any());
+            verify(productStockRepository, never()).findAllByIdForUpdate(any());
             verify(productStockEventLogRepository, never()).saveAllAndFlush(any());
         }
 
@@ -1586,7 +1586,7 @@ public class ProductStockServiceImplTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_STOCK_RESERVATION_ISOLATED);
 
             // 격리 상태에서 예외가 터지므로 재고 조회 자체가 실행되지 않아야 함
-            verify(productStockRepository, never()).findAllById(any());
+            verify(productStockRepository, never()).findAllByIdForUpdate(any());
         }
 
         @Test
@@ -1613,7 +1613,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1660,7 +1660,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog));
             given(productStockReservationRepository.findAllById(List.of(reservationId)))
                     .willReturn(List.of(reservation));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(new ProductStockItem(productId, orderItemId));
@@ -1707,7 +1707,7 @@ public class ProductStockServiceImplTest {
                     .willReturn(List.of(reserveLog1, reserveLog2));
             given(productStockReservationRepository.findAllById(any()))
                     .willReturn(List.of(reservation1, reservation2));
-            given(productStockRepository.findAllById(List.of(stockId)))
+            given(productStockRepository.findAllByIdForUpdate(List.of(stockId)))
                     .willReturn(List.of(stock));
 
             List<ProductStockItem> items = List.of(

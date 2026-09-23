@@ -37,4 +37,14 @@ public interface ProductStockRepository extends JpaRepository<ProductStock, UUID
         ORDER BY s.id
         """)
     List<ProductStock> findByProductIdInForUpdate(List<UUID> productIds);
+
+    // confirm/restore 전용 - reserve와 같은 순서(id)로 잠가 데드락 방지
+// 상품 삭제 후에도 진행 중인 주문이 처리되도록 deletedAt 조건은 두지 않는다
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT s FROM ProductStock s
+        WHERE s.id IN :ids
+        ORDER BY s.id
+        """)
+    List<ProductStock> findAllByIdForUpdate(List<UUID> ids);
 }
