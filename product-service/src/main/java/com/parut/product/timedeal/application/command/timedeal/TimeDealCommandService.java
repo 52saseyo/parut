@@ -4,6 +4,7 @@ import com.parut.product.global.common.AuditorContext;
 import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.global.dto.ProductStockAllocateCommand;
 import com.parut.product.global.dto.ProductStockAllocateResult;
+import com.parut.product.global.dto.TimeDealImageSaveCommand;
 import com.parut.product.global.exception.BusinessException;
 import com.parut.product.global.exception.ErrorCode;
 import com.parut.product.timedeal.application.authorization.TimeDealAuthorizationChecker;
@@ -231,7 +232,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         publishCreatedEvent(timeDealStock);
 
         if (productStockAllocateResult.imageId() != null) {
-            timeDealImageCommandPort.save(new com.parut.product.global.dto.TimeDealImageSaveCommand(
+            timeDealImageCommandPort.save(new TimeDealImageSaveCommand(
                     savedTimeDeal.getId(), productStockAllocateResult.imageId()));
         }
 

@@ -77,7 +77,7 @@ public class JpaOutboxEvent {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public static JpaOutboxEvent from(com.parut.product.global.outbox.domain.OutboxEvent event) {
+    public static JpaOutboxEvent from(OutboxEvent event) {
         JpaOutboxEvent entity = new JpaOutboxEvent();
         entity.eventId = event.getEventId();
         entity.eventType = event.getEventType();
@@ -93,7 +93,7 @@ public class JpaOutboxEvent {
         return entity;
     }
 
-    public void apply(com.parut.product.global.outbox.domain.OutboxEvent event) {
+    public void apply(OutboxEvent event) {
         this.publishStatus = event.getPublishStatus();
         this.retryCount = event.getRetryCount();
         this.lastError = event.getLastError();

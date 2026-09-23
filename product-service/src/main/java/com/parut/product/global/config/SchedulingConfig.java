@@ -27,6 +27,11 @@ public class SchedulingConfig {
         return scheduler("time-deal-opening-soon-", 1);
     }
 
+    @Bean
+    public ThreadPoolTaskScheduler outboxPublishTaskScheduler() {
+        return scheduler("outbox-publish-", 1);
+    }
+
     private ThreadPoolTaskScheduler scheduler(String prefix, int poolSize) {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(poolSize);
