@@ -3982,9 +3982,15 @@
                   "let body = {};",
                   "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                   "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                  "const completed = (body.data || []).find(settlement => settlement.settlementId === pm.environment.get('settlementId'));",
+                  "const results = body.data || [];",
+                  "const succeeded = results.filter(item => item.result === 'SUCCESS');",
+                  "const failed = results.filter(item => item.result === 'FAILED');",
+                  "pm.test('요청 순서대로 항목 2건이 반환된다', () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test('성공 1건과 실패 1건이 함께 반환된다', () => { pm.expect(succeeded).to.have.lengthOf(1); pm.expect(failed).to.have.lengthOf(1); });",
+                  "const completed = succeeded.find(settlement => settlement.settlementId === pm.environment.get('settlementId'));",
                   "pm.test('COMPLETED로 전이된다', () => pm.expect(completed?.status).to.eql('COMPLETED'));",
-                  "pm.test('정산 완료 시각이 기록된다', () => pm.expect(completed?.settledAt).to.exist);"
+                  "pm.test('정산 완료 시각이 기록된다', () => pm.expect(completed?.settledAt).to.exist);",
+                  "pm.test('존재하지 않는 정산은 FAILED로 기록되고 완료 정보가 비어 있다', () => { pm.expect(failed[0].settlementId).to.eql('00000000-0000-0000-0000-000000000000'); pm.expect(failed[0].status).to.eql(null); pm.expect(failed[0].settledAt).to.eql(null); });"
                 ]
               }
             }
@@ -3998,7 +4004,7 @@
               }
             ],
             "url": "{{gatewayBaseUrl}}/api/v1/settlements/complete",
-            "description": "관리자가 정산을 완료 처리합니다. 성공 시 200이며 상태가 COMPLETED가 되고 settledAt이 기록됩니다. 한 건이라도 조건을 만족하지 않으면 전체가 실패합니다.",
+            "description": "관리자가 완료 가능한 정산과 존재하지 않는 정산을 함께 보냅니다. 정산은 한 건씩 독립 트랜잭션으로 처리되므로 200이며 data 배열에 항목별 결과가 요청 순서대로 담깁니다.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4011,7 +4017,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"settlementIds\": [\n    \"{{settlementId}}\"\n  ]\n}",
+              "raw": "{\n  \"settlementIds\": [\n    \"{{settlementId}}\",\n    \"00000000-0000-0000-0000-000000000000\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -17570,10 +17576,14 @@
                       "let body = {};",
                       "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                       "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                      "const settlements = body.data || [];",
+                      "const results = body.data || [];",
+                      "const succeeded = results.filter(item => item.result === 'SUCCESS');",
+                      "const failed = results.filter(item => item.result === 'FAILED');",
                       "const expectedIds = [pm.environment.get('settlementScenarioId1'), pm.environment.get('settlementScenarioId2')];",
-                      "pm.test('정산 2건이 반환된다', () => pm.expect(settlements).to.have.lengthOf(2));",
-                      "pm.test('정산 2건이 COMPLETED로 전이되고 완료 시각이 기록된다', () => expectedIds.forEach(id => { const target = settlements.find(settlement => settlement.settlementId === id); pm.expect(target).to.exist; pm.expect(target.status).to.eql('COMPLETED'); pm.expect(target.settledAt).to.exist; }));"
+                      "pm.test('요청 순서대로 항목 3건이 반환된다', () => pm.expect(results).to.have.lengthOf(3));",
+                      "pm.test('성공 2건과 실패 1건이 함께 반환된다', () => { pm.expect(succeeded).to.have.lengthOf(2); pm.expect(failed).to.have.lengthOf(1); });",
+                      "pm.test('정산 2건이 COMPLETED로 전이되고 완료 시각이 기록된다', () => expectedIds.forEach(id => { const target = succeeded.find(settlement => settlement.settlementId === id); pm.expect(target).to.exist; pm.expect(target.status).to.eql('COMPLETED'); pm.expect(target.settledAt).to.exist; }));",
+                      "pm.test('존재하지 않는 정산은 FAILED로 기록되고 완료 정보가 비어 있다', () => { pm.expect(failed[0].settlementId).to.eql('00000000-0000-0000-0000-000000000000'); pm.expect(failed[0].status).to.eql(null); pm.expect(failed[0].settledAt).to.eql(null); });"
                     ]
                   }
                 }
@@ -17587,7 +17597,7 @@
                   }
                 ],
                 "url": "{{gatewayBaseUrl}}/api/v1/settlements/complete",
-                "description": "관리자가 정산 2건을 한 요청으로 완료 처리합니다. 성공 시 200이며 두 정산 모두 COMPLETED가 되고 settledAt이 기록됩니다.",
+                "description": "관리자가 완료 가능한 정산 2건과 존재하지 않는 정산 1건을 한 요청으로 보냅니다. 항목 실패는 다른 정산의 커밋을 되돌리지 않으므로 200이며 성공 2건과 실패 1건이 함께 반환됩니다.",
                 "auth": {
                   "type": "bearer",
                   "bearer": [
@@ -17600,7 +17610,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"settlementIds\": [\n    \"{{settlementScenarioId1}}\",\n    \"{{settlementScenarioId2}}\"\n  ]\n}",
+                  "raw": "{\n  \"settlementIds\": [\n    \"{{settlementScenarioId1}}\",\n    \"{{settlementScenarioId2}}\",\n    \"00000000-0000-0000-0000-000000000000\"\n  ]\n}",
                   "options": {
                     "raw": {
                       "language": "json"

@@ -27,6 +27,7 @@ import com.parut.order.global.common.OffsetResponse;
 import com.parut.order.global.common.SortDirection;
 import com.parut.order.global.exception.BusinessException;
 import com.parut.order.global.exception.ErrorCode;
+import com.parut.order.settlement.application.SettlementCompletionResult;
 import com.parut.order.settlement.application.SettlementPage;
 import com.parut.order.settlement.application.SettlementService;
 import com.parut.order.settlement.domain.Settlement;
@@ -100,12 +101,14 @@ public class SettlementController {
         return ApiResponse.success(new OffsetResponse<>(content, pageInfo));
     }
 
+    /** 항목 실패는 요청 전체 실패가 아니므로 완료하지 못한 정산도 같은 목록에 담아 200으로 응답한다. */
     @PatchMapping("/settlements/complete")
     @RequireRole(UserRole.ADMIN)
     public ApiResponse<List<SettlementCompleteResponse>> completeSettlements(
             @RequestBody CompleteSettlementsRequest request,
             UserContext userContext
     ) {
+        // 같은 요청의 모든 정산에 동일한 완료 시각을 적용한다.
         Instant completionTime = Instant.now();
         List<SettlementCompleteResponse> response = settlementService.completeSettlements(
                         request.settlementIds(), userContext.userId(), completionTime)
