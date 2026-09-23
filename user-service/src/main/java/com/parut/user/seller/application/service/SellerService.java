@@ -158,7 +158,7 @@ public class SellerService {
     }
 
     @Transactional
-    public SellerDeleteResponse deleteSeller(UUID targetId, UUID sellerId) {
+    public SellerDeleteResponse deleteSeller(UUID targetId, UUID sellerId, String traceId) {
         // 1. 권한 검증: 본인만 탈퇴 가능
         if (!targetId.equals(sellerId)) {
             throw new BusinessException(ErrorCode.SELLER_ACCESS_DENIED);
@@ -170,7 +170,7 @@ public class SellerService {
 
         // 3. order-service API 호출하여 구매 확정되지 않은 주문이 있는지 확인
         try {
-            ApiResponse<UnprocessedOrderExistsResponse> response = orderServiceClient.checkUnconfirmedOrders(internalServiceKey, sellerId);
+            ApiResponse<UnprocessedOrderExistsResponse> response = orderServiceClient.checkUnconfirmedOrders(internalServiceKey, traceId, sellerId);
 
             // 만약 미확정 주문이 존재한다면 (response.getData() == true) 예외 발생
             if (response.data() != null && response.data().exists()) {

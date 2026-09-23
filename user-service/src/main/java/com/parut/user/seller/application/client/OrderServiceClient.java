@@ -16,6 +16,7 @@ public interface OrderServiceClient {
     @GetMapping("/api/v1/internal/orders/unprocessed")
     ApiResponse<UnprocessedOrderExistsResponse> checkUnconfirmedOrders(
             @RequestHeader("X-Service-Key") String serviceKey,
+            @RequestHeader("X-Trace-Id") String traceId,
             @RequestParam("sellerId") UUID sellerId
     );
 }

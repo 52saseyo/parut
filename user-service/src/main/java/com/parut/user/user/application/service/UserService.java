@@ -15,6 +15,7 @@ import com.parut.user.global.exception.ErrorCode;
 import com.parut.user.user.infrastructure.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -41,13 +42,30 @@ public class UserService {
     // 관리자 화면이므로 Offset 방식이 적합하다 판단하여 Offset방식으로 진행
     @Transactional(readOnly = true)
     public OffsetResponse<UserResponse> getUserList(String keyword, Pageable pageable) {
+        // 네이티브 쿼리를 위해 Pageable의 정렬 필드를 변환
+        Pageable nativePageable = pageable;
+        if (pageable.getSort().isSorted()) {
+            Sort nativeSort = Sort.by(
+                    pageable.getSort().stream()
+                            .map(order -> {
+                                // 프론트에서 createdAt으로 오면 DB 컬럼인 created_at으로 변경
+                                if ("createdAt".equals(order.getProperty())) {
+                                    return new Sort.Order(order.getDirection(), "created_at");
+                                }
+                                return order; // 다른 정렬 조건은 그대로 둠
+                            })
+                            .toList()
+            );
+            nativePageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), nativeSort);
+        }
+
         Page<User> userPage;
 
         // 1. 데이터 조회
         if (keyword == null || keyword.isBlank()) {
-            userPage = userRepository.findAllIncludeDeleted(pageable);
+            userPage = userRepository.findAllIncludeDeleted(nativePageable);
         } else {
-            userPage = userRepository.searchIncludeDeleted(keyword, pageable);
+            userPage = userRepository.searchIncludeDeleted(keyword, nativePageable);
         }
 
         // 2. Content(데이터 리스트) 변환
