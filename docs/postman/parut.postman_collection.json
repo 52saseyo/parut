@@ -4721,9 +4721,12 @@
                           "pm.test('반환된 정산이 모두 PENDING이다', () => content.forEach(settlement => pm.expect(settlement.status).to.eql('PENDING')));",
                           "// 이전 실행 값이 남아 과거 정산을 완료하지 않도록 먼저 지운다.",
                           "pm.collectionVariables.unset('settlementFixtureId');",
+                          "pm.collectionVariables.unset('settlementFixtureId2');",
                           "pm.collectionVariables.unset('settlementCursorAt');",
                           "pm.collectionVariables.unset('settlementCursorId');",
                           "if (content.length > 0) pm.collectionVariables.set('settlementFixtureId', content[0].settlementId);",
+                          "// 혼합 시나리오는 두 번째 PENDING 정산이 있을 때만 실행한다.",
+                          "if (content.length > 1) pm.collectionVariables.set('settlementFixtureId2', content[1].settlementId);",
                           "if (body.data?.pageInfo?.hasNext) {",
                           "  pm.collectionVariables.set('settlementCursorAt', body.data.pageInfo.nextCursor);",
                           "  pm.collectionVariables.set('settlementCursorId', body.data.pageInfo.nextIdAfter);",
@@ -4745,7 +4748,7 @@
                       }
                     ],
                     "url": "{{orderBaseUrl}}/api/v1/settlements?status=PENDING&size=10",
-                    "description": "판매자가 본인 PENDING 정산 목록을 조회합니다. 성공 시 200이며 status를 생략해도 PENDING이 기본값입니다. 결과가 있으면 첫 항목의 정산 ID를 Postman 변수로 저장합니다."
+                    "description": "판매자가 본인 PENDING 정산 목록을 조회합니다. 성공 시 200이며 status를 생략해도 PENDING이 기본값입니다. 결과가 있으면 첫 항목과 두 번째 항목의 정산 ID를 Postman 변수로 저장합니다."
                   },
                   "response": []
                 },
@@ -4921,8 +4924,12 @@
                         "type": "text/javascript",
                         "exec": [
                           "const body = pm.response.json();",
+                          "const results = body.data || [];",
                           "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
-                          "pm.test('COMPLETED로 전이되고 완료 시각이 기록된다', () => body.data.forEach(settlement => { pm.expect(settlement.status).to.eql('COMPLETED'); pm.expect(settlement.settledAt).to.exist; }));"
+                          "pm.test('항목별 결과 배열로 응답한다', () => pm.expect(results).to.be.an('array'));",
+                          "pm.test('요청한 정산 1건이 성공한다', () => { pm.expect(results).to.have.lengthOf(1); pm.expect(results[0].settlementId).to.eql(pm.collectionVariables.get('settlementFixtureId')); pm.expect(results[0].result).to.eql('SUCCESS'); });",
+                          "pm.test('COMPLETED로 전이되고 완료 시각이 기록된다', () => { pm.expect(results[0].status).to.eql('COMPLETED'); pm.expect(results[0].settledAt).to.exist; });",
+                          "pm.test('실패 항목이 없다', () => pm.expect(results.filter(item => item.result === 'FAILED')).to.have.lengthOf(0));"
                         ]
                       }
                     }
@@ -4944,7 +4951,7 @@
                       }
                     ],
                     "url": "{{orderBaseUrl}}/api/v1/settlements/complete",
-                    "description": "관리자가 PENDING 정산을 한 번에 완료 처리합니다. 성공 시 200이며 대상이 모두 COMPLETED가 되고 settledAt이 기록됩니다. 한 건이라도 조건을 만족하지 않으면 전체가 실패합니다.",
+                    "description": "관리자가 PENDING 정산을 한 번에 완료 처리합니다. 성공 시 200이며 data는 요청 순서대로의 항목별 결과 배열입니다. 정산은 한 건씩 독립 트랜잭션으로 커밋되므로 다른 항목의 실패가 이미 완료된 정산을 되돌리지 않습니다.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"settlementIds\": [\n    \"{{settlementFixtureId}}\"\n  ]\n}",
@@ -4954,6 +4961,118 @@
                         }
                       }
                     }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[관리자] 정산 성공과 실패 혼합 완료",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "// 완료 가능한 두 번째 PENDING 정산이 없으면 혼합 시나리오를 실제로 검증할 수 없으므로 건너뛴다.",
+                          "if (!pm.collectionVariables.get('settlementFixtureId2')) {",
+                          "  console.log('두 번째 PENDING 정산이 없어 혼합 완료 시나리오를 건너뜁니다. PENDING 정산 2건 이상이 필요합니다.');",
+                          "  pm.execution.skipRequest();",
+                          "}"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "const body = pm.response.json();",
+                          "const results = body.data || [];",
+                          "const succeeded = results.filter(item => item.result === 'SUCCESS');",
+                          "const failed = results.filter(item => item.result === 'FAILED');",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('요청 순서대로 항목 2건이 반환된다', () => pm.expect(results).to.have.lengthOf(2));",
+                          "pm.test('성공 1건과 실패 1건이 함께 반환된다', () => { pm.expect(succeeded).to.have.lengthOf(1); pm.expect(failed).to.have.lengthOf(1); });",
+                          "pm.test('완료 가능한 정산만 COMPLETED로 반환된다', () => { pm.expect(succeeded[0].settlementId).to.eql(pm.collectionVariables.get('settlementFixtureId2')); pm.expect(succeeded[0].status).to.eql('COMPLETED'); pm.expect(succeeded[0].settledAt).to.exist; });",
+                          "pm.test('존재하지 않는 정산은 FAILED로 기록되고 완료 정보가 비어 있다', () => { pm.expect(failed[0].settlementId).to.eql('00000000-0000-0000-0000-000000000000'); pm.expect(failed[0].status).to.eql(null); pm.expect(failed[0].settledAt).to.eql(null); });"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "PATCH",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{$guid}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "ADMIN"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/settlements/complete",
+                    "description": "완료 가능한 정산과 존재하지 않는 정산을 함께 보냅니다. 항목 실패는 요청 전체 실패가 아니므로 200이며 data 배열에 결과가 요청 순서대로 담깁니다.",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"settlementIds\": [\n    \"{{settlementFixtureId2}}\",\n    \"00000000-0000-0000-0000-000000000000\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "[해당 상품 판매자] 혼합 완료 결과 확인",
+                  "event": [
+                    {
+                      "listen": "prerequest",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "// 혼합 완료를 실행하지 않았으면 후속 조회도 건너뛴다.",
+                          "if (!pm.collectionVariables.get('settlementFixtureId2')) {",
+                          "  console.log('혼합 완료 시나리오를 실행하지 않아 후속 조회를 건너뜁니다.');",
+                          "  pm.execution.skipRequest();",
+                          "}"
+                        ]
+                      }
+                    },
+                    {
+                      "listen": "test",
+                      "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                          "let body = {};",
+                          "if (pm.response.text()) pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
+                          "const content = body.data?.content || [];",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "const target = content.find(settlement => settlement.settlementId === pm.collectionVariables.get('settlementFixtureId2'));",
+                          "pm.test('혼합 요청에서 성공한 정산만 COMPLETED로 조회된다', () => { pm.expect(target).to.exist; pm.expect(target.status).to.eql('COMPLETED'); pm.expect(target.settledAt).to.exist; });"
+                        ]
+                      }
+                    }
+                  ],
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "X-User-Id",
+                        "value": "{{userId}}"
+                      },
+                      {
+                        "key": "X-User-Role",
+                        "value": "SELLER"
+                      }
+                    ],
+                    "url": "{{orderBaseUrl}}/api/v1/settlements?status=COMPLETED&size=50",
+                    "description": "혼합 완료 요청에서 성공한 정산이 실제로 COMPLETED로 커밋됐는지 후속 조회로 확인합니다. 성공 시 200입니다."
                   },
                   "response": []
                 },
@@ -5112,7 +5231,7 @@
                   "response": []
                 },
                 {
-                  "name": "존재하지 않는 정산 ID 포함 완료 거부",
+                  "name": "존재하지 않는 정산 ID 완료 실패 기록",
                   "event": [
                     {
                       "listen": "test",
@@ -5120,8 +5239,11 @@
                         "type": "text/javascript",
                         "exec": [
                           "const body = pm.response.json();",
-                          "pm.test('HTTP 404', () => pm.expect(pm.response.code).to.eql(404));",
-                          "pm.test('SETTLEMENT_NOT_FOUND', () => pm.expect(body.code).to.eql('SETTLEMENT_NOT_FOUND'));"
+                          "const results = body.data || [];",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 항목이 없다', () => pm.expect(results.filter(item => item.result === 'SUCCESS')).to.have.lengthOf(0));",
+                          "pm.test('요청한 정산이 FAILED로 기록된다', () => { pm.expect(results).to.have.lengthOf(1); pm.expect(results[0].settlementId).to.eql('00000000-0000-0000-0000-000000000000'); pm.expect(results[0].result).to.eql('FAILED'); });",
+                          "pm.test('완료 정보가 비어 있다', () => { pm.expect(results[0].status).to.eql(null); pm.expect(results[0].settledAt).to.eql(null); });"
                         ]
                       }
                     }
@@ -5143,7 +5265,7 @@
                       }
                     ],
                     "url": "{{orderBaseUrl}}/api/v1/settlements/complete",
-                    "description": "존재하지 않는 정산 ID가 하나라도 포함되면 404 SETTLEMENT_NOT_FOUND로 전체가 실패합니다.",
+                    "description": "존재하지 않는 정산 ID는 요청 전체 실패가 아니라 항목 실패로 처리됩니다. 200이며 해당 항목의 result가 FAILED이고 완료 정보가 비어 있습니다.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"settlementIds\": [\n    \"00000000-0000-0000-0000-000000000000\"\n  ]\n}",
@@ -5157,7 +5279,7 @@
                   "response": []
                 },
                 {
-                  "name": "완료된 정산 재완료 거부",
+                  "name": "완료된 정산 재완료 실패 기록",
                   "event": [
                     {
                       "listen": "prerequest",
@@ -5166,7 +5288,7 @@
                         "exec": [
                           "// 선행 데이터가 없으면 폴더 실행을 멈추지 않고 이 요청만 건너뛴다.",
                           "if (!pm.collectionVariables.get('settlementFixtureId')) {",
-                          "  console.log('완료 처리한 정산이 없어 재완료 거부 검증을 건너뜁니다.');",
+                          "  console.log('완료 처리한 정산이 없어 재완료 실패 검증을 건너뜁니다.');",
                           "  pm.execution.skipRequest();",
                           "}"
                         ]
@@ -5178,8 +5300,10 @@
                         "type": "text/javascript",
                         "exec": [
                           "const body = pm.response.json();",
-                          "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                          "pm.test('SETTLEMENT_ALREADY_COMPLETED', () => pm.expect(body.code).to.eql('SETTLEMENT_ALREADY_COMPLETED'));"
+                          "const results = body.data || [];",
+                          "pm.test('HTTP 200', () => pm.expect(pm.response.code).to.eql(200));",
+                          "pm.test('성공 항목이 없다', () => pm.expect(results.filter(item => item.result === 'SUCCESS')).to.have.lengthOf(0));",
+                          "pm.test('이미 완료된 정산이 FAILED로 기록된다', () => { pm.expect(results).to.have.lengthOf(1); pm.expect(results[0].settlementId).to.eql(pm.collectionVariables.get('settlementFixtureId')); pm.expect(results[0].result).to.eql('FAILED'); });"
                         ]
                       }
                     }
@@ -5201,7 +5325,7 @@
                       }
                     ],
                     "url": "{{orderBaseUrl}}/api/v1/settlements/complete",
-                    "description": "이미 COMPLETED인 정산을 다시 완료 처리하면 409 SETTLEMENT_ALREADY_COMPLETED로 거부됩니다.",
+                    "description": "이미 COMPLETED인 정산을 다시 완료 처리하면 항목 실패로 기록됩니다. 200이며 해당 항목의 result가 FAILED입니다.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"settlementIds\": [\n    \"{{settlementFixtureId}}\"\n  ]\n}",

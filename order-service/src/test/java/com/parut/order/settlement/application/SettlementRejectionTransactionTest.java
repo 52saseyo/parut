@@ -49,6 +49,7 @@ import com.parut.order.settlement.infrastructure.persistence.SettlementRepositor
         OrderItemQueryService.class,
         RefundService.class,
         SettlementService.class,
+        SettlementCompletionProcessor.class,
         JpaAuditingConfig.class
 })
 // 서비스 트랜잭션의 커밋과 롤백을 확인하므로 테스트 전체를 트랜잭션으로 감싸지 않는다.
