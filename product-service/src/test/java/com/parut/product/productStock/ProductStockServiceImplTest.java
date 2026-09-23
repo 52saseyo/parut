@@ -582,7 +582,7 @@ public class ProductStockServiceImplTest {
                     List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of(alreadyProcessedLog)); // orderItemId만 이미 처리됨
 
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId2)))
+            given(productStockRepository.findByProductIdInForUpdate(List.of(productId2)))
                     .willReturn(List.of(stock2));
 
             List<ProductStockReserveItem> items = List.of(
@@ -596,7 +596,7 @@ public class ProductStockServiceImplTest {
                     orderItemId, orderItemId2);
 
             verify(productStockRepository, never())
-                    .findByProductIdInAndDeletedAtIsNull(List.of(productId));
+                    .findByProductIdInForUpdate(List.of(productId));
 
             ArgumentCaptor<Collection<ProductStock>> stockCaptor = ArgumentCaptor.forClass(Collection.class);
             verify(productStockRepository).saveAllAndFlush(stockCaptor.capture());
@@ -616,7 +616,7 @@ public class ProductStockServiceImplTest {
             given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
                     List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
+            given(productStockRepository.findByProductIdInForUpdate(List.of(productId, productId2)))
                     .willReturn(List.of(stock1, stock2));
 
             List<ProductStockReserveItem> items = List.of(
@@ -655,7 +655,7 @@ public class ProductStockServiceImplTest {
             given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
                     List.of(orderItemId, orderItemId2, orderItemId3), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(
+            given(productStockRepository.findByProductIdInForUpdate(
                     List.of(productId, productId2, productId3)))
                     .willReturn(List.of(stock1, stock2)); // productId3에 대한 재고는 없음(안 쓰임)
 
@@ -682,7 +682,7 @@ public class ProductStockServiceImplTest {
             given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
                     List.of(orderItemId), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
+            given(productStockRepository.findByProductIdInForUpdate(List.of(productId)))
                     .willReturn(List.of(stock));
             given(productStockRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(OptimisticLockingFailureException.class);
@@ -711,7 +711,7 @@ public class ProductStockServiceImplTest {
             given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
                     List.of(orderItemId, orderItemId2), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId, productId2)))
+            given(productStockRepository.findByProductIdInForUpdate(List.of(productId, productId2)))
                     .willReturn(List.of(stock1, stock2));
 
             List<ProductStockReserveItem> items = List.of(
@@ -1737,7 +1737,7 @@ public class ProductStockServiceImplTest {
             given(productStockEventLogRepository.findByOrderItemIdInAndEventTypeIn(
                     List.of(orderItemId), List.of(StockEventType.RESERVE)))
                     .willReturn(List.of());
-            given(productStockRepository.findByProductIdInAndDeletedAtIsNull(List.of(productId)))
+            given(productStockRepository.findByProductIdInForUpdate(List.of(productId)))
                     .willReturn(List.of(stock));
             given(productStockEventLogRepository.saveAllAndFlush(anyCollection()))
                     .willThrow(DataIntegrityViolationException.class);
