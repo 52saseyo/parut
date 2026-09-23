@@ -37,6 +37,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -133,6 +134,12 @@ public class ProductStockServiceImpl implements ProductStockService{
         } else if (previousStatus == StockStatus.SOLD_OUT) {
             notifyRestocked(productId);
         }
+    }
+
+    // 재시도 소진 시 마지막 예외를 그대로 던진다 - @Recover가 없으면 Spring Retry가 ExhaustedRetryException으로 감싸 500이 된다
+    @Recover
+    public void recoverUpdateStock(BusinessException e, UUID productId, UUID requesterId, String requesterRole, int newTotalQuantity) {
+        throw e;
     }
 
     // 재고 삭제
@@ -243,13 +250,20 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .stream()
                 .collect(Collectors.toMap(ProductStock::getId, s -> s));
 
+        List<UUID> productIds = stockById.values().stream()
+                .map(ProductStock::getProductId)
+                .distinct()
+                .toList();
+        Map<UUID, Product> productById = productReader.getProducts(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, p -> p));
+
         List<IsolatedReservationResult> result = new ArrayList<>();
         for (ProductStockReservation reservation : reservations) {
             ProductStock stock = stockById.get(reservation.getStockId());
             if (stock == null) {
                 throw new BusinessException(ErrorCode.PRODUCT_STOCK_NOT_FOUND);
             }
-            Product product = productReader.getProduct(stock.getProductId());
+            Product product = productById.get(stock.getProductId());
 
             result.add(new IsolatedReservationResult(
                     reservation.getId(),
@@ -567,6 +581,13 @@ public class ProductStockServiceImpl implements ProductStockService{
                 .map(ProductStock::getProductId)
                 .collect(Collectors.toSet());
         restockedProductIds.forEach(this::notifyRestocked);
+    }
+
+    // 재시도 소진 시 마지막 예외를 그대로 던진다 - reserve/confirm/restore는 타입 소거 후 파라미터가 (UUID, List)로 동일해져서
+    // 공용 복구 메서드 하나로 묶는다(각각 따로 만들면 런타임에 시그니처가 겹쳐 Spring Retry가 어느 걸 매칭할지 모호해진다).
+    @Recover
+    public void recoverStockRetry(BusinessException e, UUID orderId, List<?> items) {
+        throw e;
     }
 
     @Override
