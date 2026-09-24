@@ -73,6 +73,21 @@ public class TimeDealStock extends DeletableEntity {
         this.availableQuantity += quantity;
     }
 
+    // NOTE: 주문 서비스가 배송 전 취소를 검증한 확정 판매의 재고를 복구한다.
+    public void cancelConfirmedSale(Integer quantity) {
+        if (quantity == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        if (quantity <= 0) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY);
+        }
+        if (quantity > soldQuantity) {
+            throw new BusinessException(ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY);
+        }
+        this.soldQuantity -= quantity;
+        this.availableQuantity += quantity;
+    }
+
     // NOTE: 판매자·운영자의 수동 조정. delta의 부호가 방향(+ 추가, − 회수)이며 총 재고 자체가 바뀐다.
     // 절대값을 받지 않는 이유는 조회~수정 사이에 선점이 끼면 그 차감분을 덮어써 재고가 공짜로 생기기 때문이다.
     public void adjustAvailableQuantity(Integer delta) {

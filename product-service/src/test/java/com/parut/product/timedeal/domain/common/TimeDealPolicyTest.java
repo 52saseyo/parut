@@ -375,7 +375,7 @@ class TimeDealPolicyTest {
         }
 
         @Test
-        @DisplayName("CONFIRMED 취소는 상태만 취소로 바꾸고 재고는 복구하지 않는다")
+        @DisplayName("CONFIRMED 취소는 판매 수량을 복구하며 중복 취소해도 한 번만 복구한다")
         void 판매확정_취소() {
             TimeDeal timeDeal = activeTimeDeal();
             TimeDealStock stock = stockOf(timeDeal, INITIAL_QUANTITY);
@@ -386,9 +386,13 @@ class TimeDealPolicyTest {
             timeDealPolicy.cancelPurchase(
                     purchase, stock, TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
 
-            assertThat(stock.getSoldQuantity()).isEqualTo(5);
+            timeDealPolicy.cancelPurchase(
+                    purchase, stock, TimeDealPurchaseCancelReason.ORDER_CANCELED.name());
+
+            assertThat(purchase.getStatus()).isEqualTo(TimeDealPurchaseStatus.CANCELLED);
+            assertThat(stock.getSoldQuantity()).isZero();
             assertThat(stock.getReservedQuantity()).isZero();
-            assertThat(stock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY - 5);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
             assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
         }
 
