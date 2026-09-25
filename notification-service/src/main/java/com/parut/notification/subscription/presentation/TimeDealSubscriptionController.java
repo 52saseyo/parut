@@ -35,7 +35,7 @@ public class TimeDealSubscriptionController {
         return ResponseEntity.ok(ApiResponse.success(response, TraceIdContext.currentTraceId()));
     }
 
-    @PatchMapping("/time-deals/{timeDealId}")
+    @PatchMapping("/time-deals/{timeDealId}/unsubscribe")
     public ResponseEntity<ApiResponse<Void>> unsubscribe(
             @RequestHeader(HeaderConstants.USER_ID) UUID userId,
             @RequestHeader(HeaderConstants.USER_ROLE) String userRole,

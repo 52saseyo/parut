@@ -18093,7 +18093,7 @@
                     }
                   ]
                 },
-                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonCancelledId}}"
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonCancelledId}}/unsubscribe"
               },
               "event": [
                 {
@@ -18468,7 +18468,7 @@
                     }
                   ]
                 },
-                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonTargetId}}"
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonTargetId}}/unsubscribe"
               },
               "event": [
                 {
@@ -18506,7 +18506,7 @@
                     }
                   ]
                 },
-                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonFarId}}"
+                "url": "{{gatewayBaseUrl}}/api/v1/notification-subscriptions/time-deals/{{openingSoonFarId}}/unsubscribe"
               },
               "event": [
                 {
