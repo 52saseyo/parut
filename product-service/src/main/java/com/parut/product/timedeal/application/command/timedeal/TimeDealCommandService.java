@@ -20,6 +20,7 @@ import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUs
 import com.parut.product.timedeal.application.port.out.image.TimeDealImageCommandPort;
 import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
+import com.parut.product.timedeal.application.port.out.timedeal.TimeDealScheduleRedisPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockCreatedEvent;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockDeletedEvent;
@@ -34,6 +35,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,8 +48,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TimeDealCommandService implements TimeDealCommandUseCase {
 
+    private static final int SALE_PERIOD_BATCH_SIZE = 100;
+
     private final TimeDealSalePeriodProcessor timeDealSalePeriodProcessor;
     private final TimeDealRepository timeDealRepository;
+    private final TimeDealScheduleRedisPort timeDealScheduleRedisPort;
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockPort productStockPort;
@@ -58,37 +63,25 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     public void endTimeDeals() {
         Instant now = Instant.now();
-        UUID afterId = null;
-        while (true) {
-            List<UUID> ids = timeDealRepository.findTimeDealsToEnd(now, afterId, 100);
-            if (ids.isEmpty()) {
-                return;
-            }
-            processTimeDeals(ids);
-            afterId = ids.getLast();
-        }
+        List<UUID> ids = timeDealScheduleRedisPort.findCloseDue(now, SALE_PERIOD_BATCH_SIZE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::removeClose);
     }
 
     @Override
-    public void activateTimeDeals() {
+    public void
+    activateTimeDeals() {
         Instant now = Instant.now();
-        UUID afterId = null;
-        while (true) {
-            List<UUID> ids = timeDealRepository.findTimeDealsToActivate(now, afterId, 100);
-            if (ids.isEmpty()) {
-                return;
-            }
-            processTimeDeals(ids);
-            afterId = ids.getLast();
-        }
+        List<UUID> ids = timeDealScheduleRedisPort.findOpenDue(now, SALE_PERIOD_BATCH_SIZE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::removeOpen);
     }
 
-    private void processTimeDeals(List<UUID> ids) {
+    private void processTimeDeals(List<UUID> ids, Consumer<UUID> removeSchedule) { // NOTE: Void 반환값없는 콜백 사용하기위해 Consumer<> 사용
         for (UUID id : ids) {
             try {
                 AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
                 // 대상 조회 이후 시간이 흐르거나 판매 조건이 바뀔 수 있어 처리 시점에 재판정한다.
                 timeDealSalePeriodProcessor.synchronize(id);
+                removeSchedule.accept(id);
             } catch (Exception e) {
                 log.error("[TimeDeal] 판매 기간 상태 변경 실패: timeDealId={}", id, e);
             } finally {

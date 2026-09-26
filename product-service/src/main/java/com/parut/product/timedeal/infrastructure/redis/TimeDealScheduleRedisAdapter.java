@@ -8,7 +8,9 @@ import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -23,8 +25,28 @@ public class TimeDealScheduleRedisAdapter implements TimeDealScheduleRedisPort {
     }
 
     @Override
-    public void remove(UUID timeDealId) {
+    public void remove(UUID timeDealId) { // NOTE: 타임딜 삭제시 해당 redis open, close 모두 삭제
+        removeOpen(timeDealId);
+        removeClose(timeDealId);
+    }
+
+    @Override
+    public List<UUID> findOpenDue(Instant now, int limit) {
+        return findDue(openSchedule(), now, limit);
+    }
+
+    @Override
+    public List<UUID> findCloseDue(Instant now, int limit) {
+        return findDue(closeSchedule(), now, limit);
+    }
+
+    @Override
+    public void removeOpen(UUID timeDealId) {
         openSchedule().remove(timeDealId.toString());
+    }
+
+    @Override
+    public void removeClose(UUID timeDealId) {
         closeSchedule().remove(timeDealId.toString());
     }
 
@@ -34,5 +56,12 @@ public class TimeDealScheduleRedisAdapter implements TimeDealScheduleRedisPort {
 
     private RScoredSortedSet<String> closeSchedule() {
         return redissonClient.getScoredSortedSet(TimeDealRedisKeys.closeSchedule(), StringCodec.INSTANCE);
+    }
+
+    private List<UUID> findDue(RScoredSortedSet<String> schedule, Instant now, int limit) {
+        return schedule.valueRange(0, true, now.toEpochMilli(), true, 0, limit)
+                .stream()
+                .map(UUID::fromString)
+                .collect(Collectors.toList());
     }
 }

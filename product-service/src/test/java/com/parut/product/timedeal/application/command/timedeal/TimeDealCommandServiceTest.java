@@ -12,6 +12,7 @@ import com.parut.product.timedeal.application.dto.timedeal.TimeDealDeleteCommand
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopCommand;
 import com.parut.product.timedeal.application.dto.timedeal.TimeDealStopResult;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
+import com.parut.product.timedeal.application.port.out.timedeal.TimeDealScheduleRedisPort;
 import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
@@ -77,6 +78,7 @@ class TimeDealCommandServiceTest {
         timeDealCommandService = new TimeDealCommandService(
                 org.mockito.Mockito.mock(TimeDealSalePeriodProcessor.class),
                 timeDealRepository,
+                org.mockito.Mockito.mock(TimeDealScheduleRedisPort.class),
                 timeDealStockRepository,
                 new TimeDealPolicy(),
                 productStockPort,
