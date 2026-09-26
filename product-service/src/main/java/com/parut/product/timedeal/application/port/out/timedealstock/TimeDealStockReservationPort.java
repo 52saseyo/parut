@@ -4,6 +4,8 @@ import java.util.UUID;
 
 public interface TimeDealStockReservationPort {
 
+    TimeDealStockRestoreResult restore(UUID timeDealId, UUID stockId, UUID orderId, UUID taskId, int quantity);
+
     TimeDealStockReservationResult reserve(
             UUID timeDealId,
             UUID stockId,

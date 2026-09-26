@@ -7,7 +7,6 @@ import com.parut.product.global.constant.AuditorConstants;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseCancelCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseConfirmCommand;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealPurchaseReserveCommand;
-import com.parut.product.timedeal.application.event.timedealpurchase.TimeDealPurchaseReservationReleasedEvent;
 import com.parut.product.timedeal.application.exception.TimeDealReservationExpiredException;
 import com.parut.product.timedeal.application.port.in.timedealpurchase.TimeDealPurchaseCommandUseCase;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
@@ -24,7 +23,6 @@ import com.parut.product.timedeal.domain.timedealpurchase.TimeDealPurchaseStatus
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +41,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     private final TimeDealPurchaseRepository timeDealPurchaseRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final TimeDealStockReservationPort timeDealStockReservationPort;
-    private final ApplicationEventPublisher eventPublisher;
+    private final TimeDealStockRestoreOutbox stockRestoreOutbox;
     private final TimeDealPurchaseExpirationProcessor timeDealPurchaseExpirationProcessor;
 
 
@@ -184,7 +182,7 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
 
         TimeDealStock timeDealStock = timeDealStockRepository.findByTimeDealIdForUpdate(timeDealPurchase.getTimeDealId()).orElseThrow(() -> new BusinessException(ErrorCode.TIME_DEAL_STOCK_NOT_FOUND));
 
-        boolean reservationReleased = timeDealPurchase.getStatus() == TimeDealPurchaseStatus.RESERVED;
+        boolean reservationReleased = timeDealPurchase.getStatus() != TimeDealPurchaseStatus.CANCELLED;
         timeDealPolicy.cancelPurchase(timeDealPurchase, timeDealStock, timeDealPurchaseCancelCommand.reason());
         if (reservationReleased) {
             publishReservationReleasedEvent(timeDealPurchase, timeDealStock);
@@ -239,10 +237,6 @@ public class TimeDealPurchaseCommandService implements TimeDealPurchaseCommandUs
     }
 
     private void publishReservationReleasedEvent(TimeDealPurchase purchase, TimeDealStock stock) {
-        eventPublisher.publishEvent(new TimeDealPurchaseReservationReleasedEvent(
-                purchase.getTimeDealId(),
-                stock.getId(),
-                purchase.getOrderId()
-        ));
+        stockRestoreOutbox.enqueue(purchase, stock);
     }
 }

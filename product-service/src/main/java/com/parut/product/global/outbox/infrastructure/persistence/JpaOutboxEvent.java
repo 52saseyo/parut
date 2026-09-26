@@ -56,20 +56,20 @@ public class JpaOutboxEvent {
     @Column(nullable = false, columnDefinition = "jsonb", updatable = false)
     private String payload;
 
-    // NOTE: Kafka 발행 상태다. PENDING은 대기, PUBLISHED는 발행 완료, FAILED는 재시도 한도 초과 상태다.
+    // NOTE: 이벤트 처리 상태다. Kafka 발행 또는 Redis 복구가 완료되면 PUBLISHED가 된다.
     @Enumerated(EnumType.STRING)
     @Column(name = "publish_status", nullable = false, length = 20)
     private OutboxPublishStatus publishStatus;
 
-    // NOTE: Kafka 발행 실패 후 재시도한 횟수다.
+    // NOTE: 이벤트 처리 실패 후 재시도한 횟수다.
     @Column(name = "retry_count", nullable = false)
     private int retryCount;
 
-    // NOTE: 가장 최근 Kafka 발행 실패 원인이다. 아직 실패하지 않았으면 null이다.
+    // NOTE: 가장 최근 이벤트 처리 실패 원인이다. 아직 실패하지 않았으면 null이다.
     @Column(name = "last_error")
     private String lastError;
 
-    // NOTE: Kafka 발행이 성공한 시각이다. PENDING 또는 FAILED 상태에서는 null이다.
+    // NOTE: 이벤트 처리가 성공한 시각이다. PENDING 또는 FAILED 상태에서는 null이다.
     @Column(name = "published_at")
     private Instant publishedAt;
 

@@ -5,6 +5,10 @@ import com.parut.product.global.outbox.application.port.out.OutboxMessagePublish
 import com.parut.product.global.outbox.domain.OutboxEvent;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
+import java.util.Optional;
+
+import com.parut.product.global.outbox.domain.OutboxPublishStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +34,7 @@ public class OutboxPublisher {
 
     /**
      * PENDING 이벤트를 배치로 발행한다.
-     * Kafka 발행 성공 후에만 PUBLISHED로 변경하고, 실패한 이벤트는 다음 실행에서 재시도한다.
+     * 이벤트 처리 성공 후에만 PUBLISHED로 변경하고, 실패한 이벤트는 다음 실행에서 재시도한다.
      */
     @Transactional
     public int publishPendingEvents(int batchSize) {
@@ -50,6 +54,24 @@ public class OutboxPublisher {
         }
 
         return publishedCount;
+    }
+
+    @Transactional
+    public void publishOne(UUID eventId) {
+        Optional<OutboxEvent> event = outboxEventRepository.findByEventId(eventId);
+        if (event.isEmpty() || event.get().getPublishStatus() == OutboxPublishStatus.PUBLISHED) {
+            return;
+        }
+        OutboxEvent pendingEvent = event.get();
+        try {
+            outboxMessagePublisher.publish(pendingEvent);
+            pendingEvent.markPublished(Instant.now());
+            outboxEventRepository.save(pendingEvent);
+        } catch (Exception exception) {
+            markFailure(pendingEvent, resolveErrorMessage(exception));
+            outboxEventRepository.save(pendingEvent);
+            throw new IllegalStateException("Outbox 이벤트 처리에 실패했습니다. eventId=" + eventId, exception);
+        }
     }
 
     private void markFailure(OutboxEvent event, String errorMessage) {

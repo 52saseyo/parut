@@ -30,6 +30,10 @@ public final class TimeDealRedisKeys {
         return RESERVATION_KEY_TTL;
     }
 
+    public static String restoreTask(UUID taskId) {
+        return "timedeal:restore:" + required(taskId, "taskId");
+    }
+
     private static UUID required(UUID value, String name) {
         return Objects.requireNonNull(value, name + " must not be null");
     }

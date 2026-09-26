@@ -72,7 +72,7 @@ class TimeDealPurchaseCommandServiceTest {
     private TimeDealStockReservationPort timeDealStockReservationPort;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private TimeDealStockRestoreOutbox stockRestoreOutbox;
 
     @Mock
     private TimeDealPurchaseExpirationProcessor timeDealPurchaseExpirationProcessor;
@@ -91,7 +91,7 @@ class TimeDealPurchaseCommandServiceTest {
                 timeDealPurchaseRepository,
                 new TimeDealPolicy(),
                 timeDealStockReservationPort,
-                eventPublisher,
+                stockRestoreOutbox,
                 timeDealPurchaseExpirationProcessor
         );
 
@@ -341,6 +341,24 @@ class TimeDealPurchaseCommandServiceTest {
     @Nested
     @DisplayName("구매 취소")
     class Cancel {
+
+        @Test
+        void 확정취소는_재고복구작업을_한번만_저장한다() {
+            TimeDealPurchase purchase = reservedPurchase();
+            timeDealStock.reserve(5);
+            purchase.confirm(Instant.now());
+            timeDealStock.confirmSale(5);
+            when(timeDealPurchaseRepository.findByOrderIdForUpdate(any())).thenReturn(Optional.of(purchase));
+            when(timeDealStockRepository.findByTimeDealIdForUpdate(any())).thenReturn(Optional.of(timeDealStock));
+            TimeDealPurchaseCancelCommand command = new TimeDealPurchaseCancelCommand(purchase.getOrderId(), "취소");
+
+            timeDealPurchaseCommandService.cancel(command);
+            timeDealPurchaseCommandService.cancel(command);
+
+            assertThat(timeDealStock.getAvailableQuantity()).isEqualTo(INITIAL_QUANTITY);
+            assertThat(timeDealStock.getSoldQuantity()).isZero();
+            verify(stockRestoreOutbox, org.mockito.Mockito.times(1)).enqueue(purchase, timeDealStock);
+        }
 
         private TimeDealPurchase reservedPurchase() {
             return TimeDealPurchase.create(

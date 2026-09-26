@@ -54,4 +54,6 @@ public interface JpaOutboxEventRepository extends JpaRepository<JpaOutboxEvent, 
     );
 
     List<JpaOutboxEvent> findTop100ByPublishStatusOrderByCreatedAtAsc(OutboxPublishStatus publishStatus);
+
+    java.util.Optional<JpaOutboxEvent> findByEventId(UUID eventId);
 }

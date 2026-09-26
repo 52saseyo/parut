@@ -2,6 +2,8 @@ package com.parut.product.global.outbox.application.port.out;
 
 import com.parut.product.global.outbox.domain.OutboxEvent;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface OutboxEventRepository {
 
@@ -11,4 +13,6 @@ public interface OutboxEventRepository {
     boolean saveIfAbsent(OutboxEvent event);
 
     List<OutboxEvent> findPending(int limit);
+
+    Optional<OutboxEvent> findByEventId(UUID eventId);
 }

@@ -2,6 +2,7 @@ package com.parut.product.timedeal.infrastructure.redis;
 
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRestoreResult;
 import com.parut.product.timedeal.application.metrics.timedeal.TimeDealRedisMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,26 @@ class TimeDealStockReservationAdapterTest {
     private TimeDealRedisMetrics metrics;
 
     private TimeDealStockReservationAdapter adapter;
+
+    @Test
+    void 복구는_DB수량과_고정작업키를_전달하며_중복결과를_구분한다() {
+        UUID timeDealId = UUID.randomUUID();
+        UUID stockId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        when(script.eval(eq(RScript.Mode.READ_WRITE),
+                eq(TimeDealStockReservationLuaScript.RESTORE_SCRIPT), eq(RScript.ReturnType.LONG),
+                eq(java.util.List.of(TimeDealRedisKeys.stock(timeDealId, stockId),
+                        TimeDealRedisKeys.reservation(timeDealId, orderId), TimeDealRedisKeys.restoreTask(taskId))),
+                eq("3"))).thenReturn(1L, 0L, 2L);
+
+        assertThat(adapter.restore(timeDealId, stockId, orderId, taskId, 3))
+                .isEqualTo(TimeDealStockRestoreResult.RESTORED);
+        assertThat(adapter.restore(timeDealId, stockId, orderId, taskId, 3))
+                .isEqualTo(TimeDealStockRestoreResult.ALREADY_RESTORED);
+        assertThat(adapter.restore(timeDealId, stockId, orderId, taskId, 3))
+                .isEqualTo(TimeDealStockRestoreResult.STOCK_NOT_INITIALIZED);
+    }
 
     @BeforeEach
     void setUp() {
