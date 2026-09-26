@@ -13,6 +13,8 @@ public final class TimeDealRedisKeys {
 
     private static final String STOCK_PREFIX = "timedeal:stock:";
     private static final String RESERVATION_PREFIX = "timedeal:reservation:";
+    private static final String OPEN_SCHEDULE_KEY = "timedeal:schedule:open";
+    private static final String CLOSE_SCHEDULE_KEY = "timedeal:schedule:close";
     private static final Duration RESERVATION_KEY_TTL = Duration.ofMinutes(20);
 
     private TimeDealRedisKeys() {
@@ -32,6 +34,14 @@ public final class TimeDealRedisKeys {
 
     public static String restoreTask(UUID taskId) {
         return "timedeal:restore:" + required(taskId, "taskId");
+    }
+
+    public static String openSchedule() {
+        return OPEN_SCHEDULE_KEY;
+    }
+
+    public static String closeSchedule() {
+        return CLOSE_SCHEDULE_KEY;
     }
 
     private static UUID required(UUID value, String name) {

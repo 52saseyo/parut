@@ -23,6 +23,9 @@ import com.parut.product.timedeal.application.port.out.timedeal.TimeDealReposito
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockCreatedEvent;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockDeletedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleCreatedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleUpdatedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleDeletedEvent;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
@@ -108,7 +111,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
         timeDealRepository.save(timeDeal);
         timeDealStockRepository.save(stock);
-        publishDeletedEvent(stock);
+        publishTimeDealDeletedEvents(command.timeDealId(), stock);
     }
 
     @Override
@@ -142,6 +145,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         );
         // NOTE: flush 시 갱신되는 감사 필드 updatedAt을 응답에 반영한다.
         TimeDeal savedTimeDeal = timeDealRepository.saveAndFlush(timeDeal);
+        publishTimeDealUpdatedEvent(savedTimeDeal);
         return TimeDealUpdateResult.from(savedTimeDeal);
     }
 
@@ -180,7 +184,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 timeDealCreateCommand.lowStockThreshold()
         );
         timeDealStockRepository.save(timeDealStock);
-        publishCreatedEvent(timeDealStock);
+        publishTimeDealCreatedEvents(savedTimeDeal, timeDealStock);
 
         log.info(
                 "[TimeDeal] 직접 등록 완료. timeDealId={}, sellerId={}, initialQuantity={}",
@@ -229,7 +233,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 savedTimeDeal, productStockAllocateResult.quantity(), timeDealConvertCommand.lowStockThreshold());
 
         timeDealStockRepository.save(timeDealStock);
-        publishCreatedEvent(timeDealStock);
+        publishTimeDealCreatedEvents(savedTimeDeal, timeDealStock);
 
         if (productStockAllocateResult.imageId() != null) {
             timeDealImageCommandPort.save(new TimeDealImageSaveCommand(
@@ -259,13 +263,20 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         }
     }
 
-    private void publishCreatedEvent(TimeDealStock stock) {
+    private void publishTimeDealCreatedEvents(TimeDeal timeDeal, TimeDealStock stock) {
         eventPublisher.publishEvent(new TimeDealStockCreatedEvent(
-                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity()));
+                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity())); // NOTE: 생성시 stock 관련 이벤트
+        eventPublisher.publishEvent(new TimeDealScheduleCreatedEvent(
+                timeDeal.getId(), timeDeal.getStartAt(), timeDeal.getEndAt())); // NOTE: 생성시 schedule 관련 이벤트
     }
 
-    private void publishDeletedEvent(TimeDealStock stock) {
-        eventPublisher.publishEvent(new TimeDealStockDeletedEvent(
-                stock.getTimeDealId(), stock.getId()));
+    private void publishTimeDealUpdatedEvent(TimeDeal timeDeal) {
+        eventPublisher.publishEvent(new TimeDealScheduleUpdatedEvent(
+                timeDeal.getId(), timeDeal.getStartAt(), timeDeal.getEndAt()));
+    }
+
+    private void publishTimeDealDeletedEvents(UUID timeDealId, TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockDeletedEvent(stock.getTimeDealId(), stock.getId())); // NOTE: 생성시 stock 관련 이벤트
+        eventPublisher.publishEvent(new TimeDealScheduleDeletedEvent(timeDealId)); // NOTE: 생성시 schedule 관련 이벤트
     }
 }
