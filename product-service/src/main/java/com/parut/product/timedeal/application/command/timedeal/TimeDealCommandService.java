@@ -31,6 +31,7 @@ import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -49,6 +50,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class TimeDealCommandService implements TimeDealCommandUseCase {
 
     private static final int SALE_PERIOD_BATCH_SIZE = 100;
+    // 한 번 선점한 배치가 처리되는 동안 다른 서버가 재선점하지 않도록 충분히 길게 둔다.
+    private static final Duration SALE_PERIOD_LEASE = Duration.ofMinutes(5);
 
     private final TimeDealSalePeriodProcessor timeDealSalePeriodProcessor;
     private final TimeDealRepository timeDealRepository;
@@ -63,16 +66,18 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     public void endTimeDeals() {
         Instant now = Instant.now();
-        List<UUID> ids = timeDealScheduleRedisPort.findCloseDue(now, SALE_PERIOD_BATCH_SIZE);
-        processTimeDeals(ids, timeDealScheduleRedisPort::removeClose);
+        List<UUID> ids = timeDealScheduleRedisPort.claimCloseDue(
+                now, SALE_PERIOD_BATCH_SIZE, SALE_PERIOD_LEASE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::acknowledgeClose); // NOTE: 해당 작업이 끝난 ended는 processing 목록에서 제거
     }
 
     @Override
     public void
     activateTimeDeals() {
         Instant now = Instant.now();
-        List<UUID> ids = timeDealScheduleRedisPort.findOpenDue(now, SALE_PERIOD_BATCH_SIZE);
-        processTimeDeals(ids, timeDealScheduleRedisPort::removeOpen);
+        List<UUID> ids = timeDealScheduleRedisPort.claimOpenDue(
+                now, SALE_PERIOD_BATCH_SIZE, SALE_PERIOD_LEASE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::acknowledgeOpen); // NOTE:  해당 작업이 끝난 active는 processing 목록에서 제거
     }
 
     private void processTimeDeals(List<UUID> ids, Consumer<UUID> removeSchedule) { // NOTE: Void 반환값없는 콜백 사용하기위해 Consumer<> 사용

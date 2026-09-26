@@ -7,6 +7,7 @@ import com.parut.product.timedeal.application.port.out.timedeal.TimeDealSchedule
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.UUID;
+import java.time.Duration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -20,7 +21,8 @@ class TimeDealSalePeriodBatchTest {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
         UUID third = UUID.randomUUID();
-        when(scheduleRedisPort.findOpenDue(any(), eq(100))).thenReturn(List.of(first, second, third));
+        when(scheduleRedisPort.claimOpenDue(any(), eq(100), any(Duration.class)))
+                .thenReturn(List.of(first, second, third));
         doThrow(new IllegalStateException("실패 건은 다음 실행에 재시도")).when(processor).synchronize(first);
         doAnswer(invocation -> {
             assertThat(AuditorContext.get()).contains(AuditorConstants.BATCH_SYSTEM_USER_ID);
@@ -31,9 +33,9 @@ class TimeDealSalePeriodBatchTest {
                 null, null, null, null, null, null).activateTimeDeals();
 
         verify(processor).synchronize(first);
-        verify(scheduleRedisPort).removeOpen(second);
-        verify(scheduleRedisPort).removeOpen(third);
-        verify(scheduleRedisPort, never()).removeOpen(first);
+        verify(scheduleRedisPort).acknowledgeOpen(second);
+        verify(scheduleRedisPort).acknowledgeOpen(third);
+        verify(scheduleRedisPort, never()).acknowledgeOpen(first);
         verify(processor).synchronize(second);
         verify(processor).synchronize(third);
         assertThat(AuditorContext.get()).isEmpty();
@@ -48,7 +50,7 @@ class TimeDealSalePeriodBatchTest {
         UUID second = UUID.randomUUID();
         UUID third = UUID.randomUUID();
 
-        when(scheduleRedisPort.findCloseDue(any(), eq(100)))
+        when(scheduleRedisPort.claimCloseDue(any(), eq(100), any(Duration.class)))
                 .thenReturn(List.of(first, second, third));
         doThrow(new IllegalStateException("실패 건은 다음 실행에 재시도"))
                 .when(processor).synchronize(first);
@@ -65,9 +67,9 @@ class TimeDealSalePeriodBatchTest {
         verify(processor).synchronize(first);
         verify(processor).synchronize(second);
         verify(processor).synchronize(third);
-        verify(scheduleRedisPort).removeClose(second);
-        verify(scheduleRedisPort).removeClose(third);
-        verify(scheduleRedisPort, never()).removeClose(first);
+        verify(scheduleRedisPort).acknowledgeClose(second);
+        verify(scheduleRedisPort).acknowledgeClose(third);
+        verify(scheduleRedisPort, never()).acknowledgeClose(first);
         assertThat(AuditorContext.get()).isEmpty();
     }
 }

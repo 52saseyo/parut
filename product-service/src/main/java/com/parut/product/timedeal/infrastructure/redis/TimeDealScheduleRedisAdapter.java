@@ -3,11 +3,13 @@ package com.parut.product.timedeal.infrastructure.redis;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealScheduleRedisPort;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RScoredSortedSet;
+import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -26,28 +28,30 @@ public class TimeDealScheduleRedisAdapter implements TimeDealScheduleRedisPort {
 
     @Override
     public void remove(UUID timeDealId) { // NOTE: 타임딜 삭제시 해당 redis open, close 모두 삭제
-        removeOpen(timeDealId);
-        removeClose(timeDealId);
-    }
-
-    @Override
-    public List<UUID> findOpenDue(Instant now, int limit) {
-        return findDue(openSchedule(), now, limit);
-    }
-
-    @Override
-    public List<UUID> findCloseDue(Instant now, int limit) {
-        return findDue(closeSchedule(), now, limit);
-    }
-
-    @Override
-    public void removeOpen(UUID timeDealId) {
         openSchedule().remove(timeDealId.toString());
+        closeSchedule().remove(timeDealId.toString());
+        openProcessing().remove(timeDealId.toString());
+        closeProcessing().remove(timeDealId.toString());
     }
 
     @Override
-    public void removeClose(UUID timeDealId) {
-        closeSchedule().remove(timeDealId.toString());
+    public List<UUID> claimOpenDue(Instant now, int limit, Duration lease) {
+        return claim(TimeDealRedisKeys.openSchedule(), TimeDealRedisKeys.openProcessing(), now, limit, lease);
+    }
+
+    @Override
+    public List<UUID> claimCloseDue(Instant now, int limit, Duration lease) {
+        return claim(TimeDealRedisKeys.closeSchedule(), TimeDealRedisKeys.closeProcessing(), now, limit, lease);
+    }
+
+    @Override
+    public void acknowledgeOpen(UUID timeDealId) {
+        openProcessing().remove(timeDealId.toString());
+    }
+
+    @Override
+    public void acknowledgeClose(UUID timeDealId) {
+        closeProcessing().remove(timeDealId.toString());
     }
 
     private RScoredSortedSet<String> openSchedule() {
@@ -58,9 +62,33 @@ public class TimeDealScheduleRedisAdapter implements TimeDealScheduleRedisPort {
         return redissonClient.getScoredSortedSet(TimeDealRedisKeys.closeSchedule(), StringCodec.INSTANCE);
     }
 
-    private List<UUID> findDue(RScoredSortedSet<String> schedule, Instant now, int limit) {
-        return schedule.valueRange(0, true, now.toEpochMilli(), true, 0, limit)
-                .stream()
+    private RScoredSortedSet<String> openProcessing() {
+        return redissonClient.getScoredSortedSet(TimeDealRedisKeys.openProcessing(), StringCodec.INSTANCE);
+    }
+
+    private RScoredSortedSet<String> closeProcessing() {
+        return redissonClient.getScoredSortedSet(TimeDealRedisKeys.closeProcessing(), StringCodec.INSTANCE);
+    }
+
+    private List<UUID> claim(
+            String scheduleKey,
+            String processingKey,
+            Instant now,
+            int limit,
+            Duration lease
+    ) {
+        List<Object> claimed = redissonClient.getScript(StringCodec.INSTANCE).eval(
+                RScript.Mode.READ_WRITE,
+                TimeDealScheduleClaimLuaScript.CLAIM_SCRIPT,
+                RScript.ReturnType.LIST,
+                List.of(scheduleKey, processingKey),
+                String.valueOf(now.toEpochMilli()),
+                String.valueOf(now.plus(lease).toEpochMilli()),
+                String.valueOf(limit)
+        );
+
+        return claimed.stream()
+                .map(String::valueOf)
                 .map(UUID::fromString)
                 .collect(Collectors.toList());
     }

@@ -1,6 +1,7 @@
 package com.parut.product.timedeal.application.port.out.timedeal;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -10,11 +11,11 @@ public interface TimeDealScheduleRedisPort {
 
     void remove(UUID timeDealId);
 
-    List<UUID> findOpenDue(Instant now, int limit);
+    List<UUID> claimOpenDue(Instant now, int limit, Duration lease);
 
-    List<UUID> findCloseDue(Instant now, int limit);
+    List<UUID> claimCloseDue(Instant now, int limit, Duration lease);
 
-    void removeOpen(UUID timeDealId);
+    void acknowledgeOpen(UUID timeDealId);
 
-    void removeClose(UUID timeDealId);
+    void acknowledgeClose(UUID timeDealId);
 }
