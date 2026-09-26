@@ -2,6 +2,7 @@ package com.parut.product.timedeal.application.command.timedealpurchase;
 
 import com.parut.product.global.outbox.application.port.out.OutboxEventRepository;
 import com.parut.product.global.outbox.domain.OutboxEvent;
+import com.parut.product.global.logging.TraceIdContext;
 import com.parut.product.timedeal.application.dto.timedealpurchase.TimeDealStockRestorePayload;
 import com.parut.product.timedeal.application.event.timedealpurchase.TimeDealPurchaseReservationReleasedEvent;
 import com.parut.product.timedeal.application.event.timedealpurchase.TimeDealStockRestoreRequestedEvent;
@@ -36,7 +37,7 @@ public class TimeDealStockRestoreOutbox {
                     TimeDealStockRestoreRequestedEvent.EVENT_TYPE,
                     purchase.getOrderId(),
                     purchase.getOrderId().toString(),
-                    UUID.randomUUID().toString(),
+                    resolveTraceId(),
                     objectMapper.writeValueAsString(payload),
                     Instant.now());
             repository.saveIfAbsent(event);
@@ -44,5 +45,13 @@ public class TimeDealStockRestoreOutbox {
         } catch (JacksonException exception) {
             throw new IllegalStateException("Redis 재고 복구 Outbox payload 생성에 실패했습니다.", exception);
         }
+    }
+
+    private String resolveTraceId() {
+        String currentTraceId = TraceIdContext.currentTraceId();
+        if (currentTraceId != null && !currentTraceId.isBlank()) {
+            return currentTraceId;
+        }
+        return UUID.randomUUID().toString();
     }
 }
