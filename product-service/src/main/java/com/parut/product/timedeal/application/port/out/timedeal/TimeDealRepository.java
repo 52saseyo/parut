@@ -14,10 +14,6 @@ public interface TimeDealRepository {
     // 타임딜 자체를 변경하는 유즈케이스 전용 조회. 트랜잭션 종료까지 행 잠금을 유지한다.
     Optional<TimeDeal> findByIdForUpdate(UUID timeDealId);
 
-    List<UUID> findTimeDealsToActivate(Instant now, UUID afterId, int limit);
-
-    List<UUID> findTimeDealsToEnd(Instant now, UUID afterId, int limit);
-
     List<UUID> findTimeDealsAvailableForRedis(Instant now);
 
     TimeDeal save(TimeDeal timeDeal);
