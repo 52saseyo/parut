@@ -10191,7 +10191,7 @@
                       "  pm.test('응답이 JSON 형식이다', () => { body = pm.response.json(); });",
                       "}",
                       "pm.test('HTTP 409', () => pm.expect(pm.response.code).to.eql(409));",
-                      "pm.test('STOCK_SHORTAGE', () => pm.expect(body.code).to.eql('STOCK_SHORTAGE'));"
+                      "pm.test('PRODUCT_STOCK_SHORTAGE', () => pm.expect(body.code).to.eql('PRODUCT_STOCK_SHORTAGE'));"
                     ]
                   }
                 }
@@ -10228,7 +10228,7 @@
                   }
                 },
                 "url": "{{gatewayBaseUrl}}/api/v1/orders",
-                "description": "가용 재고보다 훨씬 큰 수량을 주문해 Product 재고 예약 실패를 즉시 409 STOCK_SHORTAGE로 확인합니다. 이 요청은 주문 레코드를 생성하지 않습니다."
+                "description": "가용 재고보다 훨씬 큰 수량을 주문해 Product 재고 예약 실패를 즉시 409 PRODUCT_STOCK_SHORTAGE로 확인합니다. 이 요청은 주문 레코드를 생성하지 않습니다."
               }
             },
             {
