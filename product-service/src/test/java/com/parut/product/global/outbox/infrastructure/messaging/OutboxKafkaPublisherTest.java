@@ -45,7 +45,7 @@ class KafkaOutboxEventHandlerTest {
                 Instant.parse("2026-09-23T10:00:00Z")
         );
 
-        publisher.publish(event);
+        publisher.handle(event);
 
         org.mockito.ArgumentCaptor<ProducerRecord<String, String>> captor =
                 org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);
