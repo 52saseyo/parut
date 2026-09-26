@@ -5,9 +5,9 @@ import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.payment.application.port.out.ProductStockConfirmClient;
 import com.parut.order.payment.application.port.out.dto.ProductStockConfirmItem;
 import com.parut.order.payment.infrastructure.client.dto.ProductStockConfirmApiRequest;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -29,10 +29,15 @@ public class FeignProductStockConfirmClient implements ProductStockConfirmClient
                             .map(item -> new ProductStockConfirmApiRequest.Item(item.productId(), item.orderItemId()))
                             .toList()
             ));
-        } catch (FeignException.NotFound | FeignException.Conflict e) {
-            throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
-        } catch (FeignException e) {
-            log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}, status={}", orderId, items, e.status(), e);
+        } catch (BusinessException e) {
+            if (e.getStatus() == HttpStatus.NOT_FOUND || e.getStatus() == HttpStatus.CONFLICT) {
+                log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}, code={}, message={}",
+                        orderId, items, e.getCode(), e.getMessage());
+                throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
+            }
+            throw e;
+        } catch (Exception e) {
+            log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}", orderId, items, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }

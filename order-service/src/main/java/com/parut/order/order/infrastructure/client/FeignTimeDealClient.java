@@ -8,7 +8,6 @@ import com.parut.order.order.infrastructure.client.dto.TimeDealBulkDetailApiRequ
 import com.parut.order.order.infrastructure.client.dto.TimeDealInfoApiResponse;
 import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseCancelApiRequest;
 import com.parut.order.order.infrastructure.client.dto.TimeDealPurchaseReserveApiRequest;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -41,10 +40,10 @@ public class FeignTimeDealClient implements TimeDealClient {
                     response.origin(),
                     response.harvestedDate()
             );
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE);
-        } catch (FeignException e) {
-            log.warn("[TimeDealClient] 타임딜 조회 실패 timeDealId={}, status={}", timeDealId, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[TimeDealClient] 타임딜 조회 실패 timeDealId={}", timeDealId, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
@@ -53,11 +52,10 @@ public class FeignTimeDealClient implements TimeDealClient {
     public void reserveStock(UUID timeDealId, UUID orderId, UUID userId, int quantity) {
         try {
             timeDealInternalFeignClient.reserveStock(timeDealId, userId, new TimeDealPurchaseReserveApiRequest(orderId, quantity));
-        } catch (FeignException.NotFound | FeignException.Conflict e) {
-            throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
-        } catch (FeignException e) {
-            log.warn("[TimeDealClient] 타임딜 재고 예약 실패 timeDealId={}, orderId={}, status={}",
-                    timeDealId, orderId, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[TimeDealClient] 타임딜 재고 예약 실패 timeDealId={}, orderId={}", timeDealId, orderId, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
@@ -66,8 +64,10 @@ public class FeignTimeDealClient implements TimeDealClient {
     public void restoreStock(UUID orderId, String reason) {
         try {
             timeDealInternalFeignClient.restoreStock(orderId, new TimeDealPurchaseCancelApiRequest(reason));
-        } catch (FeignException e) {
-            log.warn("[TimeDealClient] 타임딜 재고 해제 실패 orderId={}, status={}", orderId, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[TimeDealClient] 타임딜 재고 해제 실패 orderId={}", orderId, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }

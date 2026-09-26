@@ -10,7 +10,6 @@ import com.parut.order.order.infrastructure.client.dto.ProductOrderInfoApiReques
 import com.parut.order.order.infrastructure.client.dto.ProductOrderInfoApiResponse;
 import com.parut.order.order.infrastructure.client.dto.ProductStockReserveApiRequest;
 import com.parut.order.order.infrastructure.client.dto.ProductStockRestoreApiRequest;
-import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -45,10 +44,10 @@ public class FeignProductClient implements ProductClient {
                             response.purchasable()
                     ))
                     .toList();
-        } catch (FeignException.NotFound e) {
-            throw new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE);
-        } catch (FeignException e) {
-            log.warn("[ProductClient] 상품 조회 실패 productIds={}, status={}", productIds, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[ProductClient] 상품 조회 실패 productIds={}", productIds, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
@@ -62,10 +61,10 @@ public class FeignProductClient implements ProductClient {
                             .map(item -> new ProductStockReserveApiRequest.Item(item.productId(), item.orderItemId(), item.quantity()))
                             .toList()
             ));
-        } catch (FeignException.NotFound | FeignException.Conflict e) {
-            throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
-        } catch (FeignException e) {
-            log.warn("[ProductClient] 재고 예약 실패 orderId={}, items={}, status={}", orderId, items, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[ProductClient] 재고 예약 실패 orderId={}, items={}", orderId, items, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
@@ -79,8 +78,10 @@ public class FeignProductClient implements ProductClient {
                             .map(item -> new ProductStockRestoreApiRequest.Item(item.productId(), item.orderItemId()))
                             .toList()
             ));
-        } catch (FeignException e) {
-            log.warn("[ProductClient] 재고 해제 실패 orderId={}, items={}, status={}", orderId, items, e.status(), e);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[ProductClient] 재고 해제 실패 orderId={}, items={}", orderId, items, e);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }

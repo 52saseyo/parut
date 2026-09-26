@@ -3,9 +3,11 @@ package com.parut.order.global.config;
 import com.parut.order.global.constant.HeaderConstants;
 import com.parut.order.global.filter.TraceIdFilter;
 import feign.RequestInterceptor;
+import feign.codec.ErrorDecoder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
 
 
 public class InternalFeignConfig {
@@ -15,6 +17,11 @@ public class InternalFeignConfig {
             @Value("${internal.service-key}") String serviceKey
     ) {
         return template -> template.header(HeaderConstants.SERVICE_KEY, serviceKey);
+    }
+
+    @Bean
+    public ErrorDecoder errorDecoder(ObjectMapper objectMapper) {
+        return new FeignErrorDecoder(objectMapper);
     }
 
     /** 호출 체인이 같은 traceId 로 묶이도록 인입 요청의 값을 그대로 전파한다. */

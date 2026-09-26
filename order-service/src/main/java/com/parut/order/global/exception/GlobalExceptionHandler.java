@@ -4,6 +4,7 @@ import com.parut.order.global.filter.TraceIdFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -24,15 +25,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBusinessException(
             BusinessException e
     ) {
-        ErrorCode errorCode = e.getErrorCode();
-
         log.warn(
                 "[BusinessException] code={}, message={}",
-                errorCode.name(),
-                errorCode.getMessage()
+                e.getCode(),
+                e.getMessage()
         );
 
-        return createResponse(errorCode);
+        return createResponse(e.getCode(), e.getMessage(), e.getStatus());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -197,10 +196,18 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> createResponse(
             ErrorCode errorCode
     ) {
+        return createResponse(errorCode.name(), errorCode.getMessage(), errorCode.getStatus());
+    }
+
+    private ResponseEntity<ErrorResponse> createResponse(
+            String code,
+            String message,
+            HttpStatus status
+    ) {
         return ResponseEntity
-                .status(errorCode.getStatus())
+                .status(status)
                 .body(
-                        ErrorResponse.of(errorCode, TraceIdFilter.currentTraceId())
+                        ErrorResponse.of(code, message, TraceIdFilter.currentTraceId())
                 );
     }
 }
