@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import com.parut.product.global.constant.HeaderConstants;
 import com.parut.product.global.constant.KafkaTopicConstants;
 import com.parut.product.global.outbox.domain.OutboxEvent;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
+import tools.jackson.databind.json.JsonMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
@@ -17,12 +19,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 
-class OutboxKafkaPublisherTest {
+class KafkaOutboxEventHandlerTest {
 
     private final KafkaTemplate<String, String> kafkaTemplate =
             org.mockito.Mockito.mock(KafkaTemplate.class);
-    private final OutboxKafkaPublisher publisher =
-            new OutboxKafkaPublisher(kafkaTemplate);
+    private final KafkaOutboxEventHandler publisher =
+            new KafkaOutboxEventHandler(kafkaTemplate);
 
     @BeforeEach
     void setUp() {
@@ -43,7 +45,7 @@ class OutboxKafkaPublisherTest {
                 Instant.parse("2026-09-23T10:00:00Z")
         );
 
-        publisher.publish(event);
+        publisher.handle(event);
 
         org.mockito.ArgumentCaptor<ProducerRecord<String, String>> captor =
                 org.mockito.ArgumentCaptor.forClass(ProducerRecord.class);

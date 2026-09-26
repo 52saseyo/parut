@@ -4,6 +4,7 @@ import com.parut.product.timedeal.application.metrics.timedeal.TimeDealRedisMetr
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockCompensationResult;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockReservationResult;
+import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRestoreResult;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RScript;
@@ -20,6 +21,28 @@ public class TimeDealStockReservationAdapter implements TimeDealStockReservation
 
     private final RedissonClient redissonClient;
     private final TimeDealRedisMetrics metrics;
+
+    @Override
+    public TimeDealStockRestoreResult restore(UUID timeDealId, UUID stockId, UUID orderId, UUID taskId, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Restore quantity must be positive");
+        }
+        Long result = redissonClient.getScript(StringCodec.INSTANCE).eval(
+                RScript.Mode.READ_WRITE, TimeDealStockReservationLuaScript.RESTORE_SCRIPT,
+                RScript.ReturnType.LONG,
+                List.of(TimeDealRedisKeys.stock(timeDealId, stockId),
+                        TimeDealRedisKeys.reservation(timeDealId, orderId),
+                        TimeDealRedisKeys.restoreTask(taskId)), String.valueOf(quantity));
+        if (result == null) {
+            throw new IllegalStateException("Redis restore script returned null");
+        }
+        return switch (Math.toIntExact(result)) {
+            case 0 -> TimeDealStockRestoreResult.ALREADY_RESTORED;
+            case 1 -> TimeDealStockRestoreResult.RESTORED;
+            case 2 -> TimeDealStockRestoreResult.STOCK_NOT_INITIALIZED;
+            default -> throw new IllegalStateException("Unknown restore result: " + result);
+        };
+    }
 
     @Override
     public TimeDealStockReservationResult reserve(

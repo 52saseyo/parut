@@ -129,7 +129,7 @@ public class TimeDealPolicy {
         stock.cancelReservation(quantity);
     }
 
-    // NOTE: RESERVED만 재고를 복구한다. CONFIRMED는 사용된 판매로 간주해 취소해도 재고를 복구하지 않는다.
+    // NOTE: 배송 전 취소 여부는 주문 서비스가 검증한다. RESERVED/CONFIRMED 모두 재고를 복구한다.
     // NOTE: reason은 String이며 null도 허용한다 — enum은 타입 제약이 아니라 문구 카탈로그다.
     public void cancelPurchase(
             TimeDealPurchase purchase,
@@ -151,6 +151,8 @@ public class TimeDealPolicy {
 
         if (statusBeforeCancel == TimeDealPurchaseStatus.RESERVED) {
             stock.cancelReservation(purchase.getQuantity());
+        } else if (statusBeforeCancel == TimeDealPurchaseStatus.CONFIRMED) {
+            stock.cancelConfirmedSale(purchase.getQuantity());
         }
     }
 

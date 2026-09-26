@@ -89,4 +89,21 @@ public final class TimeDealStockReservationLuaScript {
 
     private TimeDealStockReservationLuaScript() {
     }
+
+    // DB에 커밋된 취소/만료 전용. 예약 실패 보상과 별도 경로다.
+    // 중복 방지 키는 지연 재시도에도 유효해야 하므로 자동 만료시키지 않는다.
+    public static final String RESTORE_SCRIPT = """
+            if redis.call('EXISTS', KEYS[3]) == 1 then
+                return 0
+            end
+            local quantity = tonumber(ARGV[1])
+            local stock = tonumber(redis.call('GET', KEYS[1]))
+            if stock == nil or quantity == nil or quantity <= 0 or quantity ~= math.floor(quantity) then
+                return 2
+            end
+            redis.call('INCRBY', KEYS[1], ARGV[1])
+            redis.call('SET', KEYS[3], '1')
+            redis.call('DEL', KEYS[2])
+            return 1
+            """;
 }

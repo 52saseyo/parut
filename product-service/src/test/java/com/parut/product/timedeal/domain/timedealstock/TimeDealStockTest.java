@@ -24,6 +24,42 @@ class TimeDealStockTest {
         return stock.getAvailableQuantity() + stock.getReservedQuantity() + stock.getSoldQuantity();
     }
 
+    @Test
+    void 확정판매_취소는_다른_예약을_유지한다() {
+        TimeDealStock stock = stock();
+        stock.reserve(10);
+        stock.confirmSale(5);
+
+        stock.cancelConfirmedSale(5);
+
+        assertThat(stock.getAvailableQuantity()).isEqualTo(95);
+        assertThat(stock.getReservedQuantity()).isEqualTo(5);
+        assertThat(stock.getSoldQuantity()).isZero();
+        assertThat(totalQuantity(stock)).isEqualTo(INITIAL_QUANTITY);
+    }
+
+    @Test
+    void 확정판매_취소는_잘못된_수량이면_재고를_변경하지_않는다() {
+        TimeDealStock stock = stock();
+        stock.reserve(10);
+        stock.confirmSale(5);
+
+        Integer[] quantities = {null, 0, -1, 6};
+        ErrorCode[] errors = {ErrorCode.INVALID_INPUT_VALUE,
+                ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY,
+                ErrorCode.TIME_DEAL_INVALID_PURCHASE_QUANTITY,
+                ErrorCode.TIME_DEAL_NEGATIVE_STOCK_QUANTITY};
+        for (int i = 0; i < quantities.length; i++) {
+            Integer quantity = quantities[i];
+            assertThatThrownBy(() -> stock.cancelConfirmedSale(quantity))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("errorCode").isEqualTo(errors[i]);
+            assertThat(stock.getAvailableQuantity()).isEqualTo(90);
+            assertThat(stock.getReservedQuantity()).isEqualTo(5);
+            assertThat(stock.getSoldQuantity()).isEqualTo(5);
+        }
+    }
+
     @Nested
     @DisplayName("생성")
     class Create {

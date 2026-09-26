@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * PENDING Outbox 이벤트를 주기적으로 Kafka로 전달한다.
+ * PENDING Outbox 이벤트를 주기적으로 처리한다.
  */
 @Slf4j
 @Component

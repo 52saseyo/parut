@@ -5,6 +5,7 @@ import com.parut.product.global.outbox.domain.OutboxEvent;
 import com.parut.product.global.outbox.domain.OutboxPublishStatus;
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -51,5 +52,10 @@ public class OutboxEventRepositoryAdapter implements OutboxEventRepository {
                 .limit(limit)
                 .map(JpaOutboxEvent::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Optional<OutboxEvent> findByEventId(UUID eventId) {
+        return jpaOutboxEventRepository.findByEventId(eventId).map(JpaOutboxEvent::toDomain);
     }
 }

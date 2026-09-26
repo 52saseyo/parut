@@ -102,7 +102,7 @@ public class OutboxEvent {
     }
 
     public void markPublished(Instant publishedAt) {
-        if (publishStatus == OutboxPublishStatus.PUBLISHED) {
+        if (publishStatus == OutboxPublishStatus.PUBLISHED) { // 멱등성 처리를 위해 PUBLISHED 라면 아무작업 없이 return
             return;
         }
         this.publishStatus = OutboxPublishStatus.PUBLISHED;
