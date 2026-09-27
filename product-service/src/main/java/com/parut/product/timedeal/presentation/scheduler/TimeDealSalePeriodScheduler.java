@@ -10,12 +10,12 @@ import org.springframework.stereotype.Component;
 public class TimeDealSalePeriodScheduler {
     private final TimeDealCommandUseCase timeDealCommandUseCase;
 
-    @Scheduled(fixedDelayString = "${parut.time-deal.sale-period-interval:1m}",
+    @Scheduled(fixedDelayString = "${parut.time-deal.sale-period-interval:1s}",
             scheduler = "timeDealTaskScheduler")
     public void endTimeDeals() {
         timeDealCommandUseCase.endTimeDeals();
     }
-    @Scheduled(fixedDelayString = "${parut.time-deal.sale-period-interval:1m}",
+    @Scheduled(fixedDelayString = "${parut.time-deal.sale-period-interval:1s}",
             scheduler = "timeDealTaskScheduler")
     public void activateTimeDeals() {
         timeDealCommandUseCase.activateTimeDeals();
