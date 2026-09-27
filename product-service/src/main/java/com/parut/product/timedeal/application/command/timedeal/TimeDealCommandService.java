@@ -20,17 +20,23 @@ import com.parut.product.timedeal.application.port.in.timedeal.TimeDealCommandUs
 import com.parut.product.timedeal.application.port.out.image.TimeDealImageCommandPort;
 import com.parut.product.timedeal.application.port.out.product.ProductStockPort;
 import com.parut.product.timedeal.application.port.out.timedeal.TimeDealRepository;
+import com.parut.product.timedeal.application.port.out.timedeal.TimeDealScheduleRedisPort;
 import com.parut.product.timedeal.application.port.out.timedealstock.TimeDealStockRepository;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockCreatedEvent;
 import com.parut.product.timedeal.application.event.timedealstock.TimeDealStockDeletedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleCreatedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleUpdatedEvent;
+import com.parut.product.timedeal.application.event.timedeal.TimeDealScheduleDeletedEvent;
 import com.parut.product.timedeal.domain.common.TimeDealPolicy;
 import com.parut.product.timedeal.domain.timedeal.TimeDeal;
 import com.parut.product.timedeal.domain.timedeal.TimeDealProductGrade;
 import com.parut.product.timedeal.domain.timedealstock.TimeDealStock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,8 +49,13 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TimeDealCommandService implements TimeDealCommandUseCase {
 
+    private static final int SALE_PERIOD_BATCH_SIZE = 100;
+    // 한 번 선점한 배치가 처리되는 동안 다른 서버가 재선점하지 않도록 충분히 길게 둔다.
+    private static final Duration SALE_PERIOD_LEASE = Duration.ofMinutes(5);
+
     private final TimeDealSalePeriodProcessor timeDealSalePeriodProcessor;
     private final TimeDealRepository timeDealRepository;
+    private final TimeDealScheduleRedisPort timeDealScheduleRedisPort;
     private final TimeDealStockRepository timeDealStockRepository;
     private final TimeDealPolicy timeDealPolicy;
     private final ProductStockPort productStockPort;
@@ -55,37 +66,27 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
     @Override
     public void endTimeDeals() {
         Instant now = Instant.now();
-        UUID afterId = null;
-        while (true) {
-            List<UUID> ids = timeDealRepository.findTimeDealsToEnd(now, afterId, 100);
-            if (ids.isEmpty()) {
-                return;
-            }
-            processTimeDeals(ids);
-            afterId = ids.getLast();
-        }
+        List<UUID> ids = timeDealScheduleRedisPort.claimCloseDue(
+                now, SALE_PERIOD_BATCH_SIZE, SALE_PERIOD_LEASE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::acknowledgeClose); // NOTE: 해당 작업이 끝난 ended는 processing 목록에서 제거
     }
 
     @Override
-    public void activateTimeDeals() {
+    public void
+    activateTimeDeals() {
         Instant now = Instant.now();
-        UUID afterId = null;
-        while (true) {
-            List<UUID> ids = timeDealRepository.findTimeDealsToActivate(now, afterId, 100);
-            if (ids.isEmpty()) {
-                return;
-            }
-            processTimeDeals(ids);
-            afterId = ids.getLast();
-        }
+        List<UUID> ids = timeDealScheduleRedisPort.claimOpenDue(
+                now, SALE_PERIOD_BATCH_SIZE, SALE_PERIOD_LEASE);
+        processTimeDeals(ids, timeDealScheduleRedisPort::acknowledgeOpen); // NOTE:  해당 작업이 끝난 active는 processing 목록에서 제거
     }
 
-    private void processTimeDeals(List<UUID> ids) {
+    private void processTimeDeals(List<UUID> ids, Consumer<UUID> removeSchedule) { // NOTE: Void 반환값없는 콜백 사용하기위해 Consumer<> 사용
         for (UUID id : ids) {
             try {
                 AuditorContext.set(AuditorConstants.BATCH_SYSTEM_USER_ID);
                 // 대상 조회 이후 시간이 흐르거나 판매 조건이 바뀔 수 있어 처리 시점에 재판정한다.
                 timeDealSalePeriodProcessor.synchronize(id);
+                removeSchedule.accept(id);
             } catch (Exception e) {
                 log.error("[TimeDeal] 판매 기간 상태 변경 실패: timeDealId={}", id, e);
             } finally {
@@ -108,7 +109,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         timeDealPolicy.delete(timeDeal, stock, command.requesterId().toString());
         timeDealRepository.save(timeDeal);
         timeDealStockRepository.save(stock);
-        publishDeletedEvent(stock);
+        publishTimeDealDeletedEvents(command.timeDealId(), stock);
     }
 
     @Override
@@ -142,6 +143,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         );
         // NOTE: flush 시 갱신되는 감사 필드 updatedAt을 응답에 반영한다.
         TimeDeal savedTimeDeal = timeDealRepository.saveAndFlush(timeDeal);
+        publishTimeDealUpdatedEvent(savedTimeDeal);
         return TimeDealUpdateResult.from(savedTimeDeal);
     }
 
@@ -180,7 +182,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 timeDealCreateCommand.lowStockThreshold()
         );
         timeDealStockRepository.save(timeDealStock);
-        publishCreatedEvent(timeDealStock);
+        publishTimeDealCreatedEvents(savedTimeDeal, timeDealStock);
 
         log.info(
                 "[TimeDeal] 직접 등록 완료. timeDealId={}, sellerId={}, initialQuantity={}",
@@ -229,7 +231,7 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
                 savedTimeDeal, productStockAllocateResult.quantity(), timeDealConvertCommand.lowStockThreshold());
 
         timeDealStockRepository.save(timeDealStock);
-        publishCreatedEvent(timeDealStock);
+        publishTimeDealCreatedEvents(savedTimeDeal, timeDealStock);
 
         if (productStockAllocateResult.imageId() != null) {
             timeDealImageCommandPort.save(new TimeDealImageSaveCommand(
@@ -259,13 +261,20 @@ public class TimeDealCommandService implements TimeDealCommandUseCase {
         }
     }
 
-    private void publishCreatedEvent(TimeDealStock stock) {
+    private void publishTimeDealCreatedEvents(TimeDeal timeDeal, TimeDealStock stock) {
         eventPublisher.publishEvent(new TimeDealStockCreatedEvent(
-                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity()));
+                stock.getTimeDealId(), stock.getId(), stock.getAvailableQuantity())); // NOTE: 생성시 stock 관련 이벤트
+        eventPublisher.publishEvent(new TimeDealScheduleCreatedEvent(
+                timeDeal.getId(), timeDeal.getStartAt(), timeDeal.getEndAt())); // NOTE: 생성시 schedule 관련 이벤트
     }
 
-    private void publishDeletedEvent(TimeDealStock stock) {
-        eventPublisher.publishEvent(new TimeDealStockDeletedEvent(
-                stock.getTimeDealId(), stock.getId()));
+    private void publishTimeDealUpdatedEvent(TimeDeal timeDeal) {
+        eventPublisher.publishEvent(new TimeDealScheduleUpdatedEvent(
+                timeDeal.getId(), timeDeal.getStartAt(), timeDeal.getEndAt()));
+    }
+
+    private void publishTimeDealDeletedEvents(UUID timeDealId, TimeDealStock stock) {
+        eventPublisher.publishEvent(new TimeDealStockDeletedEvent(stock.getTimeDealId(), stock.getId())); // NOTE: 생성시 stock 관련 이벤트
+        eventPublisher.publishEvent(new TimeDealScheduleDeletedEvent(timeDealId)); // NOTE: 생성시 schedule 관련 이벤트
     }
 }
