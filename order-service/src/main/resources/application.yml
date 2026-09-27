@@ -22,6 +22,12 @@ payment:
   success-url: ${PAYMENT_SUCCESS_URL:http://localhost:3000/payments/success}
   fail-url: ${PAYMENT_FAIL_URL:http://localhost:3000/payments/fail}
 
+toss:
+  enabled: ${TOSS_ENABLED:true}
+  client-key: ${TOSS_CLIENT_KEY:}
+  secret-key: ${TOSS_SECRET_KEY:}
+  base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
+
 # 유저 테이블에 SYSTEM 계정이 생성되면 실제 UUID로 교체 필요
 app:
   system-account-id: ${SYSTEM_ACCOUNT_ID:00000000-0000-0000-0000-000000000000}
