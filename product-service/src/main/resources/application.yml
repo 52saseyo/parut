@@ -45,7 +45,7 @@ parut:
     publish-interval: ${OUTBOX_PUBLISH_INTERVAL:5s}
     publish-batch-size: ${OUTBOX_PUBLISH_BATCH_SIZE:50}
   time-deal:
-    sale-period-interval: ${TIME_DEAL_SALE_PERIOD_INTERVAL:1m}
+    sale-period-interval: ${TIME_DEAL_SALE_PERIOD_INTERVAL:1s}
     purchase-expiration-interval: ${TIME_DEAL_PURCHASE_EXPIRATION_INTERVAL:1m}
 
 
