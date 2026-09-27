@@ -94,6 +94,9 @@ public class PaymentService {
         Payment payment = paymentRepository.findByOrderNo(command.tossOrderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
 
+        if (!payment.getUserId().equals(command.userId())) {
+            throw new BusinessException(ErrorCode.ORDER_ACCESS_DENIED);
+        }
         if (!payment.getTotalAmount().equals(command.amount())) {
             throw new BusinessException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
