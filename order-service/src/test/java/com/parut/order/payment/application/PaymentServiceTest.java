@@ -144,12 +144,27 @@ class PaymentServiceTest {
         payment.start();
         when(paymentRepository.findByOrderNo(ORDER_NO)).thenReturn(Optional.of(payment));
 
-        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 32_999L, "idem-confirm-0001");
+        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 32_999L, "idem-confirm-0001", USER_ID);
 
         assertThatThrownBy(() -> paymentService.loadForConfirm(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
+    }
+
+    @Test
+    @DisplayName("결제 승인: 본인 결제가 아니면 ORDER_ACCESS_DENIED를 던진다")
+    void 결제승인_타인결제() {
+        Payment payment = withId(Payment.create(ORDER_ID, ORDER_NO, USER_ID, 33_000L, IDEMPOTENCY_KEY));
+        payment.start();
+        when(paymentRepository.findByOrderNo(ORDER_NO)).thenReturn(Optional.of(payment));
+
+        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001", UUID.randomUUID());
+
+        assertThatThrownBy(() -> paymentService.loadForConfirm(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ORDER_ACCESS_DENIED);
     }
 
     @Test
@@ -161,7 +176,7 @@ class PaymentServiceTest {
         when(orderSnapshotQueryUseCase.getOrderSnapshot(ORDER_ID))
                 .thenReturn(Optional.of(orderSnapshot(OrderStatus.ABORTED)));
 
-        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001");
+        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001", USER_ID);
 
         assertThatThrownBy(() -> paymentService.loadForConfirm(command))
                 .isInstanceOf(BusinessException.class)
@@ -175,7 +190,7 @@ class PaymentServiceTest {
         Payment payment = withId(Payment.create(ORDER_ID, ORDER_NO, USER_ID, 33_000L, IDEMPOTENCY_KEY));
         payment.start();
         PaymentConfirmContext context = new PaymentConfirmContext(payment.getId(), ORDER_ID, USER_ID, List.of(itemSnapshot()));
-        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001");
+        PaymentConfirmCommand command = new PaymentConfirmCommand("payment-key-1", ORDER_NO, 33_000L, "idem-confirm-0001", USER_ID);
         PaymentApproveResult approveResult = new PaymentApproveResult(
                 PaymentMethod.CREDIT_CARD, Instant.now(), "https://mock-pg.parut.local/receipts/1", "pg-tx-approve-1"
         );
