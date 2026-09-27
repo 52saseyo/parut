@@ -7,7 +7,6 @@ import com.parut.order.payment.application.port.out.dto.ProductStockConfirmItem;
 import com.parut.order.payment.infrastructure.client.dto.ProductStockConfirmApiRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -30,11 +29,6 @@ public class FeignProductStockConfirmClient implements ProductStockConfirmClient
                             .toList()
             ));
         } catch (BusinessException e) {
-            if (e.getStatus() == HttpStatus.NOT_FOUND || e.getStatus() == HttpStatus.CONFLICT) {
-                log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}, code={}, message={}",
-                        orderId, items, e.getCode(), e.getMessage());
-                throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
-            }
             throw e;
         } catch (Exception e) {
             log.warn("[ProductStockConfirmClient] 재고 확정 실패 orderId={}, items={}", orderId, items, e);

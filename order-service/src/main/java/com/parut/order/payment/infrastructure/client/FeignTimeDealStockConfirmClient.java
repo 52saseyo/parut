@@ -5,7 +5,6 @@ import com.parut.order.global.exception.ErrorCode;
 import com.parut.order.payment.application.port.out.TimeDealStockConfirmClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -22,11 +21,6 @@ public class FeignTimeDealStockConfirmClient implements TimeDealStockConfirmClie
         try {
             timeDealStockConfirmFeignClient.confirmStock(orderId);
         } catch (BusinessException e) {
-            if (e.getStatus() == HttpStatus.NOT_FOUND || e.getStatus() == HttpStatus.CONFLICT) {
-                log.warn("[TimeDealStockConfirmClient] 타임딜 재고 확정 실패 orderId={}, code={}, message={}",
-                        orderId, e.getCode(), e.getMessage());
-                throw new BusinessException(ErrorCode.STOCK_SHORTAGE);
-            }
             throw e;
         } catch (Exception e) {
             log.warn("[TimeDealStockConfirmClient] 타임딜 재고 확정 실패 orderId={}", orderId, e);

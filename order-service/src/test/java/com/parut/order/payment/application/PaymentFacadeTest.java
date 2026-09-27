@@ -178,8 +178,8 @@ class PaymentFacadeTest {
     }
 
     @Test
-    @DisplayName("결제 승인: 재고 확정 실패가 STOCK_SHORTAGE가 아니면 보상 없이 그대로 전파한다")
-    void 결제승인_재고확정실패_다른에러코드는_보상없이_전파() {
+    @DisplayName("결제 승인: 재고 확정 API 호출 자체가 실패(SERVICE_UNAVAILABLE)하면 보상 없이 그대로 전파한다")
+    void 결제승인_재고확정_통신실패는_보상없이_전파() {
         PaymentConfirmCommand command = command();
         PaymentConfirmContext context = context();
         PaymentApproveResult approveResult = approveResult();
@@ -189,13 +189,13 @@ class PaymentFacadeTest {
         when(paymentGateway.approve(command.paymentKey(), command.tossOrderId(), command.amount(), command.idempotencyKey()))
                 .thenReturn(approveResult);
         when(paymentService.applyApproved(context, command, approveResult)).thenReturn(confirmResult);
-        doThrow(new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE))
+        doThrow(new BusinessException(ErrorCode.SERVICE_UNAVAILABLE))
                 .when(productStockConfirmClient).confirmStock(ORDER_ID, List.of(new ProductStockConfirmItem(PRODUCT_ID, ORDER_ITEM_ID)));
 
         assertThatThrownBy(() -> paymentFacade.confirm(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PRODUCT_UNAVAILABLE);
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
 
         verify(paymentGateway, never()).cancel(any(), anyLong(), any());
         verify(paymentService, never()).applyStockShortageCancel(any(), any());

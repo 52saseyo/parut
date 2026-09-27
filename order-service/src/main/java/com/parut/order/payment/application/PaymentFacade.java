@@ -58,9 +58,11 @@ public class PaymentFacade {
                 productStockConfirmClient.confirmStock(context.orderId(), confirmItems);
             }
         } catch (BusinessException e) {
-            if (e.getErrorCode() != ErrorCode.STOCK_SHORTAGE) {
+            if (e.getErrorCode() == ErrorCode.SERVICE_UNAVAILABLE) {
                 throw e;
             }
+            log.warn("[PaymentFacade] 재고 확정 실패로 결제를 자동 취소합니다. orderId={}, code={}, message={}",
+                    context.orderId(), e.getCode(), e.getMessage());
             compensateStockShortage(context, command, result);
             throw new BusinessException(ErrorCode.STOCK_SHORTAGE_PAYMENT_CANCELED);
         }
