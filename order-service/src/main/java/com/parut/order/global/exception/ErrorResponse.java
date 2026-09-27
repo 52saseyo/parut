@@ -10,13 +10,14 @@ public record ErrorResponse(
         Instant timestamp
 ) {
     public static ErrorResponse of(
-            ErrorCode errorCode,
+            String code,
+            String message,
             String traceId
     ) {
         return new ErrorResponse(
                 false,
-                errorCode.name(),
-                errorCode.getMessage(),
+                code,
+                message,
                 traceId,
                 Instant.now()
         );
