@@ -58,7 +58,7 @@ class PaymentFacadeTest {
     private PaymentFacade paymentFacade;
 
     private PaymentConfirmCommand command() {
-        return new PaymentConfirmCommand("payment-key-1", "ORD-20260908-AAAAAAAA", AMOUNT, "idem-confirm-0001");
+        return new PaymentConfirmCommand("payment-key-1", "ORD-20260908-AAAAAAAA", AMOUNT, "idem-confirm-0001", USER_ID);
     }
 
     private PaymentConfirmContext context() {

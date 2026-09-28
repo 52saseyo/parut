@@ -1,18 +1,19 @@
 package com.parut.order.payment.infrastructure.gateway;
 
-import java.time.Instant;
-import java.util.UUID;
-
-import org.springframework.stereotype.Component;
-
 import com.parut.order.payment.application.port.out.PaymentGateway;
 import com.parut.order.payment.application.port.out.dto.PaymentApproveResult;
 import com.parut.order.payment.application.port.out.dto.PaymentCancelResult;
 import com.parut.order.payment.domain.PaymentMethod;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.UUID;
 
 // Mock: HTTP 호출·재시도·타임아웃 없이 성공 응답만 즉시 반환
-// 실제 PG 스펙은 TossPaymentGateway 작성 시에 반영
+// toss.enabled=false일 때만 활성화
 @Component
+@ConditionalOnProperty(name = "toss.enabled", havingValue = "false")
 public class MockPaymentGateway implements PaymentGateway {
 
     @Override
@@ -38,5 +39,11 @@ public class MockPaymentGateway implements PaymentGateway {
                 Instant.now(),
                 "MOCK-TX-" + UUID.randomUUID()
         );
+    }
+
+    @Override
+    public String getStatus(String paymentKey) {
+        // Mock 모드에서는 실제 PG 웹훅이 오지 않아 호출될 일이 없다
+        return "DONE";
     }
 }

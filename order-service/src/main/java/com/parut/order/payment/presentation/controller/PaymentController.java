@@ -39,10 +39,11 @@ public class PaymentController {
     @PostMapping("/confirm")
     @RequireRole(UserRole.CUSTOMER)
     public ApiResponse<PaymentConfirmResponse> confirm(
+            UserContext userContext,
             @RequestHeader(HeaderConstants.IDEMPOTENCY_KEY) String idempotencyKey,
             @Valid @RequestBody PaymentConfirmRequest request
     ) {
-        PaymentConfirmResult result = paymentFacade.confirm(request.toCommand(idempotencyKey));
+        PaymentConfirmResult result = paymentFacade.confirm(request.toCommand(idempotencyKey, userContext.userId()));
 
         return ApiResponse.success(PaymentConfirmResponse.from(result));
     }
