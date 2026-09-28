@@ -1,6 +1,7 @@
 package com.parut.notification.notification.infrastructure.messaging;
 
 import com.parut.notification.global.constant.HeaderConstants;
+import com.parut.notification.global.constant.KafkaTopicConstants;
 import com.parut.notification.global.logging.TraceIdContext;
 import com.parut.notification.notification.application.port.in.TimeDealOpeningSoonNotificationUseCase;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +20,8 @@ public class TimeDealOpeningSoonConsumer {
     private final TimeDealOpeningSoonNotificationUseCase timeDealOpeningSoonNotificationUseCase;
 
     @KafkaListener(
-            topics = "time-deal.opening-soon",
-            groupId = "notification-time-deal-opening-soon",
+            topics = KafkaTopicConstants.TIME_DEAL_OPENING_SOON,
+            groupId = KafkaTopicConstants.TIME_DEAL_OPENING_SOON_GROUP,
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(
@@ -30,6 +31,9 @@ public class TimeDealOpeningSoonConsumer {
     ) {
         try {
             TraceIdContext.set(traceId);
+
+            event.validate();
+
             log.info(
                     "타임딜 임박 이벤트 수신 "
                             + "eventId={}, timeDealId={}",
