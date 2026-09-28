@@ -8,6 +8,7 @@
 
 - [프로젝트 발표자료](./docs/presentation/parut-presentation.pdf)
 - [서비스 시연영상](./docs/presentation/parut-demo.mp4)
+- [프로젝트 Notion](https://innovative-sunshine-4ce.notion.site/5-PARUT-7e486ebf7b7f83c7930501b89ac2c0dc?pvs=73)
 
 ## 핵심 기능
 
