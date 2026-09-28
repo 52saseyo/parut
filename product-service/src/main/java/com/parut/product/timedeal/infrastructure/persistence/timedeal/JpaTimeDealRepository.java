@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 public interface JpaTimeDealRepository extends JpaRepository<TimeDeal, UUID> {
 
@@ -34,4 +35,34 @@ public interface JpaTimeDealRepository extends JpaRepository<TimeDeal, UUID> {
              order by id
             """, nativeQuery = true)
     List<UUID> findTimeDealsAvailableForRedis(@Param("now") Instant now);
+
+    @Query(value = """
+            select id as id, start_at as startAt, end_at as endAt
+              from product_schema.p_time_deals
+             where deleted_at is null
+               and status in ('ACTIVE', 'SCHEDULED')
+             order by id
+            """, nativeQuery = true)
+    List<TimeDealScheduleProjection> findFirstSalePeriodSchedules(Pageable pageable);
+
+    @Query(value = """
+            select id as id, start_at as startAt, end_at as endAt
+              from product_schema.p_time_deals
+             where deleted_at is null
+               and status in ('ACTIVE', 'SCHEDULED')
+               and id > :lastSeenId
+             order by id
+            """, nativeQuery = true)
+    List<TimeDealScheduleProjection> findSalePeriodSchedulesAfter(
+            @Param("lastSeenId") UUID lastSeenId,
+            Pageable pageable
+    );
+
+    interface TimeDealScheduleProjection {
+        UUID getId();
+
+        Instant getStartAt();
+
+        Instant getEndAt();
+    }
 }
