@@ -22,6 +22,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     /** 클라이언트 인입 경로 전체. 새 컨트롤러가 인증 없이 열리지 않도록 기본 적용 대상으로 둔다. */
     private static final String CLIENT_API_PATTERN = "/api/v1/**";
 
+    /** Toss가 직접 호출하는 콜백 경로. X-User-Id 등 우리 인증 헤더를 보내지 않아 제외한다. */
+    private static final String PAYMENT_WEBHOOK_PATTERN = "/api/v1/payments/webhook";
+
     private final ServiceKeyInterceptor serviceKeyInterceptor;
     private final UserContextInterceptor userContextInterceptor;
     private final UserContextArgumentResolver userContextArgumentResolver;
@@ -34,7 +37,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
         registry.addInterceptor(userContextInterceptor)
                 .addPathPatterns(CLIENT_API_PATTERN)
-                .excludePathPatterns(INTERNAL_API_PATTERN);
+                .excludePathPatterns(INTERNAL_API_PATTERN, PAYMENT_WEBHOOK_PATTERN);
     }
 
     @Override
